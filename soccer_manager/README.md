@@ -2,6 +2,10 @@
 
 サッカークラブ経営・育成シミュレーションのスマホアプリ（Flutter + Flame）。
 
+Web版（お試し公開）: https://nami0817kk-arch.github.io/kabu-agari-ranking/play/
+（`.github/workflows/soccer-manager-web.yml` がpush時にビルド・GitHub Pagesへ自動デプロイする。
+既存の値上がりランキングサイトのデプロイ先(Cloudflare Pages)とは独立しており影響しない）
+
 自分のクラブを創設し、下記のループを繰り返してリーグ優勝を目指す。
 
 - **トレーニング**: 攻撃・守備・体力強化・休養の中から週ごとの方針を選び、選手を育成する
