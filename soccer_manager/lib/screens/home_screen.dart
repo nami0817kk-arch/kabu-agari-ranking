@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
+import 'club_screen.dart';
+import 'cup_screen.dart';
 import 'finance_screen.dart';
 import 'match_screen.dart';
 import 'start_screen.dart';
@@ -163,6 +165,20 @@ class HomeScreen extends StatelessWidget {
                 onTap: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinanceScreen())),
               ),
+              _ActionTile(
+                icon: Icons.apartment,
+                label: '施設・スタッフ',
+                color: Colors.blueGrey.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClubScreen())),
+              ),
+              _ActionTile(
+                icon: Icons.emoji_events,
+                label: 'カップ戦',
+                color: Colors.purple.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CupScreen())),
+              ),
             ],
           ),
         ],
@@ -196,7 +212,7 @@ class HomeScreen extends StatelessWidget {
 
     if (result != null) {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => MatchScreen(result: result, league: league)),
+        MaterialPageRoute(builder: (_) => MatchScreen(result: result, teams: league.teams)),
       );
     }
   }

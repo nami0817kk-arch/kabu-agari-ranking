@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../logic/scouting_engine.dart';
 import '../state/game_state.dart';
 import '../widgets/position_colors.dart';
 
@@ -13,8 +12,9 @@ class YouthScreen extends StatelessWidget {
     final save = gameState.save!;
     final prospects = save.youthProspects;
     final squadFull = gameState.userTeam.players.length >= maxSquadSize;
-    final canScout =
-        save.budget >= ScoutingEngine.scoutCost && prospects.length < ScoutingEngine.maxProspects;
+    final scoutCost = gameState.scoutCost;
+    final maxProspects = gameState.maxYouthProspects;
+    final canScout = save.budget >= scoutCost && prospects.length < maxProspects;
 
     return Scaffold(
       appBar: AppBar(title: const Text('ユース・スカウト')),
@@ -28,18 +28,18 @@ class YouthScreen extends StatelessWidget {
                 Text('資金: ${save.budget}万円'),
                 FilledButton(
                   onPressed: canScout ? () => _scout(context) : null,
-                  child: const Text('スカウトする（${ScoutingEngine.scoutCost}万円）'),
+                  child: Text('スカウトする（$scoutCost万円）'),
                 ),
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'シーズン終了時にはアカデミーから無償の昇格候補も加わる。',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+                'シーズン終了時にはアカデミーから無償の昇格候補も加わる（枠: ${prospects.length}/$maxProspects）。',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ),
           ),

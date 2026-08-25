@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/club_infrastructure.dart';
+import '../models/cup.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/save_game.dart';
@@ -10,6 +12,7 @@ import '../models/league.dart';
 import '../models/match_result.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
+import '../logic/cup_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/lineup_utils.dart';
@@ -90,6 +93,13 @@ class GameState extends ChangeNotifier {
       userTeamId: 'user',
       league: league,
       boardTargetRank: BoardEngine.estimateTargetRank(league, 'user'),
+      cups: [
+        CupEngine.createKnockout(
+          type: CupType.domestic,
+          name: '国内カップ',
+          teamIds: teams.map((t) => t.id).toList(),
+        ),
+      ],
     );
     transferMarket = TransferMarket.generate();
     lastContractExpirations = [];
@@ -124,9 +134,53 @@ class GameState extends ChangeNotifier {
 
   Future<void> runWeeklyTraining() async {
     if (_save == null) return;
-    TrainingEngine.applyWeeklyTraining(userTeam);
+    final infra = _save!.infrastructure;
+    TrainingEngine.applyWeeklyTraining(
+      userTeam,
+      headCoachLevel: infra.staffLevel(StaffRole.headCoach),
+      trainingGroundLevel: infra.facilityLevel(FacilityType.trainingGround),
+    );
     notifyListeners();
     await _persist();
+  }
+
+  /// スタッフ雇用・昇格の費用(万円)。上限レベルなら0を返す。
+  int staffUpgradeCostFor(StaffRole role) {
+    final lvl = _save!.infrastructure.staffLevel(role);
+    return ClubInfrastructure.staffUpgradeCost(lvl);
+  }
+
+  int facilityUpgradeCostFor(FacilityType type) {
+    final lvl = _save!.infrastructure.facilityLevel(type);
+    return ClubInfrastructure.facilityUpgradeCost(lvl);
+  }
+
+  Future<bool> upgradeStaff(StaffRole role) async {
+    if (_save == null) return false;
+    final infra = _save!.infrastructure;
+    final lvl = infra.staffLevel(role);
+    if (lvl >= ClubInfrastructure.maxLevel) return false;
+    final cost = ClubInfrastructure.staffUpgradeCost(lvl);
+    if (_save!.budget < cost) return false;
+    _save!.budget -= cost;
+    infra.upgradeStaff(role);
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  Future<bool> upgradeFacility(FacilityType type) async {
+    if (_save == null) return false;
+    final infra = _save!.infrastructure;
+    final lvl = infra.facilityLevel(type);
+    if (lvl >= ClubInfrastructure.maxLevel) return false;
+    final cost = ClubInfrastructure.facilityUpgradeCost(lvl);
+    if (_save!.budget < cost) return false;
+    _save!.budget -= cost;
+    infra.upgradeFacility(type);
+    notifyListeners();
+    await _persist();
+    return true;
   }
 
   void setPressing(int value) {
@@ -224,12 +278,20 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
+  int get scoutCost => ScoutingEngine.scoutCostFor(_save!.infrastructure.staffLevel(StaffRole.scout));
+
+  int get maxYouthProspects =>
+      ScoutingEngine.maxProspectsFor(_save!.infrastructure.facilityLevel(FacilityType.youthFacility));
+
   Future<bool> scoutProspect() async {
     if (_save == null) return false;
-    if (_save!.budget < ScoutingEngine.scoutCost) return false;
-    if (_save!.youthProspects.length >= ScoutingEngine.maxProspects) return false;
-    _save!.budget -= ScoutingEngine.scoutCost;
-    _save!.youthProspects.add(ScoutingEngine.generateScoutedProspect());
+    final infra = _save!.infrastructure;
+    final cost = ScoutingEngine.scoutCostFor(infra.staffLevel(StaffRole.scout));
+    final maxP = ScoutingEngine.maxProspectsFor(infra.facilityLevel(FacilityType.youthFacility));
+    if (_save!.budget < cost) return false;
+    if (_save!.youthProspects.length >= maxP) return false;
+    _save!.budget -= cost;
+    _save!.youthProspects.add(ScoutingEngine.generateScoutedProspect(scoutLevel: infra.staffLevel(StaffRole.scout)));
     notifyListeners();
     await _persist();
     return true;
@@ -260,10 +322,21 @@ class GameState extends ChangeNotifier {
     final rank = standings.indexWhere((r) => r.teamId == teamId) + 1;
     final teamCount = league.teams.length;
     final rankBonus = ((teamCount - rank) * 20).clamp(0, 999);
-    return 150 + rankBonus;
+    final base = 150 + rankBonus;
+    if (teamId == _save!.userTeamId) {
+      final stadiumLevel = _save!.infrastructure.facilityLevel(FacilityType.stadium);
+      return base + (stadiumLevel - 1) * 80;
+    }
+    return base;
   }
 
-  int get weeklyWageBill => ContractEngine.weeklyWageBill(userTeam);
+  int get weeklyWageBill => ContractEngine.weeklyWageBill(userTeam) + _save!.infrastructure.totalStaffWeeklyWage;
+
+  /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
+  double get _userInjuryFactor =>
+      (1 - (_save!.infrastructure.staffLevel(StaffRole.physio) - 1) * 0.15).clamp(0.4, 1.0);
+
+  double _injuryFactorFor(String teamId) => teamId == _save!.userTeamId ? _userInjuryFactor : 1.0;
 
   Future<MatchResult?> playNextMatchday() async {
     if (_save == null) return null;
@@ -287,7 +360,13 @@ class GameState extends ChangeNotifier {
     for (final f in league.fixturesForMatchday(md)) {
       final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
       final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
-      final result = MatchEngine.simulate(home: home, away: away, matchday: md);
+      final result = MatchEngine.simulate(
+        home: home,
+        away: away,
+        matchday: md,
+        homeInjuryFactor: _injuryFactorFor(home.id),
+        awayInjuryFactor: _injuryFactorFor(away.id),
+      );
       f.result = result;
       if (f.homeTeamId == _save!.userTeamId || f.awayTeamId == _save!.userTeamId) {
         userResult = result;
@@ -305,6 +384,60 @@ class GameState extends ChangeNotifier {
     notifyListeners();
     await _persist();
     return userResult;
+  }
+
+  List<Team> get allTeamsForCups => [..._save!.league.teams, ..._save!.continentalTeams];
+
+  Cup? _cupOfType(CupType type) {
+    for (final c in _save!.cups) {
+      if (c.type == type) return c;
+    }
+    return null;
+  }
+
+  Cup? get domesticCup => _save == null ? null : _cupOfType(CupType.domestic);
+  Cup? get continentalCup => _save == null ? null : _cupOfType(CupType.continental);
+
+  /// 前シーズンの最終順位に基づき、来季の大陸カップ出場資格があるか。
+  bool get qualifiedForContinentalCup => (_save?.lastSeasonRank ?? 99) <= 2;
+
+  Future<MatchResult?> playNextCupMatch(CupType type) async {
+    if (_save == null) return null;
+    final cup = _cupOfType(type);
+    if (cup == null) return null;
+    final userId = _save!.userTeamId;
+
+    final result = CupEngine.playNextMatch(cup, allTeamsForCups);
+    if (result != null && (result.homeTeamId == userId || result.awayTeamId == userId)) {
+      if (cup.isEliminated(userId)) {
+        _save!.confidence = (_save!.confidence + (type == CupType.continental ? -3 : -1)).clamp(0, 100);
+      }
+    }
+    if (cup.isComplete && cup.championId == userId && !cup.rewardClaimed) {
+      cup.rewardClaimed = true;
+      final prize = type == CupType.continental ? 1500 : 700;
+      _save!.budget += prize;
+      _save!.confidence = (_save!.confidence + (type == CupType.continental ? 20 : 10)).clamp(0, 100);
+    }
+    notifyListeners();
+    await _persist();
+    return result;
+  }
+
+  List<Team> _generateContinentalTeams() {
+    final rng = Random();
+    final names = NamePool.clubNames(7).map((n) => '$n（欧州）').toList();
+    final teams = <Team>[];
+    for (int i = 0; i < 7; i++) {
+      final t = PlayerGenerator.generateSquad(
+        id: 'continental$i',
+        name: names[i],
+        strengthTier: 65 + rng.nextInt(20),
+      );
+      LineupUtils.autoFill(t);
+      teams.add(t);
+    }
+    return teams;
   }
 
   Future<void> startNextSeason() async {
@@ -325,13 +458,37 @@ class GameState extends ChangeNotifier {
         p.age += 1;
       }
     }
-    if (_save!.youthProspects.length < ScoutingEngine.maxProspects) {
-      _save!.youthProspects.add(ScoutingEngine.generateAcademyGraduate());
+    final infra = _save!.infrastructure;
+    if (_save!.youthProspects.length < ScoutingEngine.maxProspectsFor(infra.facilityLevel(FacilityType.youthFacility))) {
+      _save!.youthProspects
+          .add(ScoutingEngine.generateAcademyGraduate(youthCoachLevel: infra.staffLevel(StaffRole.youthCoach)));
     }
     final newFixtures = FixtureGenerator.generateDoubleRoundRobin(league.teams);
     _save!.league = League(teams: league.teams, fixtures: newFixtures, season: league.season + 1);
     _save!.boardTargetRank = BoardEngine.estimateTargetRank(_save!.league, _save!.userTeamId);
     transferMarket = TransferMarket.generate();
+
+    _save!.lastSeasonRank = finalRank;
+    final newCups = <Cup>[
+      CupEngine.createKnockout(
+        type: CupType.domestic,
+        name: '国内カップ',
+        teamIds: league.teams.map((t) => t.id).toList(),
+      ),
+    ];
+    if (finalRank <= 2) {
+      final continentalTeams = _generateContinentalTeams();
+      _save!.continentalTeams = continentalTeams;
+      newCups.add(CupEngine.createKnockout(
+        type: CupType.continental,
+        name: '大陸カップ',
+        teamIds: [_save!.userTeamId, ...continentalTeams.map((t) => t.id)],
+      ));
+    } else {
+      _save!.continentalTeams = [];
+    }
+    _save!.cups = newCups;
+
     notifyListeners();
     await _persist();
   }

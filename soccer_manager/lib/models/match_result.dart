@@ -1,8 +1,10 @@
-enum MatchEventType { goal }
+enum MatchEventType { goal, chance, yellowCard, redCard }
 
 class MatchEvent {
   final int minute;
   final String teamId;
+
+  /// 得点者・警告/退場対象者・チャンスを迎えた選手名など、イベント種別に応じた選手名。
   final String? scorerName;
   final MatchEventType type;
 

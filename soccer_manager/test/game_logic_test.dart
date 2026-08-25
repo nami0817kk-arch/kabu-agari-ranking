@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
+import 'package:soccer_manager/logic/cup_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
@@ -9,6 +10,8 @@ import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
 import 'package:soccer_manager/models/attributes.dart';
+import 'package:soccer_manager/models/club_infrastructure.dart';
+import 'package:soccer_manager/models/cup.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
@@ -278,5 +281,99 @@ void main() {
     expect(ok, isTrue);
     expect(player.contractWeeksRemaining, ContractEngine.renewalWeeks);
     expect(gameState.save!.budget, 0);
+  });
+
+  test('ClubInfrastructure upgrades increase level and cost more each time', () {
+    final infra = ClubInfrastructure();
+    expect(infra.staffLevel(StaffRole.physio), 1);
+    final firstCost = ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
+
+    final upgraded = infra.upgradeStaff(StaffRole.physio);
+
+    expect(upgraded, isTrue);
+    expect(infra.staffLevel(StaffRole.physio), 2);
+    final secondCost = ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
+    expect(secondCost, greaterThan(firstCost));
+  });
+
+  test('ClubInfrastructure staff cannot upgrade past max level', () {
+    final infra = ClubInfrastructure();
+    for (int i = 0; i < ClubInfrastructure.maxLevel - 1; i++) {
+      expect(infra.upgradeStaff(StaffRole.scout), isTrue);
+    }
+    expect(infra.staffLevel(StaffRole.scout), ClubInfrastructure.maxLevel);
+    expect(infra.upgradeStaff(StaffRole.scout), isFalse);
+  });
+
+  test('GameState.upgradeFacility deducts budget and raises the level', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final cost = gameState.facilityUpgradeCostFor(FacilityType.stadium);
+    gameState.save!.budget = cost;
+
+    final ok = await gameState.upgradeFacility(FacilityType.stadium);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.infrastructure.facilityLevel(FacilityType.stadium), 2);
+    expect(gameState.save!.budget, 0);
+  });
+
+  test('GameState.upgradeStaff fails when budget is insufficient', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = 0;
+
+    final ok = await gameState.upgradeStaff(StaffRole.headCoach);
+
+    expect(ok, isFalse);
+    expect(gameState.save!.infrastructure.staffLevel(StaffRole.headCoach), 1);
+  });
+
+  test('CupEngine.createKnockout builds a full bracket for a power-of-two field with no byes', () {
+    final teamIds = List.generate(8, (i) => 't$i');
+    final cup = CupEngine.createKnockout(type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
+
+    expect(cup.rounds.length, 1);
+    expect(cup.rounds.first.length, 4);
+    expect(cup.rounds.first.every((m) => !m.isBye), isTrue);
+  });
+
+  test('CupEngine.playNextMatch advances rounds until a single champion remains', () {
+    final teams = List.generate(8, (i) => PlayerGenerator.generateSquad(id: 't$i', name: 'Club $i', strengthTier: 60));
+    for (final t in teams) {
+      LineupUtils.autoFill(t);
+    }
+    final cup = CupEngine.createKnockout(
+      type: CupType.domestic,
+      name: '国内カップ',
+      teamIds: teams.map((t) => t.id).toList(),
+    );
+
+    // 8チーム(準々決勝4+準決勝2+決勝1=7試合)を全て消化する。
+    for (int i = 0; i < 7; i++) {
+      final result = CupEngine.playNextMatch(cup, teams);
+      expect(result, isNotNull);
+    }
+
+    expect(cup.isComplete, isTrue);
+    expect(cup.championId, isNotNull);
+    expect(cup.rounds.length, 3);
+    expect(CupEngine.playNextMatch(cup, teams), isNull);
+  });
+
+  test('GameState creates a domestic cup on new game that can be played to completion', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    expect(gameState.domesticCup, isNotNull);
+    expect(gameState.continentalCup, isNull);
+
+    int guard = 0;
+    do {
+      await gameState.playNextCupMatch(CupType.domestic);
+      guard++;
+    } while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20);
+
+    expect(gameState.domesticCup!.isComplete, isTrue);
   });
 }

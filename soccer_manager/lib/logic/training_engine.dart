@@ -11,14 +11,21 @@ class TrainingEngine {
 
   /// チームの全選手にトレーニングを適用する。個別方針が設定されている選手は
   /// それを優先し、未設定の選手はチームの既定方針に従う。
-  static void applyWeeklyTraining(Team team) {
+  /// [headCoachLevel]は成長効率、[trainingGroundLevel]は成長効率と疲労回復を高める。
+  static void applyWeeklyTraining(
+    Team team, {
+    int headCoachLevel = 1,
+    int trainingGroundLevel = 1,
+  }) {
+    final growthMultiplier = 1 + (headCoachLevel - 1) * 0.15 + (trainingGroundLevel - 1) * 0.08;
+    final fatigueRecoveryBonus = (trainingGroundLevel - 1) * 3;
     for (final p in team.players) {
       final focus = p.individualFocus ?? team.defaultTrainingFocus;
-      _applyToPlayer(p, focus);
+      _applyToPlayer(p, focus, growthMultiplier, fatigueRecoveryBonus);
     }
   }
 
-  static void _applyToPlayer(Player p, TrainingFocus focus) {
+  static void _applyToPlayer(Player p, TrainingFocus focus, double growthMultiplier, int fatigueRecoveryBonus) {
     switch (focus) {
       case TrainingFocus.attack:
         final primary =
@@ -29,10 +36,10 @@ class TrainingEngine {
           AttributeKeys.dribbling,
           AttributeKeys.offTheBall,
         ]) {
-          _grow(p, k, primary);
+          _grow(p, k, primary * growthMultiplier);
         }
         for (final k in [AttributeKeys.passing, AttributeKeys.firstTouch, AttributeKeys.technique]) {
-          _grow(p, k, 0.25);
+          _grow(p, k, 0.25 * growthMultiplier);
         }
         p.fatigue = (p.fatigue + 12).clamp(0, 100);
         break;
@@ -45,10 +52,10 @@ class TrainingEngine {
           AttributeKeys.positioning,
           AttributeKeys.anticipation,
         ]) {
-          _grow(p, k, primary);
+          _grow(p, k, primary * growthMultiplier);
         }
         for (final k in [AttributeKeys.passing, AttributeKeys.firstTouch, AttributeKeys.technique]) {
-          _grow(p, k, 0.2);
+          _grow(p, k, 0.2 * growthMultiplier);
         }
         p.fatigue = (p.fatigue + 12).clamp(0, 100);
         break;
@@ -59,16 +66,16 @@ class TrainingEngine {
           AttributeKeys.acceleration,
           AttributeKeys.strength,
         ]) {
-          _grow(p, k, 0.45);
+          _grow(p, k, 0.45 * growthMultiplier);
         }
         p.fatigue = (p.fatigue + 6).clamp(0, 100);
         break;
       case TrainingFocus.rest:
-        p.fatigue = (p.fatigue - 30).clamp(0, 100);
+        p.fatigue = (p.fatigue - 30 - fatigueRecoveryBonus).clamp(0, 100);
         p.morale = (p.morale + 8).clamp(0, 100);
         break;
     }
-    p.fatigue = (p.fatigue - 5).clamp(0, 100);
+    p.fatigue = (p.fatigue - 5 - fatigueRecoveryBonus ~/ 2).clamp(0, 100);
     if (p.age >= 31 && _rng.nextDouble() < 0.1) {
       _decline(p);
     }

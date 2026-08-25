@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../models/attributes.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
@@ -69,16 +70,43 @@ class MatchEngine {
     }
   }
 
-  static void _rollInjuries(List<Player> lineup) {
+  static void _rollInjuries(List<Player> lineup, double injuryFactor) {
     for (final p in lineup) {
-      final chance = 0.03 + (p.fatigue / 100) * 0.05;
+      final chance = (0.03 + (p.fatigue / 100) * 0.05) * injuryFactor;
       if (_rng.nextDouble() < chance) {
-        p.injuryWeeks = 1 + _rng.nextInt(4);
+        final weeks = (1 + _rng.nextInt(4)) * injuryFactor;
+        p.injuryWeeks = weeks.round().clamp(1, 8);
       }
     }
   }
 
-  static MatchResult simulate({required Team home, required Team away, required int matchday}) {
+  static Player? _pickCardTarget(List<Player> lineup) {
+    final candidates =
+        lineup.where((p) => p.position.group != PositionGroup.gk).toList();
+    if (candidates.isEmpty) return null;
+    final weights = candidates
+        .map((p) =>
+            1 +
+            p.attributeValue(AttributeKeys.aggression) ~/ 10 +
+            (100 - p.attributeValue(AttributeKeys.composure)) ~/ 25)
+        .toList();
+    final total = weights.fold<int>(0, (s, w) => s + w);
+    if (total <= 0) return candidates[_rng.nextInt(candidates.length)];
+    int r = _rng.nextInt(total);
+    for (int i = 0; i < candidates.length; i++) {
+      if (r < weights[i]) return candidates[i];
+      r -= weights[i];
+    }
+    return candidates.last;
+  }
+
+  static MatchResult simulate({
+    required Team home,
+    required Team away,
+    required int matchday,
+    double homeInjuryFactor = 1.0,
+    double awayInjuryFactor = 1.0,
+  }) {
     final homeLineup = lineupOf(home);
     final awayLineup = lineupOf(away);
 
@@ -117,14 +145,39 @@ class MatchEngine {
         } else {
           awayGoals++;
         }
+      } else if (_rng.nextDouble() < 0.45) {
+        // 得点には至らなかった惜しいチャンスを実況として記録する。
+        final shooter = _pickScorer(attackingLineup);
+        events.add(MatchEvent(minute: minute, teamId: attackingTeam.id, scorerName: shooter?.name, type: MatchEventType.chance));
       }
     }
+
+    // カードイベント(警告・退場)を疑似的に生成する。
+    final cardChances = 1 + _rng.nextInt(4);
+    for (int i = 0; i < cardChances; i++) {
+      final minute = 1 + _rng.nextInt(90);
+      if (minutesUsed.contains(minute)) continue;
+      minutesUsed.add(minute);
+      final isHomeTeam = _rng.nextBool();
+      final lineup = isHomeTeam ? homeLineup : awayLineup;
+      final team = isHomeTeam ? home : away;
+      final target = _pickCardTarget(lineup);
+      if (target == null) continue;
+      final isRed = _rng.nextDouble() < 0.08;
+      events.add(MatchEvent(
+        minute: minute,
+        teamId: team.id,
+        scorerName: target.name,
+        type: isRed ? MatchEventType.redCard : MatchEventType.yellowCard,
+      ));
+    }
+
     events.sort((a, b) => a.minute.compareTo(b.minute));
 
     _applyFatigue(home, homeLineup);
     _applyFatigue(away, awayLineup);
-    _rollInjuries(homeLineup);
-    _rollInjuries(awayLineup);
+    _rollInjuries(homeLineup, homeInjuryFactor);
+    _rollInjuries(awayLineup, awayInjuryFactor);
 
     return MatchResult(
       matchday: matchday,
