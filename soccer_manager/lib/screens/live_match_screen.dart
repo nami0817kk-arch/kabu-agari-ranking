@@ -6,6 +6,7 @@ import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../widgets/match_widgets.dart';
 import '../widgets/position_colors.dart';
 
 enum _Phase { firstHalf, halfTime, secondHalf, finished }
@@ -83,7 +84,7 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Expanded(child: _TeamHeader(team: home)),
+              Expanded(child: TeamHeader(team: home)),
               Column(
                 children: [
                   Text(
@@ -99,7 +100,7 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
                   ),
                 ],
               ),
-              Expanded(child: _TeamHeader(team: away)),
+              Expanded(child: TeamHeader(team: away)),
             ],
           ),
         ),
@@ -115,7 +116,7 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: _revealed
-                .map((e) => _CommentaryTile(event: e, teamName: e.teamId == home.id ? home.name : away.name))
+                .map((e) => CommentaryTile(event: e, teamName: e.teamId == home.id ? home.name : away.name))
                 .toList(),
           ),
         ),
@@ -152,66 +153,6 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
         onMinuteTick: (m) => setState(() => _currentMinute = m),
       );
     });
-  }
-}
-
-Color _teamColor(String teamId) => Colors.primaries[teamId.hashCode.abs() % Colors.primaries.length];
-
-class _TeamHeader extends StatelessWidget {
-  final Team team;
-
-  const _TeamHeader({required this.team});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _teamColor(team.id);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: color,
-          child: Text(
-            team.name.isEmpty ? '?' : team.name.substring(0, 1),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(team.name, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, maxLines: 1),
-      ],
-    );
-  }
-}
-
-class _CommentaryTile extends StatelessWidget {
-  final MatchEvent event;
-  final String teamName;
-
-  const _CommentaryTile({required this.event, required this.teamName});
-
-  @override
-  Widget build(BuildContext context) {
-    final (icon, color, text) = switch (event.type) {
-      MatchEventType.goal => (Icons.sports_soccer, Colors.green, '${event.scorerName ?? '???'} 得点！ ($teamName)'),
-      MatchEventType.chance => (Icons.flash_on, Colors.orange, '${event.scorerName ?? '???'} 惜しいシュート ($teamName)'),
-      MatchEventType.yellowCard => (Icons.warning_amber, Colors.amber, '${event.scorerName ?? '???'} に警告 ($teamName)'),
-      MatchEventType.redCard => (Icons.dangerous, Colors.redAccent, '${event.scorerName ?? '???'} が退場！ ($teamName)'),
-    };
-    return ListTile(
-      dense: true,
-      leading: SizedBox(
-        width: 44,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text("${event.minute}'"),
-            const SizedBox(width: 4),
-            Icon(icon, size: 16, color: color),
-          ],
-        ),
-      ),
-      title: Text(text),
-    );
   }
 }
 

@@ -615,6 +615,90 @@ void main() {
     expect(gameState.incomingOffers, isEmpty);
   });
 
+  test('GameState.acceptIncomingOffer backfills the starting XI when a starter is sold', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final target = team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    gameState.save!.incomingOffers.add(IncomingOffer(
+      id: 'starter-offer',
+      playerId: target.id,
+      playerName: target.name,
+      buyerClubName: 'よそのクラブ',
+      amount: 500,
+    ));
+
+    final ok = await gameState.acceptIncomingOffer('starter-offer');
+
+    expect(ok, isTrue);
+    expect(team.startingXI.contains(target.id), isFalse);
+    expect(team.startingXI.length, 11);
+  });
+
+  test('GameState.acceptIncomingOffer discards a stale offer without crediting budget '
+      'when the player already left the team', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+    gameState.save!.budget = 1000;
+    gameState.save!.incomingOffers.add(IncomingOffer(
+      id: 'stale-offer',
+      playerId: target.id,
+      playerName: target.name,
+      buyerClubName: 'よそのクラブ',
+      amount: 500,
+    ));
+    gameState.userTeam.players.removeWhere((p) => p.id == target.id);
+
+    final ok = await gameState.acceptIncomingOffer('stale-offer');
+
+    expect(ok, isFalse);
+    expect(gameState.save!.budget, 1000);
+    expect(gameState.incomingOffers, isEmpty);
+  });
+
+  test('GameState.acceptIncomingOffer keeps the offer pending when the squad-size guard blocks the sale', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    while (team.players.length > minSquadSize) {
+      final removable = team.players.firstWhere((p) => !team.startingXI.contains(p.id));
+      team.players.remove(removable);
+    }
+    final target = team.players.first;
+    gameState.save!.budget = 1000;
+    gameState.save!.incomingOffers.add(IncomingOffer(
+      id: 'guarded-offer',
+      playerId: target.id,
+      playerName: target.name,
+      buyerClubName: 'よそのクラブ',
+      amount: 500,
+    ));
+
+    final ok = await gameState.acceptIncomingOffer('guarded-offer');
+
+    expect(ok, isFalse);
+    expect(gameState.save!.budget, 1000);
+    expect(gameState.incomingOffers.any((o) => o.id == 'guarded-offer'), isTrue);
+  });
+
+  test('GameState.playFriendly does not accumulate fatigue or cause injuries', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final lineup = MatchEngine.lineupOf(gameState.userTeam);
+    final fatigueBefore = {for (final p in lineup) p.id: p.fatigue};
+    final injuredBefore = lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
+
+    final result = await gameState.playFriendly(0);
+
+    expect(result, isNotNull);
+    for (final p in lineup) {
+      expect(p.fatigue, fatigueBefore[p.id]);
+    }
+    final injuredAfter = lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
+    expect(injuredAfter, injuredBefore);
+  });
+
   test('GameState.declineIncomingOffer removes the offer without affecting budget', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');

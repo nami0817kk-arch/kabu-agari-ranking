@@ -470,7 +470,19 @@ class GameState extends ChangeNotifier {
     final league = _save!.league;
     final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
     final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
-    final result = MatchEngine.simulate(home: home, away: away, matchday: 0);
+    // MatchEngine.simulate()は内部でapplyPostMatchEffects()を呼び疲労蓄積・
+    // 負傷判定を行ってしまうため、プレシーズン親善試合では使わない。前半・後半を
+    // simulateMinutesで直接シミュレートし、疲労・負傷への影響を与えないようにする。
+    final first = MatchEngine.simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
+    final second = MatchEngine.simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    final result = MatchResult(
+      matchday: 0,
+      homeTeamId: home.id,
+      awayTeamId: away.id,
+      homeGoals: first.homeGoals + second.homeGoals,
+      awayGoals: first.awayGoals + second.awayGoals,
+      events: [...first.events, ...second.events],
+    );
     f.result = result;
     // 実戦感覚を養う程度の軽い士気向上(疲労・負傷への影響は与えない)。
     for (final p in MatchEngine.lineupOf(userTeam)) {
@@ -488,11 +500,23 @@ class GameState extends ChangeNotifier {
     if (_save == null) return false;
     final idx = _save!.incomingOffers.indexWhere((o) => o.id == offerId);
     if (idx < 0) return false;
-    final offer = _save!.incomingOffers.removeAt(idx);
+    final offer = _save!.incomingOffers[idx];
     final team = userTeam;
+    // 対象選手が既にチームを離れている場合(他クラブへの就任・別オファーの
+    // 承諾などで既に放出済み)は、対価を得ずにオファーだけを破棄する。
+    if (!team.players.any((p) => p.id == offer.playerId)) {
+      _save!.incomingOffers.removeAt(idx);
+      notifyListeners();
+      await _persist();
+      return false;
+    }
     if (team.players.length <= minSquadSize) return false;
+    _save!.incomingOffers.removeAt(idx);
     team.players.removeWhere((p) => p.id == offer.playerId);
-    team.startingXI.remove(offer.playerId);
+    final wasStarter = team.startingXI.remove(offer.playerId);
+    if (wasStarter) {
+      LineupUtils.autoFill(team);
+    }
     _save!.budget += offer.amount;
     notifyListeners();
     await _persist();
@@ -510,6 +534,8 @@ class GameState extends ChangeNotifier {
 
   /// 移籍オファーの週次処理: 期限切れの削除、新規オファーの抽選発生、
   /// リリース条項の自動成立を行う。売却済み選手の名前を返す(UI通知用)。
+  static final Random _offerRng = Random();
+
   List<String> _advanceIncomingOffers() {
     final autoSold = <String>[];
     for (final o in List<IncomingOffer>.from(_save!.incomingOffers)) {
@@ -522,12 +548,14 @@ class GameState extends ChangeNotifier {
     final team = userTeam;
     if (team.players.length > minSquadSize + 2 &&
         _save!.incomingOffers.length < 3 &&
-        Random().nextDouble() < 0.12) {
-      final eligible = team.players.where((p) => !p.isLoan).toList();
+        _offerRng.nextDouble() < 0.12) {
+      final eligible = team.players
+          .where((p) => !p.isLoan && !_save!.incomingOffers.any((o) => o.playerId == p.id))
+          .toList();
       if (eligible.isNotEmpty) {
         final weights = eligible.map((p) => (p.overall - 30).clamp(1, 99)).toList();
         final totalWeight = weights.fold<int>(0, (s, w) => s + w);
-        var r = Random().nextInt(totalWeight);
+        var r = _offerRng.nextInt(totalWeight);
         var chosen = eligible.last;
         for (int i = 0; i < eligible.length; i++) {
           if (r < weights[i]) {
@@ -538,17 +566,22 @@ class GameState extends ChangeNotifier {
         }
 
         final buyerCandidates = _save!.league.teams.where((t) => t.id != _save!.userTeamId).toList();
-        final buyer = buyerCandidates[Random().nextInt(buyerCandidates.length)];
+        final buyer = buyerCandidates[_offerRng.nextInt(buyerCandidates.length)];
 
         if (chosen.releaseClause != null) {
           // リリース条項がある場合は交渉なしで即成立する。
           final amount = chosen.releaseClause!;
           team.players.removeWhere((p) => p.id == chosen.id);
-          team.startingXI.remove(chosen.id);
+          final wasStarter = team.startingXI.remove(chosen.id);
+          if (wasStarter) {
+            // スタメンが抜けた穴を自動で埋める(次の試合が即座に行われるため、
+            // ユーザーが手動で編成を直す猶予がない)。
+            LineupUtils.autoFill(team);
+          }
           _save!.budget += amount;
           autoSold.add(chosen.name);
         } else {
-          final amount = (chosen.marketValue * (0.9 + Random().nextDouble() * 0.4)).round();
+          final amount = (chosen.marketValue * (0.9 + _offerRng.nextDouble() * 0.4)).round();
           _save!.incomingOffers.add(IncomingOffer(
             id: 'offer${_incomingOfferSeq++}',
             playerId: chosen.id,

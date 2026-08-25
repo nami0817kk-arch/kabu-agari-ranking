@@ -224,7 +224,7 @@ class PlayerDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _confirmSell(BuildContext context, int sellPrice) {
