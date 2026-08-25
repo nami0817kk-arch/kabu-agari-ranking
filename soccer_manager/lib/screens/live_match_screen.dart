@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/match_widgets.dart';
 import '../widgets/player_face_avatar.dart';
 
@@ -28,6 +31,14 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
   MatchResult? _finalResult;
   late PitchGame _game;
   late final String _userTeamId;
+  MatchEvent? _goalFlash;
+  Timer? _goalFlashTimer;
+
+  @override
+  void dispose() {
+    _goalFlashTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -50,6 +61,11 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
     setState(() => _revealed.add(e));
     if (e.type == MatchEventType.goal) {
       FeedbackService.goal(isUserGoal: e.teamId == _userTeamId);
+      _goalFlashTimer?.cancel();
+      setState(() => _goalFlash = e);
+      _goalFlashTimer = Timer(const Duration(milliseconds: 1800), () {
+        if (mounted) setState(() => _goalFlash = null);
+      });
     }
   }
 
@@ -62,18 +78,24 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
     final awayId = fixture?.awayTeamId ?? _finalResult?.awayTeamId;
     if (homeId == null || awayId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('試合'), automaticallyImplyLeading: false),
+        appBar:
+            AppBar(title: const Text('試合'), automaticallyImplyLeading: false),
         body: const Center(child: Text('試合情報がありません')),
       );
     }
     final league = gameState.save!.league;
     final home = league.teams.firstWhere((t) => t.id == homeId);
     final away = league.teams.firstWhere((t) => t.id == awayId);
-    final homeGoals = _revealed.where((e) => e.teamId == home.id && e.type == MatchEventType.goal).length;
-    final awayGoals = _revealed.where((e) => e.teamId == away.id && e.type == MatchEventType.goal).length;
+    final homeGoals = _revealed
+        .where((e) => e.teamId == home.id && e.type == MatchEventType.goal)
+        .length;
+    final awayGoals = _revealed
+        .where((e) => e.teamId == away.id && e.type == MatchEventType.goal)
+        .length;
 
     return Scaffold(
-      appBar: AppBar(title: Text('第$matchday節'), automaticallyImplyLeading: false),
+      appBar:
+          AppBar(title: Text('第$matchday節'), automaticallyImplyLeading: false),
       body: _phase == _Phase.halfTime
           ? _HalfTimePanel(
               home: home,
@@ -86,64 +108,99 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
     );
   }
 
-  Widget _buildMatchView(BuildContext context, Team home, Team away, int homeGoals, int awayGoals) {
+  Widget _buildMatchView(BuildContext context, Team home, Team away,
+      int homeGoals, int awayGoals) {
     final finished = _phase == _Phase.finished;
-    return Column(
+    return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              Expanded(child: TeamHeader(team: home)),
-              Column(
+        Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Text(
-                    finished ? '試合終了' : "$_currentMinute'",
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: finished ? Colors.redAccent : Colors.grey,
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Expanded(child: TeamHeader(team: home)),
+                  Column(
+                    children: [
+                      Text(
+                        finished ? '試合終了' : "$_currentMinute'",
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelMedium
+                            ?.copyWith(
+                              color: finished ? Colors.redAccent : Colors.grey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text('$homeGoals - $awayGoals',
+                            style: Theme.of(context).textTheme.headlineMedium),
+                      ),
+                    ],
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('$homeGoals - $awayGoals', style: Theme.of(context).textTheme.headlineMedium),
-                  ),
+                  Expanded(child: TeamHeader(team: away)),
                 ],
               ),
-              Expanded(child: TeamHeader(team: away)),
-            ],
-          ),
-        ),
-        AspectRatio(
-          aspectRatio: 3 / 2,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: GameWidget(game: _game),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: _revealed
-                .map((e) => CommentaryTile(event: e, teamName: e.teamId == home.id ? home.name : away.name))
-                .toList(),
-          ),
-        ),
-        if (finished)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('戻る'),
+            ),
+            if (finished)
+              _FullTimeBanner(
+                  userTeamId: _userTeamId,
+                  home: home,
+                  away: away,
+                  result: _finalResult),
+            AspectRatio(
+              aspectRatio: 3 / 2,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                child: GameWidget(game: _game),
               ),
             ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: _revealed
+                    .map((e) => CommentaryTile(
+                        event: e,
+                        teamName: e.teamId == home.id ? home.name : away.name))
+                    .toList(),
+              ),
+            ),
+            if (finished)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('戻る'),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (_goalFlash != null)
+          _GoalFlashBanner(
+            key: ValueKey(_goalFlash),
+            event: _goalFlash!,
+            scoringTeamName:
+                _goalFlash!.teamId == home.id ? home.name : away.name,
+            scorerName: _scorerNameFor(_goalFlash!, home, away),
           ),
       ],
     );
+  }
+
+  String? _scorerNameFor(MatchEvent event, Team home, Team away) {
+    final scorerId = event.scorerId;
+    if (scorerId == null) return null;
+    final team = event.teamId == home.id ? home : away;
+    for (final p in team.players) {
+      if (p.id == scorerId) return p.name;
+    }
+    return null;
   }
 
   Future<void> _startSecondHalf() async {
@@ -173,7 +230,133 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
     final userIsHome = result.homeTeamId == _userTeamId;
     final userGoals = userIsHome ? result.homeGoals : result.awayGoals;
     final oppGoals = userIsHome ? result.awayGoals : result.homeGoals;
-    FeedbackService.matchResult(won: userGoals > oppGoals, drew: userGoals == oppGoals);
+    FeedbackService.matchResult(
+        won: userGoals > oppGoals, drew: userGoals == oppGoals);
+  }
+}
+
+/// 得点発生時に一時的に表示される演出バナー。
+class _GoalFlashBanner extends StatelessWidget {
+  final MatchEvent event;
+  final String scoringTeamName;
+  final String? scorerName;
+
+  const _GoalFlashBanner({
+    super.key,
+    required this.event,
+    required this.scoringTeamName,
+    required this.scorerName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 24,
+      left: 24,
+      right: 24,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutBack,
+        builder: (context, value, child) =>
+            Transform.scale(scale: value, child: child),
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                    color: Colors.black38, blurRadius: 12, offset: Offset(0, 4))
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'GOAL!',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onPrimary,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                      ),
+                ),
+                Text(
+                  scorerName != null
+                      ? '$scoringTeamName / $scorerName'
+                      : scoringTeamName,
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.onPrimary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 試合終了時の勝敗を色分けして示すバナー。
+class _FullTimeBanner extends StatelessWidget {
+  final String userTeamId;
+  final Team home;
+  final Team away;
+  final MatchResult? result;
+
+  const _FullTimeBanner({
+    required this.userTeamId,
+    required this.home,
+    required this.away,
+    required this.result,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = result;
+    if (r == null) return const SizedBox.shrink();
+    final userIsHome = r.homeTeamId == userTeamId;
+    final userGoals = userIsHome ? r.homeGoals : r.awayGoals;
+    final oppGoals = userIsHome ? r.awayGoals : r.homeGoals;
+
+    final String label;
+    final Color color;
+    final IconData icon;
+    if (userGoals > oppGoals) {
+      label = '勝利';
+      color = SemanticColors.positive(context);
+      icon = Icons.emoji_events;
+    } else if (userGoals < oppGoals) {
+      label = '敗北';
+      color = SemanticColors.negative(context);
+      icon = Icons.sentiment_dissatisfied;
+    } else {
+      label = '引き分け';
+      color = SemanticColors.neutral(context);
+      icon = Icons.handshake;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+            color: color, borderRadius: BorderRadius.circular(10)),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.white, size: 18),
+            const SizedBox(width: 8),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -196,7 +379,8 @@ class _HalfTimePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final team = gameState.userTeam;
-    final remaining = GameState.maxSubstitutionsPerMatch - gameState.substitutionsUsed;
+    final remaining =
+        GameState.maxSubstitutionsPerMatch - gameState.substitutionsUsed;
 
     return SafeArea(
       child: ListView(
@@ -207,8 +391,10 @@ class _HalfTimePanel extends StatelessWidget {
               children: [
                 Text('ハーフタイム', style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 4),
-                Text('$homeGoals - $awayGoals', style: Theme.of(context).textTheme.headlineMedium),
-                Text('${home.name} vs ${away.name}', style: const TextStyle(color: Colors.grey)),
+                Text('$homeGoals - $awayGoals',
+                    style: Theme.of(context).textTheme.headlineMedium),
+                Text('${home.name} vs ${away.name}',
+                    style: const TextStyle(color: Colors.grey)),
               ],
             ),
           ),
@@ -256,11 +442,13 @@ class _HalfTimePanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          for (final id in team.startingXI) _StartingPlayerTile(playerId: id, team: team),
+          for (final id in team.startingXI)
+            _StartingPlayerTile(playerId: id, team: team),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            child: FilledButton(onPressed: onContinue, child: const Text('後半開始')),
+            child:
+                FilledButton(onPressed: onContinue, child: const Text('後半開始')),
           ),
         ],
       ),
@@ -283,7 +471,8 @@ class _StartingPlayerTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
-        leading: PlayerFaceAvatar(playerId: p.id, position: p.position, highlighted: true),
+        leading: PlayerFaceAvatar(
+            playerId: p.id, position: p.position, highlighted: true),
         title: Text(p.name),
         subtitle: Text(
           '${p.position.label} / 総合 ${p.overall}${p.fatigue > 70 ? ' / 疲労大' : ''}',
@@ -301,8 +490,13 @@ class _StartingPlayerTile extends StatelessWidget {
     final gameState = context.read<GameState>();
     final out = team.players.firstWhere((pl) => pl.id == playerId);
     final candidates = team.players
-        .where((p) => !p.isInjured && !p.isOnInternationalDuty && !team.startingXI.contains(p.id))
-        .where((p) => p.position == out.position || p.position.group == out.position.group)
+        .where((p) =>
+            !p.isInjured &&
+            !p.isOnInternationalDuty &&
+            !team.startingXI.contains(p.id))
+        .where((p) =>
+            p.position == out.position ||
+            p.position.group == out.position.group)
         .toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
 
@@ -314,7 +508,8 @@ class _StartingPlayerTile extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('${out.name} を交代', style: Theme.of(ctx).textTheme.titleMedium),
+              child: Text('${out.name} を交代',
+                  style: Theme.of(ctx).textTheme.titleMedium),
             ),
             for (final p in candidates)
               ListTile(
@@ -323,11 +518,13 @@ class _StartingPlayerTile extends StatelessWidget {
                 subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  gameState.makeHalfTimeSubstitution(outPlayerId: out.id, inPlayerId: p.id);
+                  gameState.makeHalfTimeSubstitution(
+                      outPlayerId: out.id, inPlayerId: p.id);
                 },
               ),
             if (candidates.isEmpty)
-              const Padding(padding: EdgeInsets.all(16), child: Text('交代できる選手がいません')),
+              const Padding(
+                  padding: EdgeInsets.all(16), child: Text('交代できる選手がいません')),
           ],
         ),
       ),

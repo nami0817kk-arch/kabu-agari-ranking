@@ -28,7 +28,9 @@ import 'package:soccer_manager/models/league.dart';
 import 'package:soccer_manager/models/league_theme.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
+import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/team.dart';
+import 'package:soccer_manager/screens/young_talent_screen.dart';
 import 'package:soccer_manager/state/game_state.dart';
 import 'package:soccer_manager/widgets/formation_layout.dart';
 
@@ -37,8 +39,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('LineupUtils.autoFill fills all 11 formation slots with a real goalkeeper in goal', () {
-    final team = PlayerGenerator.generateSquad(id: 't1', name: 'Test FC', strengthTier: 60);
+  test(
+      'LineupUtils.autoFill fills all 11 formation slots with a real goalkeeper in goal',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 't1', name: 'Test FC', strengthTier: 60);
     team.formation = Formation.f433;
     LineupUtils.autoFill(team);
 
@@ -52,7 +57,8 @@ void main() {
   });
 
   test('LineupUtils.autoFill excludes injured players', () {
-    final team = PlayerGenerator.generateSquad(id: 't2', name: 'Test FC', strengthTier: 60);
+    final team = PlayerGenerator.generateSquad(
+        id: 't2', name: 'Test FC', strengthTier: 60);
     for (final p in team.players.where((p) => p.position == Position.st)) {
       p.injuryWeeks = 2;
     }
@@ -62,8 +68,11 @@ void main() {
     expect(lineup.every((p) => !p.isInjured), isTrue);
   });
 
-  test('LineupUtils.autoFill falls back to same-group players when a position is missing', () {
-    final team = PlayerGenerator.generateSquad(id: 't1b', name: 'Test FC', strengthTier: 60);
+  test(
+      'LineupUtils.autoFill falls back to same-group players when a position is missing',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 't1b', name: 'Test FC', strengthTier: 60);
     team.players.removeWhere((p) => p.position == Position.st);
     team.formation = Formation.f442; // needs 2 ST, none available
     LineupUtils.autoFill(team);
@@ -81,8 +90,20 @@ void main() {
   });
 
   test('BoardEngine confidence deltas reward wins and punish bad losses', () {
-    final win = MatchResult(matchday: 1, homeTeamId: 'user', awayTeamId: 'cpu', homeGoals: 2, awayGoals: 0, events: []);
-    final loss = MatchResult(matchday: 1, homeTeamId: 'user', awayTeamId: 'cpu', homeGoals: 0, awayGoals: 2, events: []);
+    final win = MatchResult(
+        matchday: 1,
+        homeTeamId: 'user',
+        awayTeamId: 'cpu',
+        homeGoals: 2,
+        awayGoals: 0,
+        events: []);
+    final loss = MatchResult(
+        matchday: 1,
+        homeTeamId: 'user',
+        awayTeamId: 'cpu',
+        homeGoals: 0,
+        awayGoals: 2,
+        events: []);
     expect(BoardEngine.confidenceDeltaForMatch(win, 'user'), greaterThan(0));
     expect(BoardEngine.confidenceDeltaForMatch(loss, 'user'), lessThan(0));
   });
@@ -93,7 +114,8 @@ void main() {
     expect(first, greaterThan(last));
   });
 
-  test('GameState.buyPlayer deducts budget and adds the player to the squad', () async {
+  test('GameState.buyPlayer deducts budget and adds the player to the squad',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final beforeCount = gameState.userTeam.players.length;
@@ -118,7 +140,8 @@ void main() {
     expect(ok, isFalse);
   });
 
-  test('GameState.sellPlayer refuses to drop below the minimum squad size', () async {
+  test('GameState.sellPlayer refuses to drop below the minimum squad size',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     while (gameState.userTeam.players.length > minSquadSize) {
@@ -130,8 +153,11 @@ void main() {
     expect(ok, isFalse);
   });
 
-  test('ContractEngine.advanceWeek decrements contracts and removes expired players', () {
-    final team = PlayerGenerator.generateSquad(id: 't3', name: 'Test FC', strengthTier: 60);
+  test(
+      'ContractEngine.advanceWeek decrements contracts and removes expired players',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 't3', name: 'Test FC', strengthTier: 60);
     final soonToExpire = team.players.first;
     soonToExpire.contractWeeksRemaining = 1;
     team.startingXI = [soonToExpire.id];
@@ -145,7 +171,8 @@ void main() {
   });
 
   test('ContractEngine.weeklyWageBill sums all player wages', () {
-    final team = PlayerGenerator.generateSquad(id: 't4', name: 'Test FC', strengthTier: 60);
+    final team = PlayerGenerator.generateSquad(
+        id: 't4', name: 'Test FC', strengthTier: 60);
     final expectedTotal = team.players.fold<int>(0, (s, p) => s + p.wage);
     expect(ContractEngine.weeklyWageBill(team), expectedTotal);
   });
@@ -158,7 +185,8 @@ void main() {
   });
 
   test('TrainingEngine respects a player individual focus override', () {
-    final team = PlayerGenerator.generateSquad(id: 't5', name: 'Test FC', strengthTier: 60);
+    final team = PlayerGenerator.generateSquad(
+        id: 't5', name: 'Test FC', strengthTier: 60);
     team.defaultTrainingFocus = TrainingFocus.rest;
     final target = team.players.firstWhere((p) => p.position == Position.st);
     target.individualFocus = TrainingFocus.attack;
@@ -172,9 +200,12 @@ void main() {
     expect(target.fatigue, greaterThanOrEqualTo(fatigueBefore));
   });
 
-  test('MatchEngine.simulate runs without error under extreme tactic settings', () {
-    final aggressive = PlayerGenerator.generateSquad(id: 'agg', name: 'Aggressive FC', strengthTier: 60);
-    final defensive = PlayerGenerator.generateSquad(id: 'def', name: 'Defensive FC', strengthTier: 60);
+  test('MatchEngine.simulate runs without error under extreme tactic settings',
+      () {
+    final aggressive = PlayerGenerator.generateSquad(
+        id: 'agg', name: 'Aggressive FC', strengthTier: 60);
+    final defensive = PlayerGenerator.generateSquad(
+        id: 'def', name: 'Defensive FC', strengthTier: 60);
     aggressive.lineHeight = 100;
     aggressive.pressing = 100;
     defensive.lineHeight = 0;
@@ -182,13 +213,15 @@ void main() {
     LineupUtils.autoFill(aggressive);
     LineupUtils.autoFill(defensive);
 
-    final result = MatchEngine.simulate(home: aggressive, away: defensive, matchday: 1);
+    final result =
+        MatchEngine.simulate(home: aggressive, away: defensive, matchday: 1);
 
     expect(result.homeGoals, greaterThanOrEqualTo(0));
     expect(result.awayGoals, greaterThanOrEqualTo(0));
   });
 
-  test('GameState.scoutProspect deducts budget and adds a youth prospect', () async {
+  test('GameState.scoutProspect deducts budget and adds a youth prospect',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = ScoutingEngine.scoutCost;
@@ -206,7 +239,9 @@ void main() {
     expect(gameState.scoutCandidates.any((p) => p.id == candidateId), isFalse);
   });
 
-  test('GameState.scoutCandidates offers more candidates as scout staff level rises', () async {
+  test(
+      'GameState.scoutCandidates offers more candidates as scout staff level rises',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final baseCount = gameState.scoutCandidates.length;
@@ -217,7 +252,8 @@ void main() {
     expect(gameState.scoutCandidateCount, baseCount + 1);
   });
 
-  test('GameState.promoteYouthProspect moves the prospect into the squad', () async {
+  test('GameState.promoteYouthProspect moves the prospect into the squad',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = ScoutingEngine.scoutCost;
@@ -242,15 +278,20 @@ void main() {
   });
 
   test('Goalkeepers have much higher goalkeeping attributes than forwards', () {
-    final gk = PlayerGenerator.generate(position: Position.gk, strengthTier: 60);
-    final fw = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
-    expect(gk.attributeValue(AttributeKeys.handling), greaterThan(fw.attributeValue(AttributeKeys.handling)));
-    expect(gk.attributeValue(AttributeKeys.reflexes), greaterThan(fw.attributeValue(AttributeKeys.reflexes)));
+    final gk =
+        PlayerGenerator.generate(position: Position.gk, strengthTier: 60);
+    final fw =
+        PlayerGenerator.generate(position: Position.st, strengthTier: 60);
+    expect(gk.attributeValue(AttributeKeys.handling),
+        greaterThan(fw.attributeValue(AttributeKeys.handling)));
+    expect(gk.attributeValue(AttributeKeys.reflexes),
+        greaterThan(fw.attributeValue(AttributeKeys.reflexes)));
   });
 
   test('Player.overall is the average of the four composite ratings', () {
     final p = PlayerGenerator.generate(position: Position.mc, strengthTier: 60);
-    final expected = ((p.attack + p.defense + p.technique + p.stamina) / 4).round();
+    final expected =
+        ((p.attack + p.defense + p.technique + p.stamina) / 4).round();
     expect(p.overall, expected);
   });
 
@@ -290,37 +331,48 @@ void main() {
     expect(slots.where((p) => p.group == PositionGroup.mid).length, 4);
   });
 
-  test('Every Formation has 11 slots and a matching FormationLayout coordinate entry', () {
+  test(
+      'Every Formation has 11 slots and a matching FormationLayout coordinate entry',
+      () {
     for (final formation in Formation.values) {
       final slots = formation.slots;
-      expect(slots.length, 11, reason: '${formation.name} should have exactly 11 slots');
+      expect(slots.length, 11,
+          reason: '${formation.name} should have exactly 11 slots');
       final offsets = FormationLayout.offsetsFor(formation);
       expect(offsets.length, slots.length,
-          reason: '${formation.name} layout coordinates must match its slot count');
+          reason:
+              '${formation.name} layout coordinates must match its slot count');
     }
   });
 
-  test('Formation.f4141 and f343 add distinct shapes not covered by the original four', () {
+  test(
+      'Formation.f4141 and f343 add distinct shapes not covered by the original four',
+      () {
     expect(Formation.f4141.slots.where((p) => p == Position.dm).length, 1);
-    expect(Formation.f4141.slots.where((p) => p.group == PositionGroup.def).length, 4);
+    expect(
+        Formation.f4141.slots.where((p) => p.group == PositionGroup.def).length,
+        4);
     expect(Formation.f343.slots.where((p) => p == Position.dc).length, 3);
     expect(Formation.f343.slots.where((p) => p == Position.st).length, 1);
   });
 
   test('Team.fromJson falls back to f442 for a removed formation name', () {
-    final team = PlayerGenerator.generateSquad(id: 'tf', name: 'Test FC', strengthTier: 60);
+    final team = PlayerGenerator.generateSquad(
+        id: 'tf', name: 'Test FC', strengthTier: 60);
     final json = team.toJson();
     json['formation'] = 'f532'; // 廃止された旧フォーメーション名
     final restored = Team.fromJson(json);
     expect(restored.formation, Formation.f442);
   });
 
-  test('GameState.renewContract deducts cost and resets contract length', () async {
+  test('GameState.renewContract deducts cost and resets contract length',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
     player.contractWeeksRemaining = 2;
-    final cost = gameState.renewalCostFor(player.id) + gameState.signingBonusFor(player.id);
+    final cost = gameState.renewalCostFor(player.id) +
+        gameState.signingBonusFor(player.id);
     gameState.save!.budget = cost;
 
     final ok = await gameState.renewContract(player.id);
@@ -330,16 +382,19 @@ void main() {
     expect(gameState.save!.budget, 0);
   });
 
-  test('ClubInfrastructure upgrades increase level and cost more each time', () {
+  test('ClubInfrastructure upgrades increase level and cost more each time',
+      () {
     final infra = ClubInfrastructure();
     expect(infra.staffLevel(StaffRole.physio), 1);
-    final firstCost = ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
+    final firstCost =
+        ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
 
     final upgraded = infra.upgradeStaff(StaffRole.physio);
 
     expect(upgraded, isTrue);
     expect(infra.staffLevel(StaffRole.physio), 2);
-    final secondCost = ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
+    final secondCost =
+        ClubInfrastructure.staffUpgradeCost(infra.staffLevel(StaffRole.physio));
     expect(secondCost, greaterThan(firstCost));
   });
 
@@ -352,7 +407,8 @@ void main() {
     expect(infra.upgradeStaff(StaffRole.scout), isFalse);
   });
 
-  test('GameState.upgradeFacility deducts budget and raises the level', () async {
+  test('GameState.upgradeFacility deducts budget and raises the level',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final cost = gameState.facilityUpgradeCostFor(FacilityType.stadium);
@@ -361,7 +417,8 @@ void main() {
     final ok = await gameState.upgradeFacility(FacilityType.stadium);
 
     expect(ok, isTrue);
-    expect(gameState.save!.infrastructure.facilityLevel(FacilityType.stadium), 2);
+    expect(
+        gameState.save!.infrastructure.facilityLevel(FacilityType.stadium), 2);
     expect(gameState.save!.budget, 0);
   });
 
@@ -376,17 +433,25 @@ void main() {
     expect(gameState.save!.infrastructure.staffLevel(StaffRole.headCoach), 1);
   });
 
-  test('CupEngine.createKnockout builds a full bracket for a power-of-two field with no byes', () {
+  test(
+      'CupEngine.createKnockout builds a full bracket for a power-of-two field with no byes',
+      () {
     final teamIds = List.generate(8, (i) => 't$i');
-    final cup = CupEngine.createKnockout(type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
+    final cup = CupEngine.createKnockout(
+        type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
 
     expect(cup.rounds.length, 1);
     expect(cup.rounds.first.length, 4);
     expect(cup.rounds.first.every((m) => !m.isBye), isTrue);
   });
 
-  test('CupEngine.playNextMatch advances rounds until a single champion remains', () {
-    final teams = List.generate(8, (i) => PlayerGenerator.generateSquad(id: 't$i', name: 'Club $i', strengthTier: 60));
+  test(
+      'CupEngine.playNextMatch advances rounds until a single champion remains',
+      () {
+    final teams = List.generate(
+        8,
+        (i) => PlayerGenerator.generateSquad(
+            id: 't$i', name: 'Club $i', strengthTier: 60));
     for (final t in teams) {
       LineupUtils.autoFill(t);
     }
@@ -408,7 +473,9 @@ void main() {
     expect(CupEngine.playNextMatch(cup, teams), isNull);
   });
 
-  test('GameState creates a domestic cup on new game that can be played to completion', () async {
+  test(
+      'GameState creates a domestic cup on new game that can be played to completion',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
@@ -424,15 +491,20 @@ void main() {
     expect(gameState.domesticCup!.isComplete, isTrue);
   });
 
-  test('HappinessEngine boosts happiness for starters and penalizes benched players', () {
-    final team = PlayerGenerator.generateSquad(id: 'hteam', name: 'Happy FC', strengthTier: 60);
+  test(
+      'HappinessEngine boosts happiness for starters and penalizes benched players',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'hteam', name: 'Happy FC', strengthTier: 60);
     LineupUtils.autoFill(team);
     for (final p in team.players) {
       p.happiness = 50;
       p.personality = PlayerPersonality.balanced;
     }
-    final starter = team.players.firstWhere((p) => team.startingXI.contains(p.id));
-    final benched = team.players.firstWhere((p) => !team.startingXI.contains(p.id));
+    final starter =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    final benched =
+        team.players.firstWhere((p) => !team.startingXI.contains(p.id));
     // 待遇要因を打ち消して出場機会の影響だけを検証できるようにする。
     starter.wage = 99999;
     benched.wage = 1;
@@ -443,7 +515,9 @@ void main() {
     expect(benched.happiness, lessThan(50));
   });
 
-  test('HappinessEngine.reassure raises happiness but not above the threshold gate', () {
+  test(
+      'HappinessEngine.reassure raises happiness but not above the threshold gate',
+      () {
     final p = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
     p.happiness = 20;
 
@@ -474,14 +548,18 @@ void main() {
     expect(p.wantsTransfer, isTrue);
   });
 
-  test('SponsorEngine.generateOffers trades higher income for shorter duration', () {
+  test('SponsorEngine.generateOffers trades higher income for shorter duration',
+      () {
     final offers = SponsorEngine.generateOffers(70);
     expect(offers.length, 3);
-    final sorted = [...offers]..sort((a, b) => a.weeklyIncome.compareTo(b.weeklyIncome));
-    expect(sorted.first.weeksRemaining, greaterThan(sorted.last.weeksRemaining));
+    final sorted = [...offers]
+      ..sort((a, b) => a.weeklyIncome.compareTo(b.weeklyIncome));
+    expect(
+        sorted.first.weeksRemaining, greaterThan(sorted.last.weeksRemaining));
   });
 
-  test('GameState.chooseSponsor applies the selected deal and clears offers', () async {
+  test('GameState.chooseSponsor applies the selected deal and clears offers',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     expect(gameState.pendingSponsorOffers, isNotEmpty);
@@ -493,7 +571,9 @@ void main() {
     expect(gameState.pendingSponsorOffers, isEmpty);
   });
 
-  test('GameState.signLoanPlayer adds a loan player that returns after loanDurationWeeks', () async {
+  test(
+      'GameState.signLoanPlayer adds a loan player that returns after loanDurationWeeks',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.transferMarket.first;
@@ -502,12 +582,15 @@ void main() {
     final ok = await gameState.signLoanPlayer(target.id);
 
     expect(ok, isTrue);
-    final signed = gameState.userTeam.players.firstWhere((p) => p.id == target.id);
+    final signed =
+        gameState.userTeam.players.firstWhere((p) => p.id == target.id);
     expect(signed.isLoan, isTrue);
     expect(signed.loanWeeksRemaining, GameState.loanDurationWeeks);
   });
 
-  test('GameState.buyPlayerOnInstallments splits the remaining cost into weekly payments', () async {
+  test(
+      'GameState.buyPlayerOnInstallments splits the remaining cost into weekly payments',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.transferMarket.first;
@@ -520,8 +603,11 @@ void main() {
     expect(gameState.userTeam.players.any((p) => p.id == target.id), isTrue);
   });
 
-  test('ContractEngine.advanceWeek removes a loan player once loanWeeksRemaining reaches 0', () {
-    final team = PlayerGenerator.generateSquad(id: 'lteam', name: 'Loan FC', strengthTier: 60);
+  test(
+      'ContractEngine.advanceWeek removes a loan player once loanWeeksRemaining reaches 0',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'lteam', name: 'Loan FC', strengthTier: 60);
     final loanPlayer = team.players.first;
     loanPlayer.isLoan = true;
     loanPlayer.loanWeeksRemaining = 1;
@@ -532,23 +618,29 @@ void main() {
     expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
   });
 
-  test('NamePool.themedClubNames generates enough unique names for a full league', () {
+  test(
+      'NamePool.themedClubNames generates enough unique names for a full league',
+      () {
     for (final theme in LeagueTheme.values) {
       final names = NamePool.themedClubNames(theme, teamsPerLeague - 1);
       expect(names.toSet().length, teamsPerLeague - 1);
     }
   });
 
-  test('CupEngine.createKnockout never leaves a bye-vs-bye match unresolved for a non-power-of-two field', () {
+  test(
+      'CupEngine.createKnockout never leaves a bye-vs-bye match unresolved for a non-power-of-two field',
+      () {
     // 20チーム(2の累乗ではない)は32枠に切り上げられ、12個のBYEが生じる。
     final teamIds = List.generate(teamsPerLeague, (i) => 't$i');
     final teams = teamIds
-        .map((id) => PlayerGenerator.generateSquad(id: id, name: id, strengthTier: 60))
+        .map((id) =>
+            PlayerGenerator.generateSquad(id: id, name: id, strengthTier: 60))
         .toList();
     for (final t in teams) {
       LineupUtils.autoFill(t);
     }
-    final cup = CupEngine.createKnockout(type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
+    final cup = CupEngine.createKnockout(
+        type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
 
     // 全てのBYEを含む試合が単独で解決済み(勝者が決まっている)ことを確認する。
     for (final m in cup.rounds.first) {
@@ -567,7 +659,9 @@ void main() {
     expect(cup.championId, isNotNull);
   });
 
-  test('GameState.startNewGame creates a full-size league with the selected theme name', () async {
+  test(
+      'GameState.startNewGame creates a full-size league with the selected theme name',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC', theme: LeagueTheme.spain);
 
@@ -575,18 +669,25 @@ void main() {
     expect(gameState.save!.leagueName, LeagueTheme.spain.label);
   });
 
-  test('MatchEngine.simulateMinutes only generates events within the requested minute range', () {
-    final home = PlayerGenerator.generateSquad(id: 'h', name: 'Home FC', strengthTier: 60);
-    final away = PlayerGenerator.generateSquad(id: 'a', name: 'Away FC', strengthTier: 60);
+  test(
+      'MatchEngine.simulateMinutes only generates events within the requested minute range',
+      () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'h', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'a', name: 'Away FC', strengthTier: 60);
     LineupUtils.autoFill(home);
     LineupUtils.autoFill(away);
 
-    final half = MatchEngine.simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    final half = MatchEngine.simulateMinutes(
+        home: home, away: away, startMinute: 46, endMinute: 90);
 
     expect(half.events.every((e) => e.minute >= 46 && e.minute <= 90), isTrue);
   });
 
-  test('GameState.playNextMatchday stops at half-time for the user fixture; playSecondHalf finalizes it', () async {
+  test(
+      'GameState.playNextMatchday stops at half-time for the user fixture; playSecondHalf finalizes it',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
@@ -602,11 +703,15 @@ void main() {
     expect(gameState.isHalfTime, isFalse);
     final fixture = gameState.save!.league
         .fixturesForMatchday(merged!.matchday)
-        .firstWhere((f) => f.homeTeamId == merged.homeTeamId && f.awayTeamId == merged.awayTeamId);
+        .firstWhere((f) =>
+            f.homeTeamId == merged.homeTeamId &&
+            f.awayTeamId == merged.awayTeamId);
     expect(fixture.result, isNotNull);
   });
 
-  test('GameState.makeHalfTimeSubstitution swaps players and enforces the substitution limit', () async {
+  test(
+      'GameState.makeHalfTimeSubstitution swaps players and enforces the substitution limit',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     await gameState.playNextMatchday();
@@ -614,9 +719,12 @@ void main() {
 
     final team = gameState.userTeam;
     final outId = team.startingXI.first;
-    final inId = team.players.firstWhere((p) => !team.startingXI.contains(p.id) && !p.isInjured).id;
+    final inId = team.players
+        .firstWhere((p) => !team.startingXI.contains(p.id) && !p.isInjured)
+        .id;
 
-    final ok = gameState.makeHalfTimeSubstitution(outPlayerId: outId, inPlayerId: inId);
+    final ok = gameState.makeHalfTimeSubstitution(
+        outPlayerId: outId, inPlayerId: inId);
 
     expect(ok, isTrue);
     expect(team.startingXI.contains(inId), isTrue);
@@ -624,7 +732,9 @@ void main() {
     expect(gameState.substitutionsUsed, 1);
   });
 
-  test('GameState.playFriendly resolves a friendly without affecting league standings', () async {
+  test(
+      'GameState.playFriendly resolves a friendly without affecting league standings',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     expect(gameState.save!.friendlies, isNotEmpty);
@@ -633,10 +743,13 @@ void main() {
 
     expect(result, isNotNull);
     expect(gameState.save!.friendlies[0].result, isNotNull);
-    expect(gameState.save!.league.fixtures.every((f) => f.result == null), isTrue);
+    expect(
+        gameState.save!.league.fixtures.every((f) => f.result == null), isTrue);
   });
 
-  test('GameState.acceptIncomingOffer sells the player and adds the offered amount to budget', () async {
+  test(
+      'GameState.acceptIncomingOffer sells the player and adds the offered amount to budget',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.userTeam.players.first;
@@ -657,11 +770,14 @@ void main() {
     expect(gameState.incomingOffers, isEmpty);
   });
 
-  test('GameState.acceptIncomingOffer backfills the starting XI when a starter is sold', () async {
+  test(
+      'GameState.acceptIncomingOffer backfills the starting XI when a starter is sold',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
-    final target = team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    final target =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
     gameState.save!.incomingOffers.add(IncomingOffer(
       id: 'starter-offer',
       playerId: target.id,
@@ -677,7 +793,8 @@ void main() {
     expect(team.startingXI.length, 11);
   });
 
-  test('GameState.acceptIncomingOffer discards a stale offer without crediting budget '
+  test(
+      'GameState.acceptIncomingOffer discards a stale offer without crediting budget '
       'when the player already left the team', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
@@ -699,12 +816,15 @@ void main() {
     expect(gameState.incomingOffers, isEmpty);
   });
 
-  test('GameState.acceptIncomingOffer keeps the offer pending when the squad-size guard blocks the sale', () async {
+  test(
+      'GameState.acceptIncomingOffer keeps the offer pending when the squad-size guard blocks the sale',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
     while (team.players.length > minSquadSize) {
-      final removable = team.players.firstWhere((p) => !team.startingXI.contains(p.id));
+      final removable =
+          team.players.firstWhere((p) => !team.startingXI.contains(p.id));
       team.players.remove(removable);
     }
     final target = team.players.first;
@@ -721,15 +841,18 @@ void main() {
 
     expect(ok, isFalse);
     expect(gameState.save!.budget, 1000);
-    expect(gameState.incomingOffers.any((o) => o.id == 'guarded-offer'), isTrue);
+    expect(
+        gameState.incomingOffers.any((o) => o.id == 'guarded-offer'), isTrue);
   });
 
-  test('GameState.playFriendly does not accumulate fatigue or cause injuries', () async {
+  test('GameState.playFriendly does not accumulate fatigue or cause injuries',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final lineup = MatchEngine.lineupOf(gameState.userTeam);
     final fatigueBefore = {for (final p in lineup) p.id: p.fatigue};
-    final injuredBefore = lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
+    final injuredBefore =
+        lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
 
     final result = await gameState.playFriendly(0);
 
@@ -737,11 +860,14 @@ void main() {
     for (final p in lineup) {
       expect(p.fatigue, fatigueBefore[p.id]);
     }
-    final injuredAfter = lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
+    final injuredAfter =
+        lineup.where((p) => p.isInjured).map((p) => p.id).toSet();
     expect(injuredAfter, injuredBefore);
   });
 
-  test('GameState.declineIncomingOffer removes the offer without affecting budget', () async {
+  test(
+      'GameState.declineIncomingOffer removes the offer without affecting budget',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.userTeam.players.first;
@@ -761,7 +887,8 @@ void main() {
     expect(gameState.incomingOffers, isEmpty);
   });
 
-  test('GameState.setReleaseClause sets and clears the release clause', () async {
+  test('GameState.setReleaseClause sets and clears the release clause',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.userTeam.players.first;
@@ -773,10 +900,13 @@ void main() {
     expect(target.releaseClause, isNull);
   });
 
-  test('GameState.acceptJobOffer switches clubs and resets confidence/board target', () async {
+  test(
+      'GameState.acceptJobOffer switches clubs and resets confidence/board target',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
-    final newTeamId = gameState.save!.league.teams.firstWhere((t) => t.id != 'user').id;
+    final newTeamId =
+        gameState.save!.league.teams.firstWhere((t) => t.id != 'user').id;
     gameState.save!.pendingJobOfferTeamId = newTeamId;
     gameState.save!.confidence = 10;
 
@@ -788,7 +918,9 @@ void main() {
     expect(gameState.save!.confidence, 60);
   });
 
-  test('GameState.declineJobOffer clears the pending offer without switching clubs', () async {
+  test(
+      'GameState.declineJobOffer clears the pending offer without switching clubs',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.pendingJobOfferTeamId = 'cpu0';
@@ -799,7 +931,9 @@ void main() {
     expect(gameState.save!.userTeamId, 'user');
   });
 
-  test('GameState.startNextSeason generates a batch of youth intake candidates within bounds', () async {
+  test(
+      'GameState.startNextSeason generates a batch of youth intake candidates within bounds',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
@@ -809,7 +943,8 @@ void main() {
     expect(gameState.managerReputation, inInclusiveRange(0, 100));
   });
 
-  test('GameState.keepYouthIntakePlayer moves a candidate into youth prospects', () async {
+  test('GameState.keepYouthIntakePlayer moves a candidate into youth prospects',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     await gameState.startNextSeason();
@@ -818,11 +953,15 @@ void main() {
     final ok = await gameState.keepYouthIntakePlayer(candidate.id);
 
     expect(ok, isTrue);
-    expect(gameState.save!.youthProspects.any((p) => p.id == candidate.id), isTrue);
-    expect(gameState.pendingYouthIntake.any((p) => p.id == candidate.id), isFalse);
+    expect(gameState.save!.youthProspects.any((p) => p.id == candidate.id),
+        isTrue);
+    expect(
+        gameState.pendingYouthIntake.any((p) => p.id == candidate.id), isFalse);
   });
 
-  test('LoanEngine.weeklyRepaymentFor charges more in total for the longer, higher-interest term', () {
+  test(
+      'LoanEngine.weeklyRepaymentFor charges more in total for the longer, higher-interest term',
+      () {
     const principal = 1000;
     final shortTerm = LoanEngine.terms.firstWhere((t) => t.weeks == 12);
     final longTerm = LoanEngine.terms.firstWhere((t) => t.weeks == 26);
@@ -838,7 +977,9 @@ void main() {
     );
   });
 
-  test('GameState.takeLoan adds funds to the budget and refuses amounts above the borrowing limit', () async {
+  test(
+      'GameState.takeLoan adds funds to the budget and refuses amounts above the borrowing limit',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = 0;
@@ -857,7 +998,9 @@ void main() {
     expect(gameState.bankLoans.first.weeksRemaining, term.weeks);
   });
 
-  test('GameState.maxLoanAmount shrinks by the outstanding debt of existing loans', () async {
+  test(
+      'GameState.maxLoanAmount shrinks by the outstanding debt of existing loans',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final term = LoanEngine.terms.first;
@@ -868,7 +1011,9 @@ void main() {
     expect(gameState.maxLoanAmount, lessThan(beforeMax));
   });
 
-  test('GameState.playNextMatchday counts down the loan and clears it once the term ends', () async {
+  test(
+      'GameState.playNextMatchday counts down the loan and clears it once the term ends',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final term = LoanEngine.terms.firstWhere((t) => t.weeks == 12);
@@ -891,9 +1036,13 @@ void main() {
     expect(gameState.bankLoans, isEmpty);
   });
 
-  test('AwardsEngine.computeAwards picks the top scorer by goal tally and an MVP among starters', () {
-    final home = PlayerGenerator.generateSquad(id: 'h', name: 'Home FC', strengthTier: 60);
-    final away = PlayerGenerator.generateSquad(id: 'a', name: 'Away FC', strengthTier: 60);
+  test(
+      'AwardsEngine.computeAwards picks the top scorer by goal tally and an MVP among starters',
+      () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'h', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'a', name: 'Away FC', strengthTier: 60);
     LineupUtils.autoFill(home);
     LineupUtils.autoFill(away);
     final topScorer = home.players.first;
@@ -909,9 +1058,21 @@ void main() {
         homeGoals: 2,
         awayGoals: 1,
         events: [
-          MatchEvent(minute: 10, teamId: home.id, scorerName: topScorer.name, scorerId: topScorer.id),
-          MatchEvent(minute: 30, teamId: home.id, scorerName: topScorer.name, scorerId: topScorer.id),
-          MatchEvent(minute: 50, teamId: away.id, scorerName: otherScorer.name, scorerId: otherScorer.id),
+          MatchEvent(
+              minute: 10,
+              teamId: home.id,
+              scorerName: topScorer.name,
+              scorerId: topScorer.id),
+          MatchEvent(
+              minute: 30,
+              teamId: home.id,
+              scorerName: topScorer.name,
+              scorerId: topScorer.id),
+          MatchEvent(
+              minute: 50,
+              teamId: away.id,
+              scorerName: otherScorer.name,
+              scorerId: otherScorer.id),
         ],
       ),
     );
@@ -926,7 +1087,8 @@ void main() {
     expect(award.mvpName, isNotNull);
   });
 
-  test('GameState.startNextSeason records a season award once the season ends', () async {
+  test('GameState.startNextSeason records a season award once the season ends',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     while (!gameState.save!.league.isSeasonComplete) {
@@ -943,7 +1105,8 @@ void main() {
   });
 
   test('LineupUtils.autoFill excludes players on international duty', () {
-    final team = PlayerGenerator.generateSquad(id: 't6', name: 'Test FC', strengthTier: 60);
+    final team = PlayerGenerator.generateSquad(
+        id: 't6', name: 'Test FC', strengthTier: 60);
     for (final p in team.players.where((p) => p.position == Position.st)) {
       p.internationalDutyWeeksRemaining = 2;
     }
@@ -953,7 +1116,9 @@ void main() {
     expect(lineup.every((p) => !p.isOnInternationalDuty), isTrue);
   });
 
-  test('GameState.playNextMatchday counts down a user player\'s international duty', () async {
+  test(
+      'GameState.playNextMatchday counts down a user player\'s international duty',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
@@ -964,7 +1129,9 @@ void main() {
     expect(player.internationalDutyWeeksRemaining, 1);
   });
 
-  test('GameState.playSecondHalf generates a press conference question that can be answered', () async {
+  test(
+      'GameState.playSecondHalf generates a press conference question that can be answered',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     await gameState.playNextMatchday();
@@ -979,26 +1146,46 @@ void main() {
     await gameState.answerPressConference(0);
 
     expect(gameState.pendingPressConference, isNull);
-    expect(gameState.save!.confidence, (confidenceBefore + option.confidenceDelta).clamp(0, 100));
+    expect(gameState.save!.confidence,
+        (confidenceBefore + option.confidenceDelta).clamp(0, 100));
   });
 
-  test('GameState.isRivalFixture matches the user-vs-rival fixture regardless of home/away order', () async {
+  test(
+      'GameState.isRivalFixture matches the user-vs-rival fixture regardless of home/away order',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final userId = gameState.userTeam.id;
     final rivalId = gameState.save!.rivalTeamId!;
-    final otherId = gameState.save!.league.teams.firstWhere((t) => t.id != userId && t.id != rivalId).id;
+    final otherId = gameState.save!.league.teams
+        .firstWhere((t) => t.id != userId && t.id != rivalId)
+        .id;
 
-    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: userId, awayTeamId: rivalId)), isTrue);
-    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: rivalId, awayTeamId: userId)), isTrue);
-    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: userId, awayTeamId: otherId)), isFalse);
-    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: otherId, awayTeamId: rivalId)), isFalse);
+    expect(
+        gameState.isRivalFixture(
+            Fixture(matchday: 1, homeTeamId: userId, awayTeamId: rivalId)),
+        isTrue);
+    expect(
+        gameState.isRivalFixture(
+            Fixture(matchday: 1, homeTeamId: rivalId, awayTeamId: userId)),
+        isTrue);
+    expect(
+        gameState.isRivalFixture(
+            Fixture(matchday: 1, homeTeamId: userId, awayTeamId: otherId)),
+        isFalse);
+    expect(
+        gameState.isRivalFixture(
+            Fixture(matchday: 1, homeTeamId: otherId, awayTeamId: rivalId)),
+        isFalse);
   });
 
-  test('PromotionEngine.resolve swaps the bottom of tier1 with the top of tier2', () {
+  test(
+      'PromotionEngine.resolve swaps the bottom of tier1 with the top of tier2',
+      () {
     List<Team> makeTeams(String prefix, int count) => List.generate(
           count,
-          (i) => PlayerGenerator.generateSquad(id: '$prefix$i', name: '$prefix Team $i', strengthTier: 60),
+          (i) => PlayerGenerator.generateSquad(
+              id: '$prefix$i', name: '$prefix Team $i', strengthTier: 60),
         );
 
     final tier1Teams = makeTeams('t1', 8);
@@ -1027,15 +1214,24 @@ void main() {
     expect(newTier1Ids.containsAll(survivorsTop), isTrue);
     expect(newTier2Ids.containsAll(relegatedIds), isTrue);
     // 昇格した3チームはすべてtier2の元メンバーから来ている。
-    expect(newTier1Ids.difference(survivorsTop).every((id) => tier2Teams.any((t) => t.id == id)), isTrue);
+    expect(
+        newTier1Ids
+            .difference(survivorsTop)
+            .every((id) => tier2Teams.any((t) => t.id == id)),
+        isTrue);
     // チームが増減せず、全チームがどちらかのディビジョンに存在する。
-    final allOriginalIds = {...tier1Teams.map((t) => t.id), ...tier2Teams.map((t) => t.id)};
+    final allOriginalIds = {
+      ...tier1Teams.map((t) => t.id),
+      ...tier2Teams.map((t) => t.id)
+    };
     expect(newTier1Ids.union(newTier2Ids), allOriginalIds);
     expect(result.relegatedTeamNames.length, 3);
     expect(result.promotedTeamNames.length, 3);
   });
 
-  test('GameState.startNextSeason relegates the user to the second division when they finish last', () async {
+  test(
+      'GameState.startNextSeason relegates the user to the second division when they finish last',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final userId = gameState.userTeam.id;
@@ -1072,24 +1268,32 @@ void main() {
     expect(gameState.save!.secondDivisionTeams.length, teamsPerLeague);
   });
 
-  test('ScoutReportEngine.generateFor produces a report with a key player and recommendation', () {
-    final opponent = PlayerGenerator.generateSquad(id: 'opp', name: '対戦相手FC', strengthTier: 70);
-    final userTeam = PlayerGenerator.generateSquad(id: 'user', name: 'テストFC', strengthTier: 60);
+  test(
+      'ScoutReportEngine.generateFor produces a report with a key player and recommendation',
+      () {
+    final opponent = PlayerGenerator.generateSquad(
+        id: 'opp', name: '対戦相手FC', strengthTier: 70);
+    final userTeam = PlayerGenerator.generateSquad(
+        id: 'user', name: 'テストFC', strengthTier: 60);
     LineupUtils.autoFill(opponent);
     LineupUtils.autoFill(userTeam);
 
-    final report = ScoutReportEngine.generateFor(opponent: opponent, userTeam: userTeam);
+    final report =
+        ScoutReportEngine.generateFor(opponent: opponent, userTeam: userTeam);
 
     expect(report.opponentName, '対戦相手FC');
     expect(report.keyPlayerName, isNotNull);
     expect(report.recommendation, isNotEmpty);
   });
 
-  test('GameState.loanOutPlayer sends a player out on loan, excluding them from the wage bill and lineup', () async {
+  test(
+      'GameState.loanOutPlayer sends a player out on loan, excluding them from the wage bill and lineup',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
-    final target = team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    final target =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
     final wageBefore = ContractEngine.weeklyWageBill(team);
 
     final ok = await gameState.loanOutPlayer(target.id, 8);
@@ -1101,7 +1305,9 @@ void main() {
     expect(ContractEngine.weeklyWageBill(team), wageBefore - target.wage);
   });
 
-  test('GameState.playNextMatchday returns a loaned-out player to the squad once the term ends', () async {
+  test(
+      'GameState.playNextMatchday returns a loaned-out player to the squad once the term ends',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final target = gameState.userTeam.players.first;
@@ -1130,7 +1336,9 @@ void main() {
     expect(target.isTransferListed, isFalse);
   });
 
-  test('GameState.setPlayerDuty updates the duty and MatchEngine.simulate still runs under extreme tactics', () async {
+  test(
+      'GameState.setPlayerDuty updates the duty and MatchEngine.simulate still runs under extreme tactics',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
@@ -1139,9 +1347,11 @@ void main() {
     }
     team.width = 100;
     team.tempo = 100;
-    expect(team.players.firstWhere((p) => p.id == team.startingXI.first).duty, PlayerDuty.attack);
+    expect(team.players.firstWhere((p) => p.id == team.startingXI.first).duty,
+        PlayerDuty.attack);
 
-    final away = PlayerGenerator.generateSquad(id: 'awayX', name: 'Away FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'awayX', name: 'Away FC', strengthTier: 60);
     LineupUtils.autoFill(away);
     final result = MatchEngine.simulate(home: team, away: away, matchday: 1);
 
@@ -1155,15 +1365,19 @@ void main() {
     expect(level5, greaterThan(level1));
   });
 
-  test('GameState.expectedAttendance stays within the stadium capacity', () async {
+  test('GameState.expectedAttendance stays within the stadium capacity',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
     expect(gameState.expectedAttendance, greaterThan(0));
-    expect(gameState.expectedAttendance, lessThanOrEqualTo(gameState.stadiumCapacity));
+    expect(gameState.expectedAttendance,
+        lessThanOrEqualTo(gameState.stadiumCapacity));
   });
 
-  test('GameState.playNextMatchday records last match attendance within capacity', () async {
+  test(
+      'GameState.playNextMatchday records last match attendance within capacity',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
@@ -1171,14 +1385,20 @@ void main() {
 
     expect(gameState.lastMatchAttendance, isNotNull);
     expect(gameState.lastMatchAttendance, greaterThan(0));
-    expect(gameState.lastMatchAttendance, lessThanOrEqualTo(gameState.stadiumCapacity));
+    expect(gameState.lastMatchAttendance,
+        lessThanOrEqualTo(gameState.stadiumCapacity));
   });
 
-  test('AiTransferEngine.maybeGenerate never touches the user team and preserves total player count', () {
+  test(
+      'AiTransferEngine.maybeGenerate never touches the user team and preserves total player count',
+      () {
     final rng = Random(7);
-    final user = PlayerGenerator.generateSquad(id: 'user', name: 'ユーザーFC', strengthTier: 60);
-    final cpu1 = PlayerGenerator.generateSquad(id: 'cpu1', name: 'CPU1', strengthTier: 60);
-    final cpu2 = PlayerGenerator.generateSquad(id: 'cpu2', name: 'CPU2', strengthTier: 60);
+    final user = PlayerGenerator.generateSquad(
+        id: 'user', name: 'ユーザーFC', strengthTier: 60);
+    final cpu1 = PlayerGenerator.generateSquad(
+        id: 'cpu1', name: 'CPU1', strengthTier: 60);
+    final cpu2 = PlayerGenerator.generateSquad(
+        id: 'cpu2', name: 'CPU2', strengthTier: 60);
     final teams = [user, cpu1, cpu2];
     final totalBefore = teams.fold<int>(0, (s, t) => s + t.players.length);
     final userCountBefore = user.players.length;
@@ -1192,7 +1412,9 @@ void main() {
     expect(user.players.length, userCountBefore);
   });
 
-  test('GameState.playNextMatchday generates CPU-to-CPU transfer news without touching the user squad', () async {
+  test(
+      'GameState.playNextMatchday generates CPU-to-CPU transfer news without touching the user squad',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     // 契約切れによる離脱と混同しないよう、ユーザークラブの契約を十分延長しておく。
@@ -1210,8 +1432,13 @@ void main() {
     expect(gameState.userTeam.players.length, userCountBefore);
   });
 
-  test('ContractEngine.signingBonusFor and appearanceFeeFor scale with personality wage sensitivity', () {
-    final player = PlayerGenerator.generateSquad(id: 't', name: 'Test FC', strengthTier: 70).players.first;
+  test(
+      'ContractEngine.signingBonusFor and appearanceFeeFor scale with personality wage sensitivity',
+      () {
+    final player = PlayerGenerator.generateSquad(
+            id: 't', name: 'Test FC', strengthTier: 70)
+        .players
+        .first;
     player.personality = PlayerPersonality.ambitious;
     final ambitiousBonus = ContractEngine.signingBonusFor(player);
     final ambitiousFee = ContractEngine.appearanceFeeFor(player);
@@ -1224,7 +1451,9 @@ void main() {
     expect(ambitiousFee, greaterThan(loyalFee));
   });
 
-  test('GameState.renewContract charges a signing bonus and sets a new appearance fee', () async {
+  test(
+      'GameState.renewContract charges a signing bonus and sets a new appearance fee',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
@@ -1241,7 +1470,9 @@ void main() {
     expect(player.appearanceFee, greaterThan(0));
   });
 
-  test('GameState.playNextMatchday pays appearance fees for the starting lineup', () async {
+  test(
+      'GameState.playNextMatchday pays appearance fees for the starting lineup',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
@@ -1255,7 +1486,9 @@ void main() {
     expect(gameState.lastAppearanceFeesPaid, expectedFee);
   });
 
-  test('GameState.startNextSeason records career stats and a league trophy when the user finishes first', () async {
+  test(
+      'GameState.startNextSeason records career stats and a league trophy when the user finishes first',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final userId = gameState.userTeam.id;
@@ -1286,19 +1519,25 @@ void main() {
     await gameState.startNextSeason();
 
     expect(gameState.save!.careerSeasons, 1);
-    final totalMatches = gameState.save!.careerWins + gameState.save!.careerDraws + gameState.save!.careerLosses;
+    final totalMatches = gameState.save!.careerWins +
+        gameState.save!.careerDraws +
+        gameState.save!.careerLosses;
     expect(totalMatches, greaterThan(0));
     expect(gameState.save!.careerWins, totalMatches);
     expect(gameState.save!.trophyHistory, isNotEmpty);
     expect(gameState.save!.trophyHistory.last, contains('優勝'));
   });
 
-  test('GameState.acceptJobOffer appends the new club to the manager\'s club history', () async {
+  test(
+      'GameState.acceptJobOffer appends the new club to the manager\'s club history',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
-    gameState.save!.pendingJobOfferTeamId = gameState.save!.league.teams.firstWhere((t) => !t.isUserTeam).id;
-    final newTeamName =
-        gameState.save!.league.teams.firstWhere((t) => t.id == gameState.save!.pendingJobOfferTeamId).name;
+    gameState.save!.pendingJobOfferTeamId =
+        gameState.save!.league.teams.firstWhere((t) => !t.isUserTeam).id;
+    final newTeamName = gameState.save!.league.teams
+        .firstWhere((t) => t.id == gameState.save!.pendingJobOfferTeamId)
+        .name;
 
     final ok = await gameState.acceptJobOffer();
 
@@ -1307,7 +1546,8 @@ void main() {
     expect(gameState.save!.clubHistory.last, newTeamName);
   });
 
-  test('GameState.exportSaveJson/importSaveJson round-trips the save data', () async {
+  test('GameState.exportSaveJson/importSaveJson round-trips the save data',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = 12345;
@@ -1323,7 +1563,8 @@ void main() {
     expect(fresh.save!.budget, 12345);
   });
 
-  test('GameState.importSaveJson rejects malformed JSON without crashing', () async {
+  test('GameState.importSaveJson rejects malformed JSON without crashing',
+      () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
 
@@ -1333,7 +1574,9 @@ void main() {
     expect(gameState.save!.clubName, 'テストFC');
   });
 
-  test('GameState.isBusy toggles off after startNewGame and startNextSeason complete', () async {
+  test(
+      'GameState.isBusy toggles off after startNewGame and startNextSeason complete',
+      () async {
     final gameState = GameState();
     expect(gameState.isBusy, isFalse);
 
@@ -1342,5 +1585,60 @@ void main() {
 
     await gameState.startNextSeason();
     expect(gameState.isBusy, isFalse);
+  });
+
+  test(
+      'YoungTalentScreen.topProspects excludes older players and sorts by potential then overall',
+      () {
+    Player make(String id, int age, int potential) => Player(
+          id: id,
+          name: id,
+          age: age,
+          position: Position.mc,
+          potential: potential,
+        );
+
+    final young1 = make('y1', 19, 90);
+    final young2 = make('y2', 20, 90);
+    final young3 = make('y3', 21, 70);
+    final old1 = make('o1', 30, 95);
+
+    final teamA = Team(id: 'a', name: 'A', players: [young1, old1]);
+    final teamB = Team(id: 'b', name: 'B', players: [young2, young3]);
+    final league = League(teams: [teamA], fixtures: [], season: 1);
+    final save = SaveGame(
+      clubName: 'テストFC',
+      userTeamId: 'a',
+      league: league,
+      secondDivisionTeams: [teamB],
+    );
+
+    final top = YoungTalentScreen.topProspects(save, limit: 10);
+
+    expect(top.length, 3);
+    expect(top.any((p) => p.player.id == 'o1'), isFalse);
+    expect(top.every((p) => p.player.age <= YoungTalentScreen.maxAge), isTrue);
+    expect(top.first.player.potential, 90);
+    expect(top.last.player.id, 'y3');
+  });
+
+  test('YoungTalentScreen.topProspects respects the limit parameter', () {
+    Player make(String id, int potential) => Player(
+          id: id,
+          name: id,
+          age: 18,
+          position: Position.mc,
+          potential: potential,
+        );
+
+    final players = List.generate(5, (i) => make('p$i', 60 + i));
+    final team = Team(id: 'a', name: 'A', players: players);
+    final league = League(teams: [team], fixtures: [], season: 1);
+    final save = SaveGame(clubName: 'テストFC', userTeamId: 'a', league: league);
+
+    final top = YoungTalentScreen.topProspects(save, limit: 2);
+
+    expect(top.length, 2);
+    expect(top.first.player.id, 'p4');
   });
 }

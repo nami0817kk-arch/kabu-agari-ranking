@@ -9,6 +9,8 @@ class SettingsController extends ChangeNotifier {
   static const _soundEnabledKey = 'settings_sound_enabled';
   static const _hapticsEnabledKey = 'settings_haptics_enabled';
   static const _onboardingSeenKey = 'settings_onboarding_seen';
+  static const _colorblindModeKey = 'settings_colorblind_mode';
+  static const _boldTextModeKey = 'settings_bold_text_mode';
 
   static const double minTextScale = 0.85;
   static const double maxTextScale = 1.3;
@@ -19,6 +21,12 @@ class SettingsController extends ChangeNotifier {
   bool soundEnabled = true;
   bool hapticsEnabled = true;
   bool hasSeenOnboarding = false;
+
+  /// 色覚サポートモード。勝敗などの色分け表現を、赤緑ではなく青とオレンジに置き換える。
+  bool colorblindMode = false;
+
+  /// 太字強調モード。文字を全体的に太くして視認性を高める。
+  bool boldTextMode = false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -31,6 +39,8 @@ class SettingsController extends ChangeNotifier {
     soundEnabled = prefs.getBool(_soundEnabledKey) ?? true;
     hapticsEnabled = prefs.getBool(_hapticsEnabledKey) ?? true;
     hasSeenOnboarding = prefs.getBool(_onboardingSeenKey) ?? false;
+    colorblindMode = prefs.getBool(_colorblindModeKey) ?? false;
+    boldTextMode = prefs.getBool(_boldTextModeKey) ?? false;
     initialized = true;
     notifyListeners();
   }
@@ -68,5 +78,19 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingSeenKey, value);
+  }
+
+  Future<void> setColorblindMode(bool value) async {
+    colorblindMode = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_colorblindModeKey, value);
+  }
+
+  Future<void> setBoldTextMode(bool value) async {
+    boldTextMode = value;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_boldTextModeKey, value);
   }
 }

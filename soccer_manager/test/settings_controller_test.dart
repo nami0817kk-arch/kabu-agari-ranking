@@ -8,7 +8,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('SettingsController.init loads sensible defaults on first launch', () async {
+  test('SettingsController.init loads sensible defaults on first launch',
+      () async {
     final settings = SettingsController();
     await settings.init();
 
@@ -18,6 +19,8 @@ void main() {
     expect(settings.soundEnabled, isTrue);
     expect(settings.hapticsEnabled, isTrue);
     expect(settings.hasSeenOnboarding, isFalse);
+    expect(settings.colorblindMode, isFalse);
+    expect(settings.boldTextMode, isFalse);
   });
 
   test('SettingsController persists changes across a fresh instance', () async {
@@ -28,6 +31,8 @@ void main() {
     await settings.setSoundEnabled(false);
     await settings.setHapticsEnabled(false);
     await settings.setHasSeenOnboarding(true);
+    await settings.setColorblindMode(true);
+    await settings.setBoldTextMode(true);
 
     final reloaded = SettingsController();
     await reloaded.init();
@@ -37,6 +42,8 @@ void main() {
     expect(reloaded.soundEnabled, isFalse);
     expect(reloaded.hapticsEnabled, isFalse);
     expect(reloaded.hasSeenOnboarding, isTrue);
+    expect(reloaded.colorblindMode, isTrue);
+    expect(reloaded.boldTextMode, isTrue);
   });
 
   test('SettingsController.setTextScale clamps to the allowed range', () async {

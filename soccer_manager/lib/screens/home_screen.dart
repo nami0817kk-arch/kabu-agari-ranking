@@ -4,6 +4,7 @@ import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
 import '../services/feedback_service.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import 'awards_screen.dart';
@@ -17,6 +18,7 @@ import 'scout_report_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
+import 'young_talent_screen.dart';
 import 'youth_intake_screen.dart';
 import 'youth_screen.dart';
 
@@ -94,7 +96,9 @@ class HomeScreen extends StatelessWidget {
                   label: '資金',
                   value: '${save.budget}万円',
                   sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
-                  color: net >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                  color: net >= 0
+                      ? SemanticColors.positive(context)
+                      : SemanticColors.negative(context),
                 ),
                 _StatTile(
                   icon: Icons.bar_chart,
@@ -347,6 +351,13 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.blueGrey.shade700,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const SettingsScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.stars,
+                  label: '若手ランキング',
+                  color: Colors.deepPurple.shade400,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const YoungTalentScreen())),
                 ),
               ],
             ),

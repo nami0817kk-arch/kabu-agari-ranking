@@ -13,13 +13,35 @@ void main() {
 class SoccerManagerApp extends StatelessWidget {
   const SoccerManagerApp({super.key});
 
-  ThemeData _buildTheme(Brightness brightness) {
+  TextTheme _bolden(TextTheme t) {
+    TextStyle? bump(TextStyle? s) => s?.copyWith(fontWeight: FontWeight.w700);
+    return t.copyWith(
+      displayLarge: bump(t.displayLarge),
+      displayMedium: bump(t.displayMedium),
+      displaySmall: bump(t.displaySmall),
+      headlineLarge: bump(t.headlineLarge),
+      headlineMedium: bump(t.headlineMedium),
+      headlineSmall: bump(t.headlineSmall),
+      titleLarge: bump(t.titleLarge),
+      titleMedium: bump(t.titleMedium),
+      titleSmall: bump(t.titleSmall),
+      bodyLarge: bump(t.bodyLarge),
+      bodyMedium: bump(t.bodyMedium),
+      bodySmall: bump(t.bodySmall),
+      labelLarge: bump(t.labelLarge),
+      labelMedium: bump(t.labelMedium),
+      labelSmall: bump(t.labelSmall),
+    );
+  }
+
+  ThemeData _buildTheme(Brightness brightness, {required bool boldText}) {
     final base = ThemeData(
       colorSchemeSeed: const Color(0xFF1B5E3C),
       useMaterial3: true,
       brightness: brightness,
     );
     return base.copyWith(
+      textTheme: boldText ? _bolden(base.textTheme) : base.textTheme,
       cardTheme: CardThemeData(
         elevation: 0,
         color: base.colorScheme.surfaceContainerHigh,
@@ -83,8 +105,10 @@ class SoccerManagerApp extends StatelessWidget {
           FeedbackService.attach(settings);
           return MaterialApp(
             title: 'サッカー経営マネージャー',
-            theme: _buildTheme(Brightness.light),
-            darkTheme: _buildTheme(Brightness.dark),
+            theme:
+                _buildTheme(Brightness.light, boldText: settings.boldTextMode),
+            darkTheme:
+                _buildTheme(Brightness.dark, boldText: settings.boldTextMode),
             themeMode: settings.themeMode,
             builder: (context, child) {
               final mediaQuery = MediaQuery.of(context);

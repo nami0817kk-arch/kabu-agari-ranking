@@ -71,6 +71,27 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+          Text('アクセシビリティ', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('色覚サポートモード'),
+                  subtitle: const Text('勝敗などの色分けを、赤緑ではなく青とオレンジで表示します'),
+                  value: settings.colorblindMode,
+                  onChanged: (v) => settings.setColorblindMode(v),
+                ),
+                SwitchListTile(
+                  title: const Text('太字強調モード'),
+                  subtitle: const Text('文字を全体的に太くして見やすくします'),
+                  value: settings.boldTextMode,
+                  onChanged: (v) => settings.setBoldTextMode(v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
           Text('サウンド・触覚', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Card(
