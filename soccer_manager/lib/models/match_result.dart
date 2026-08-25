@@ -6,12 +6,16 @@ class MatchEvent {
 
   /// 得点者・警告/退場対象者・チャンスを迎えた選手名など、イベント種別に応じた選手名。
   final String? scorerName;
+
+  /// scorerNameに対応する選手ID(得点イベントの場合、シーズン集計に使う)。
+  final String? scorerId;
   final MatchEventType type;
 
   MatchEvent({
     required this.minute,
     required this.teamId,
     this.scorerName,
+    this.scorerId,
     this.type = MatchEventType.goal,
   });
 
@@ -19,6 +23,7 @@ class MatchEvent {
         'minute': minute,
         'teamId': teamId,
         'scorerName': scorerName,
+        'scorerId': scorerId,
         'type': type.name,
       };
 
@@ -26,6 +31,7 @@ class MatchEvent {
         minute: json['minute'] as int,
         teamId: json['teamId'] as String,
         scorerName: json['scorerName'] as String?,
+        scorerId: json['scorerId'] as String?,
         type: MatchEventType.values.byName(json['type'] as String? ?? 'goal'),
       );
 }

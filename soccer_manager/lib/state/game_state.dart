@@ -10,16 +10,20 @@ import '../models/incoming_offer.dart';
 import '../models/installment.dart';
 import '../models/league_theme.dart';
 import '../models/player.dart';
+import '../models/press_question.dart';
 import '../models/save_game.dart';
+import '../models/season_award.dart';
 import '../models/sponsor.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../logic/awards_engine.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
 import '../logic/cup_engine.dart';
 import '../logic/happiness_engine.dart';
 import '../logic/loan_engine.dart';
+import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/lineup_utils.dart';
@@ -120,6 +124,9 @@ class GameState extends ChangeNotifier {
       pendingSponsorOffers: SponsorEngine.generateOffers(userTeam.overallRating),
       friendlies: _generateFriendlies(teams, 'user'),
     );
+    final rival = cpuTeams[rng.nextInt(cpuTeams.length)];
+    _save!.rivalTeamId = rival.id;
+    _save!.rivalTeamName = rival.name;
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     lastContractExpirations = [];
@@ -636,8 +643,62 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayでリリース条項により自動売却された選手名。
   List<String> lastReleaseClauseSales = [];
 
+  /// 直近のplayNextMatchdayで代表召集された選手名。
+  List<String> lastInternationalCallUps = [];
+
+  static final Random _dutyRng = Random();
+
+  /// 代表召集の週次処理: 期間終了・新規招集抽選を行う(ユーザークラブのみ)。
+  /// スタメンから招集された場合は自動で欠員を埋める。招集された選手名を返す(UI通知用)。
+  List<String> _advanceInternationalDuty() {
+    final team = userTeam;
+    for (final p in team.players) {
+      if (p.internationalDutyWeeksRemaining > 0) {
+        p.internationalDutyWeeksRemaining -= 1;
+      }
+    }
+
+    final called = <String>[];
+    var lineupChanged = false;
+    final eligible = team.players.where(
+      (p) => !p.isInjured && !p.isLoan && !p.isOnInternationalDuty && p.overall >= 78,
+    );
+    for (final p in eligible) {
+      if (_dutyRng.nextDouble() < 0.06) {
+        p.internationalDutyWeeksRemaining = 1 + _dutyRng.nextInt(2);
+        called.add(p.name);
+        if (team.startingXI.contains(p.id)) lineupChanged = true;
+      }
+    }
+    if (lineupChanged) {
+      LineupUtils.autoFill(team);
+    }
+    return called;
+  }
+
   /// 監督としての世間の評価(0-100)。
   int get managerReputation => _save?.managerReputation ?? 50;
+
+  /// シーズンごとに確定した個人タイトル(得点王・年間MVP)の履歴。新しい順。
+  List<SeasonAward> get seasonAwards => (_save?.seasonAwards ?? const <SeasonAward>[]).reversed.toList();
+
+  /// 回答待ちの記者会見の質問。ない場合はnull。
+  PressQuestion? get pendingPressConference => _save?.pendingPressConference;
+
+  /// 記者会見の質問に回答する。信頼度・選手全体の士気に選んだ選択肢の効果を反映する。
+  Future<void> answerPressConference(int optionIndex) async {
+    if (_save == null) return;
+    final question = _save!.pendingPressConference;
+    if (question == null || optionIndex < 0 || optionIndex >= question.options.length) return;
+    final option = question.options[optionIndex];
+    _save!.confidence = (_save!.confidence + option.confidenceDelta).clamp(0, 100);
+    for (final p in userTeam.players) {
+      p.morale = (p.morale + option.moraleDelta).clamp(0, 100);
+    }
+    _save!.pendingPressConference = null;
+    notifyListeners();
+    await _persist();
+  }
 
   /// 他クラブから監督就任オファーが届いている場合、そのクラブ。
   Team? get pendingJobOfferTeam {
@@ -664,6 +725,30 @@ class GameState extends ChangeNotifier {
     notifyListeners();
     await _persist();
   }
+
+  /// ライバルクラブ(開幕時に決定、以後固定)。未設定の場合はnull。
+  Team? get rivalTeam {
+    final id = _save?.rivalTeamId;
+    if (id == null) return null;
+    try {
+      return _save!.league.teams.firstWhere((t) => t.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 指定した対戦カードが自クラブ対ライバルクラブの「ダービー」かどうか。
+  bool isRivalFixture(Fixture f) {
+    final rivalId = _save?.rivalTeamId;
+    if (rivalId == null) return false;
+    final userId = _save!.userTeamId;
+    return (f.homeTeamId == userId && f.awayTeamId == rivalId) ||
+        (f.homeTeamId == rivalId && f.awayTeamId == userId);
+  }
+
+  /// ダービー戦は観客動員(収入)・監督への信頼度への影響がともに増幅される。
+  static const double derbyAttendanceMultiplier = 1.5;
+  static const double derbyConfidenceMultiplier = 1.5;
 
   int weeklyIncomeFor(String teamId) {
     final league = _save!.league;
@@ -803,6 +888,9 @@ class GameState extends ChangeNotifier {
     // 移籍オファーの週次処理(期限切れ削除・新規発生・リリース条項の自動成立)。
     lastReleaseClauseSales = _advanceIncomingOffers();
 
+    // 代表召集の週次処理(期間終了・新規招集抽選。スタメン欠員は自動で埋める)。
+    lastInternationalCallUps = _advanceInternationalDuty();
+
     final md = next.matchday;
     Fixture? userFixture;
     HalfResult? userFirstHalf;
@@ -818,7 +906,11 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    _save!.budget += weeklyIncomeFor(_save!.userTeamId);
+    var income = weeklyIncomeFor(_save!.userTeamId);
+    if (userFixture != null && isRivalFixture(userFixture)) {
+      income = (income * derbyAttendanceMultiplier).round();
+    }
+    _save!.budget += income;
     _save!.budget -= weeklyWageBill;
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
@@ -860,8 +952,13 @@ class GameState extends ChangeNotifier {
     );
     f.result = merged;
 
-    final delta = BoardEngine.confidenceDeltaForMatch(merged, _save!.userTeamId);
+    var delta = BoardEngine.confidenceDeltaForMatch(merged, _save!.userTeamId);
+    if (isRivalFixture(f)) {
+      delta = (delta * derbyConfidenceMultiplier).round();
+    }
     _save!.confidence = (_save!.confidence + delta).clamp(0, 100);
+    _save!.pendingPressConference =
+        PressConferenceEngine.generateFor(result: merged, userTeamId: _save!.userTeamId);
 
     _liveFixture = null;
     _liveFirstHalf = null;
@@ -931,6 +1028,8 @@ class GameState extends ChangeNotifier {
     final league = _save!.league;
     final standings = league.sortedStandings;
     final finalRank = standings.indexWhere((r) => r.teamId == _save!.userTeamId) + 1;
+
+    _save!.seasonAwards.add(AwardsEngine.computeAwards(league, league.season));
 
     _save!.budget += BoardEngine.seasonPrizeMoney(finalRank: finalRank, teamCount: league.teams.length);
     final confidenceDelta = BoardEngine.confidenceDeltaForSeasonEnd(

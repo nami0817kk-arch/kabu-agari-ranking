@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
+import '../widgets/club_emblem.dart';
+import 'awards_screen.dart';
 import 'club_screen.dart';
 import 'cup_screen.dart';
 import 'finance_screen.dart';
@@ -106,6 +108,7 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
+          if (gameState.pendingPressConference != null) _PressConferenceCard(gameState: gameState),
           if (gameState.pendingJobOfferTeam != null) _JobOfferCard(gameState: gameState),
           if (gameState.pendingYouthIntake.isNotEmpty)
             Card(
@@ -192,11 +195,28 @@ class HomeScreen extends StatelessWidget {
           else if (next != null)
             Card(
               child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: scheme.primaryContainer,
-                  child: const Icon(Icons.event),
+                leading: ClubEmblem(
+                  teamId: next.homeTeamId == userTeam.id ? next.awayTeamId : next.homeTeamId,
+                  teamName: league.teams
+                      .firstWhere((t) => t.id == (next.homeTeamId == userTeam.id ? next.awayTeamId : next.homeTeamId))
+                      .name,
+                  size: 40,
                 ),
-                title: Text('第${next.matchday}節'),
+                title: Row(
+                  children: [
+                    Text('第${next.matchday}節'),
+                    if (gameState.isRivalFixture(next)) ...[
+                      const SizedBox(width: 6),
+                      const Chip(
+                        label: Text('ダービー', style: TextStyle(fontSize: 11)),
+                        backgroundColor: Colors.redAccent,
+                        labelStyle: TextStyle(color: Colors.white),
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ],
+                  ],
+                ),
                 subtitle: Text(_fixtureLabel(league, next)),
                 trailing: FilledButton(
                   onPressed: () => _playMatch(context),
@@ -257,6 +277,13 @@ class HomeScreen extends StatelessWidget {
                 onTap: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CupScreen())),
               ),
+              _ActionTile(
+                icon: Icons.military_tech,
+                label: '個人タイトル',
+                color: Colors.amber.shade700,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AwardsScreen())),
+              ),
             ],
           ),
         ],
@@ -294,6 +321,13 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastReleaseClauseSales = [];
     }
+    final calledUp = gameState.lastInternationalCallUps;
+    if (calledUp.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('代表召集: ${calledUp.join('、')}')),
+      );
+      gameState.lastInternationalCallUps = [];
+    }
 
     if (firstHalf != null) {
       await Navigator.of(context).push(
@@ -310,6 +344,49 @@ class HomeScreen extends StatelessWidget {
         SnackBar(content: Text('親善試合結果: ${result.homeGoals} - ${result.awayGoals}')),
       );
     }
+  }
+}
+
+class _PressConferenceCard extends StatelessWidget {
+  final GameState gameState;
+
+  const _PressConferenceCard({required this.gameState});
+
+  @override
+  Widget build(BuildContext context) {
+    final question = gameState.pendingPressConference!;
+    return Card(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.mic, size: 18),
+                const SizedBox(width: 6),
+                Text('記者会見', style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(question.prompt),
+            const SizedBox(height: 8),
+            for (int i = 0; i < question.options.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => gameState.answerPressConference(i),
+                    child: Text(question.options[i].label, textAlign: TextAlign.center),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

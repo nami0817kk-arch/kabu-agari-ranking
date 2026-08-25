@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/match_result.dart';
 import '../models/team.dart';
+import 'club_emblem.dart';
 
-/// チームIDから決定論的に選んだ色。試合画面でチームを視覚的に区別するためだけに使う。
-Color teamColorFor(String teamId) => Colors.primaries[teamId.hashCode.abs() % Colors.primaries.length];
-
-/// 試合画面上部に表示するチームの見出し(アイコン付きの名称)。
+/// 試合画面上部に表示するチームの見出し(エンブレム付きの名称)。
 class TeamHeader extends StatelessWidget {
   final Team team;
 
@@ -13,18 +11,10 @@ class TeamHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = teamColorFor(team.id);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CircleAvatar(
-          radius: 18,
-          backgroundColor: color,
-          child: Text(
-            team.name.isEmpty ? '?' : team.name.substring(0, 1),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
+        ClubEmblem(teamId: team.id, teamName: team.name, size: 36),
         const SizedBox(height: 4),
         Text(team.name, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, maxLines: 1),
       ],

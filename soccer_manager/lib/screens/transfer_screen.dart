@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
 
 class TransferScreen extends StatefulWidget {
@@ -60,7 +60,7 @@ class _TransferScreenState extends State<TransferScreen> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: PositionAvatar(position: p.position),
+                          leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                           title: Text(p.name),
                           subtitle:
                               Text('${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万'),

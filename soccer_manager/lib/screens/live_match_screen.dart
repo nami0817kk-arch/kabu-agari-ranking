@@ -7,7 +7,7 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
 import '../widgets/match_widgets.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 
 enum _Phase { firstHalf, halfTime, secondHalf, finished }
 
@@ -262,7 +262,7 @@ class _StartingPlayerTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
-        leading: PositionAvatar(position: p.position, highlighted: true),
+        leading: PlayerFaceAvatar(playerId: p.id, position: p.position, highlighted: true),
         title: Text(p.name),
         subtitle: Text(
           '${p.position.label} / 総合 ${p.overall}${p.fatigue > 70 ? ' / 疲労大' : ''}',
@@ -280,7 +280,7 @@ class _StartingPlayerTile extends StatelessWidget {
     final gameState = context.read<GameState>();
     final out = team.players.firstWhere((pl) => pl.id == playerId);
     final candidates = team.players
-        .where((p) => !p.isInjured && !team.startingXI.contains(p.id))
+        .where((p) => !p.isInjured && !p.isOnInternationalDuty && !team.startingXI.contains(p.id))
         .where((p) => p.position == out.position || p.position.group == out.position.group)
         .toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
@@ -297,7 +297,7 @@ class _StartingPlayerTile extends StatelessWidget {
             ),
             for (final p in candidates)
               ListTile(
-                leading: PositionAvatar(position: p.position),
+                leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                 title: Text(p.name),
                 subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
                 onTap: () {

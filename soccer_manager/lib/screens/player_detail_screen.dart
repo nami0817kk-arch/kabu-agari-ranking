@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 import '../widgets/stat_bar.dart';
 
 class PlayerDetailScreen extends StatelessWidget {
@@ -34,7 +34,7 @@ class PlayerDetailScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              PositionAvatar(position: p.position, highlighted: true),
+              PlayerFaceAvatar(playerId: p.id, position: p.position, size: 56, highlighted: true),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -68,6 +68,12 @@ class PlayerDetailScreen extends StatelessWidget {
                   labelStyle: TextStyle(color: Colors.white),
                 ),
               Chip(label: Text(p.personality.label)),
+              if (p.isOnInternationalDuty)
+                const Chip(
+                  label: Text('代表召集中'),
+                  backgroundColor: Colors.blueAccent,
+                  labelStyle: TextStyle(color: Colors.white),
+                ),
             ],
           ),
           if (p.isInjured)
@@ -76,6 +82,14 @@ class PlayerDetailScreen extends StatelessWidget {
               child: Text(
                 '負傷中（あと${p.injuryWeeks}週は出場不可）',
                 style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              ),
+            ),
+          if (p.isOnInternationalDuty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '代表召集中（あと${p.internationalDutyWeeksRemaining}週は出場不可）',
+                style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
               ),
             ),
           const SizedBox(height: 16),

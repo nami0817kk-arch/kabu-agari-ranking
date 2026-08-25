@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
 
 class YouthScreen extends StatefulWidget {
@@ -80,7 +80,7 @@ class _YouthScreenState extends State<YouthScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Card(
                   child: ListTile(
-                    leading: PositionAvatar(position: p.position),
+                    leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                     title: Text(p.name),
                     subtitle: Text('${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential}'),
                     trailing: FilledButton(
@@ -107,7 +107,7 @@ class _YouthScreenState extends State<YouthScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 child: Card(
                   child: ListTile(
-                    leading: PositionAvatar(position: p.position),
+                    leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                     title: Text(p.name),
                     subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
                     trailing: Row(

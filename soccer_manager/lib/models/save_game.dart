@@ -5,6 +5,8 @@ import 'incoming_offer.dart';
 import 'installment.dart';
 import 'league.dart';
 import 'player.dart';
+import 'press_question.dart';
+import 'season_award.dart';
 import 'sponsor.dart';
 import 'team.dart';
 
@@ -68,6 +70,16 @@ class SaveGame {
   /// 銀行から借り入れている融資。
   List<BankLoan> bankLoans;
 
+  /// シーズンごとに確定した個人タイトル(得点王・年間MVP)の履歴。
+  List<SeasonAward> seasonAwards;
+
+  /// ライバルクラブのID・表示名(開幕時に決定し、以後固定)。
+  String? rivalTeamId;
+  String? rivalTeamName;
+
+  /// 回答待ちの記者会見の質問。ない場合はnull。
+  PressQuestion? pendingPressConference;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -90,6 +102,10 @@ class SaveGame {
     List<Fixture>? friendlies,
     List<IncomingOffer>? incomingOffers,
     List<BankLoan>? bankLoans,
+    List<SeasonAward>? seasonAwards,
+    this.rivalTeamId,
+    this.rivalTeamName,
+    this.pendingPressConference,
   })  : youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -99,7 +115,8 @@ class SaveGame {
         pendingInstallments = pendingInstallments ?? [],
         friendlies = friendlies ?? [],
         incomingOffers = incomingOffers ?? [],
-        bankLoans = bankLoans ?? [];
+        bankLoans = bankLoans ?? [],
+        seasonAwards = seasonAwards ?? [];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -123,6 +140,10 @@ class SaveGame {
         'friendlies': friendlies.map((f) => f.toJson()).toList(),
         'incomingOffers': incomingOffers.map((o) => o.toJson()).toList(),
         'bankLoans': bankLoans.map((l) => l.toJson()).toList(),
+        'seasonAwards': seasonAwards.map((a) => a.toJson()).toList(),
+        'rivalTeamId': rivalTeamId,
+        'rivalTeamName': rivalTeamName,
+        'pendingPressConference': pendingPressConference?.toJson(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -173,5 +194,14 @@ class SaveGame {
                 ?.map((e) => BankLoan.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        seasonAwards: (json['seasonAwards'] as List?)
+                ?.map((e) => SeasonAward.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        rivalTeamId: json['rivalTeamId'] as String?,
+        rivalTeamName: json['rivalTeamName'] as String?,
+        pendingPressConference: json['pendingPressConference'] == null
+            ? null
+            : PressQuestion.fromJson(json['pendingPressConference'] as Map<String, dynamic>),
       );
 }

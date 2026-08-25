@@ -259,6 +259,10 @@ class Player {
   /// 提示すると交渉なしで自動的に移籍が成立する。未設定はnull。
   int? releaseClause;
 
+  /// 代表召集で一時離脱している残り週数(0なら招集されていない)。
+  /// 招集中はスタメン・自動編成の対象外になる。
+  int internationalDutyWeeksRemaining;
+
   Player({
     required this.id,
     required this.name,
@@ -278,6 +282,7 @@ class Player {
     this.isLoan = false,
     this.loanWeeksRemaining = 0,
     this.releaseClause,
+    this.internationalDutyWeeksRemaining = 0,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
@@ -347,6 +352,8 @@ class Player {
 
   bool get isInjured => injuryWeeks > 0;
 
+  bool get isOnInternationalDuty => internationalDutyWeeksRemaining > 0;
+
   /// 想定移籍金（万円）。年齢・現在能力・伸びしろから概算する。
   int get marketValue {
     final ovr = (overall - 40).clamp(0, 60);
@@ -385,6 +392,7 @@ class Player {
         'isLoan': isLoan,
         'loanWeeksRemaining': loanWeeksRemaining,
         'releaseClause': releaseClause,
+        'internationalDutyWeeksRemaining': internationalDutyWeeksRemaining,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -419,6 +427,7 @@ class Player {
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
       releaseClause: json['releaseClause'] as int?,
+      internationalDutyWeeksRemaining: json['internationalDutyWeeksRemaining'] as int? ?? 0,
     );
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
+import '../widgets/club_emblem.dart';
 
 class FixturesScreen extends StatelessWidget {
   const FixturesScreen({super.key});
@@ -50,7 +51,17 @@ class _StandingsTab extends StatelessWidget {
               ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4)
               : null,
           child: ListTile(
-            leading: SizedBox(width: 24, child: Text('${i + 1}')),
+            leading: SizedBox(
+              width: 48,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(width: 20, child: Text('${i + 1}')),
+                  const SizedBox(width: 6),
+                  ClubEmblem(teamId: team.id, teamName: team.name, size: 24),
+                ],
+              ),
+            ),
             title: Text(team.name),
             subtitle: Text('${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
             trailing: Text('${r.points}pt', style: Theme.of(context).textTheme.titleMedium),
@@ -167,13 +178,24 @@ class _MatchdayList extends StatelessWidget {
         final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
         final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
         final isUserMatch = f.homeTeamId == userTeamId || f.awayTeamId == userTeamId;
+        final isDerby = context.read<GameState>().isRivalFixture(f);
         final result = f.result;
         return Container(
           color: isUserMatch ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
           child: ListTile(
+            leading: isDerby ? const Icon(Icons.local_fire_department, color: Colors.redAccent) : null,
             title: Row(
               children: [
-                Expanded(child: Text(home.name, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(child: Text(home.name, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+                      const SizedBox(width: 6),
+                      ClubEmblem(teamId: home.id, teamName: home.name, size: 22),
+                    ],
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
@@ -181,7 +203,15 @@ class _MatchdayList extends StatelessWidget {
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
-                Expanded(child: Text(away.name, overflow: TextOverflow.ellipsis)),
+                Expanded(
+                  child: Row(
+                    children: [
+                      ClubEmblem(teamId: away.id, teamName: away.name, size: 22),
+                      const SizedBox(width: 6),
+                      Flexible(child: Text(away.name, overflow: TextOverflow.ellipsis)),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -211,13 +241,33 @@ class _UserFixtureList extends StatelessWidget {
         final f = userFixtures[i];
         final home = league.teams.firstWhere((t) => t.id == f.homeTeamId).name;
         final away = league.teams.firstWhere((t) => t.id == f.awayTeamId).name;
+        final opponentId = f.homeTeamId == userTeamId ? f.awayTeamId : f.homeTeamId;
+        final opponent = league.teams.firstWhere((t) => t.id == opponentId);
         final result = f.result;
         final isNext = f.matchday == nextMatchday;
+        final isDerby = context.read<GameState>().isRivalFixture(f);
         return Container(
           color: isNext ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
           child: ListTile(
-            leading: SizedBox(width: 56, child: Text('第${f.matchday}節')),
-            title: Text('$home vs $away'),
+            leading: SizedBox(
+              width: 76,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(width: 44, child: Text('第${f.matchday}節')),
+                  ClubEmblem(teamId: opponent.id, teamName: opponent.name, size: 24),
+                ],
+              ),
+            ),
+            title: Row(
+              children: [
+                Flexible(child: Text('$home vs $away', overflow: TextOverflow.ellipsis)),
+                if (isDerby) ...[
+                  const SizedBox(width: 6),
+                  const Icon(Icons.local_fire_department, size: 16, color: Colors.redAccent),
+                ],
+              ],
+            ),
             trailing: result == null
                 ? Text(isNext ? '次節' : '未消化', style: isNext ? const TextStyle(fontWeight: FontWeight.bold) : null)
                 : Text(

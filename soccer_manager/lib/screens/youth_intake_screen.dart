@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/game_state.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 
 /// シーズン終了時に一括生成されたユースインテーク候補を選抜する画面。
 class YouthIntakeScreen extends StatelessWidget {
@@ -39,7 +39,7 @@ class YouthIntakeScreen extends StatelessWidget {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: PositionAvatar(position: p.position),
+                          leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                           title: Text(p.name),
                           subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
                           trailing: Row(

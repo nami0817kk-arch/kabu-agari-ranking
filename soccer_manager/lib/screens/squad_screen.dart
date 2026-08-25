@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/game_state.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 import 'player_detail_screen.dart';
 
 class SquadScreen extends StatelessWidget {
@@ -32,7 +32,7 @@ class SquadScreen extends StatelessWidget {
                   ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
                   : null,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              leading: PositionAvatar(position: p.position, highlighted: isStarting),
+              leading: PlayerFaceAvatar(playerId: p.id, position: p.position, size: 40, highlighted: isStarting),
               title: Row(
                 children: [
                   Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis)),
@@ -44,11 +44,19 @@ class SquadScreen extends StatelessWidget {
                     const SizedBox(width: 6),
                     const Icon(Icons.sentiment_dissatisfied, size: 16, color: Colors.redAccent),
                   ],
+                  if (p.isOnInternationalDuty) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.flag, size: 16, color: Colors.blueAccent),
+                  ],
                 ],
               ),
               subtitle: Text(
-                p.isInjured ? '負傷中（あと${p.injuryWeeks}週）' : '${p.age}歳 / 総合 ${p.overall}',
-                style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
+                p.isInjured
+                    ? '負傷中（あと${p.injuryWeeks}週）'
+                    : p.isOnInternationalDuty
+                        ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                        : '${p.age}歳 / 総合 ${p.overall}',
+                style: (p.isInjured || p.isOnInternationalDuty) ? const TextStyle(color: Colors.redAccent) : null,
               ),
               trailing: p.fatigue > 70
                   ? const Icon(Icons.battery_alert, color: Colors.orange)

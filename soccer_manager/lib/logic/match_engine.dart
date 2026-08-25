@@ -26,11 +26,11 @@ class MatchEngine {
       final lineup = t.startingXI
           .map((id) => byId[id])
           .whereType<Player>()
-          .where((p) => !p.isInjured)
+          .where((p) => !p.isInjured && !p.isOnInternationalDuty)
           .toList();
       if (lineup.length >= 7) return lineup;
     }
-    final available = t.players.where((p) => !p.isInjured).toList()
+    final available = t.players.where((p) => !p.isInjured && !p.isOnInternationalDuty).toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
     return available.take(11).toList();
   }
@@ -154,7 +154,7 @@ class MatchEngine {
       final scoreProb = (0.30 + diff / 220).clamp(0.08, 0.65);
       if (_rng.nextDouble() < scoreProb) {
         final scorer = _pickScorer(attackingLineup);
-        events.add(MatchEvent(minute: minute, teamId: attackingTeam.id, scorerName: scorer?.name));
+        events.add(MatchEvent(minute: minute, teamId: attackingTeam.id, scorerName: scorer?.name, scorerId: scorer?.id));
         if (isHomeChance) {
           homeGoals++;
         } else {

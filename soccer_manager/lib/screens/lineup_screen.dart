@@ -5,7 +5,7 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
 import '../widgets/formation_layout.dart';
-import '../widgets/position_colors.dart';
+import '../widgets/player_face_avatar.dart';
 
 class LineupScreen extends StatelessWidget {
   const LineupScreen({super.key});
@@ -202,7 +202,7 @@ class _PitchView extends StatelessWidget {
   void _showSlotSheet(BuildContext context, Position slotPosition, Player? current) {
     final gameState = context.read<GameState>();
     final candidates = team.players
-        .where((p) => !p.isInjured)
+        .where((p) => !p.isInjured && !p.isOnInternationalDuty)
         .where((p) => p.id != current?.id)
         .where((p) =>
             p.position == slotPosition ||
@@ -232,7 +232,7 @@ class _PitchView extends StatelessWidget {
               ),
             for (final p in candidates)
               ListTile(
-                leading: PositionAvatar(position: p.position),
+                leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
                 title: Text(p.name),
                 subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
                 onTap: () {
@@ -302,7 +302,7 @@ class _SlotChip extends StatelessWidget {
                     backgroundColor: Colors.white.withValues(alpha: 0.3),
                     child: Text(slotPosition.label, style: const TextStyle(fontSize: 10, color: Colors.white)),
                   )
-                : PositionAvatar(position: p.position, highlighted: true),
+                : PlayerFaceAvatar(playerId: p.id, position: p.position, size: 36, highlighted: true),
             const SizedBox(height: 2),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -339,19 +339,21 @@ class _BenchTile extends StatelessWidget {
         .map((id) => team.players.firstWhere((pl) => pl.id == id))
         .where((pl) => pl.position == p.position)
         .length;
-    final canAdd = !p.isInjured && currentInPosition < quota;
+    final canAdd = !p.isInjured && !p.isOnInternationalDuty && currentInPosition < quota;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       child: ListTile(
-        leading: PositionAvatar(position: p.position),
+        leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
         title: Text(p.name),
         subtitle: Text(
           p.isInjured
               ? '負傷中（あと${p.injuryWeeks}週）'
-              : '${p.age}歳 / 総合 ${p.overall}'
-                  '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
-          style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
+              : p.isOnInternationalDuty
+                  ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                  : '${p.age}歳 / 総合 ${p.overall}'
+                      '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
+          style: (p.isInjured || p.isOnInternationalDuty) ? const TextStyle(color: Colors.redAccent) : null,
         ),
         trailing: OutlinedButton(
           onPressed: canAdd ? () => context.read<GameState>().toggleStartingPlayer(p.id) : null,

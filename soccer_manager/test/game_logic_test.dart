@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soccer_manager/logic/awards_engine.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
@@ -18,6 +19,7 @@ import 'package:soccer_manager/models/club_infrastructure.dart';
 import 'package:soccer_manager/models/cup.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/incoming_offer.dart';
+import 'package:soccer_manager/models/league.dart';
 import 'package:soccer_manager/models/league_theme.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
@@ -29,20 +31,18 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('LineupUtils.autoFill fills the formation slot groups correctly', () {
+  test('LineupUtils.autoFill fills all 11 formation slots with a real goalkeeper in goal', () {
     final team = PlayerGenerator.generateSquad(id: 't1', name: 'Test FC', strengthTier: 60);
     team.formation = Formation.f433;
     LineupUtils.autoFill(team);
 
     expect(team.startingXI.length, 11);
+    expect(team.startingXI.toSet().length, 11);
     final byId = {for (final p in team.players) p.id: p};
-    // 完全一致した候補がいない枠は同じ大分類(グループ)内から補われるため、
-    // 常に保証できるのはグループ単位の人数一致。
-    final lineupGroups = team.startingXI.map((id) => byId[id]!.position.group).toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
-    final expectedGroups = Formation.f433.slots.map((p) => p.group).toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
-    expect(lineupGroups, expectedGroups);
+    // 副ポジションはグループを跨いで設定されうる(例: トップ下がセンターMFを兼任)ため、
+    // グループ単位の人数一致までは保証されない。ただしGK枠は他ポジションの副ポジション
+    // 候補になり得ないため、常にGKで埋まることは保証できる。
+    expect(byId[team.startingXI.first]!.position, Position.gk);
   });
 
   test('LineupUtils.autoFill excludes injured players', () {
@@ -866,5 +866,109 @@ void main() {
     }
 
     expect(gameState.bankLoans, isEmpty);
+  });
+
+  test('AwardsEngine.computeAwards picks the top scorer by goal tally and an MVP among starters', () {
+    final home = PlayerGenerator.generateSquad(id: 'h', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(id: 'a', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    final topScorer = home.players.first;
+    final otherScorer = away.players[1];
+    final fixture = Fixture(
+      matchday: 1,
+      homeTeamId: home.id,
+      awayTeamId: away.id,
+      result: MatchResult(
+        matchday: 1,
+        homeTeamId: home.id,
+        awayTeamId: away.id,
+        homeGoals: 2,
+        awayGoals: 1,
+        events: [
+          MatchEvent(minute: 10, teamId: home.id, scorerName: topScorer.name, scorerId: topScorer.id),
+          MatchEvent(minute: 30, teamId: home.id, scorerName: topScorer.name, scorerId: topScorer.id),
+          MatchEvent(minute: 50, teamId: away.id, scorerName: otherScorer.name, scorerId: otherScorer.id),
+        ],
+      ),
+    );
+    final league = League(teams: [home, away], fixtures: [fixture], season: 1);
+
+    final award = AwardsEngine.computeAwards(league, 1);
+
+    expect(award.season, 1);
+    expect(award.topScorerName, topScorer.name);
+    expect(award.topScorerTeamName, home.name);
+    expect(award.topScorerGoals, 2);
+    expect(award.mvpName, isNotNull);
+  });
+
+  test('GameState.startNextSeason records a season award once the season ends', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    while (!gameState.save!.league.isSeasonComplete) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    await gameState.startNextSeason();
+
+    expect(gameState.seasonAwards, isNotEmpty);
+    expect(gameState.seasonAwards.first.season, 1);
+  });
+
+  test('LineupUtils.autoFill excludes players on international duty', () {
+    final team = PlayerGenerator.generateSquad(id: 't6', name: 'Test FC', strengthTier: 60);
+    for (final p in team.players.where((p) => p.position == Position.st)) {
+      p.internationalDutyWeeksRemaining = 2;
+    }
+    LineupUtils.autoFill(team);
+    final byId = {for (final p in team.players) p.id: p};
+    final lineup = team.startingXI.map((id) => byId[id]!).toList();
+    expect(lineup.every((p) => !p.isOnInternationalDuty), isTrue);
+  });
+
+  test('GameState.playNextMatchday counts down a user player\'s international duty', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.internationalDutyWeeksRemaining = 2;
+
+    await gameState.playNextMatchday();
+
+    expect(player.internationalDutyWeeksRemaining, 1);
+  });
+
+  test('GameState.playSecondHalf generates a press conference question that can be answered', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    await gameState.playNextMatchday();
+    expect(gameState.isHalfTime, isTrue);
+
+    await gameState.playSecondHalf();
+
+    expect(gameState.pendingPressConference, isNotNull);
+    final confidenceBefore = gameState.save!.confidence;
+    final option = gameState.pendingPressConference!.options.first;
+
+    await gameState.answerPressConference(0);
+
+    expect(gameState.pendingPressConference, isNull);
+    expect(gameState.save!.confidence, (confidenceBefore + option.confidenceDelta).clamp(0, 100));
+  });
+
+  test('GameState.isRivalFixture matches the user-vs-rival fixture regardless of home/away order', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    final rivalId = gameState.save!.rivalTeamId!;
+    final otherId = gameState.save!.league.teams.firstWhere((t) => t.id != userId && t.id != rivalId).id;
+
+    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: userId, awayTeamId: rivalId)), isTrue);
+    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: rivalId, awayTeamId: userId)), isTrue);
+    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: userId, awayTeamId: otherId)), isFalse);
+    expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: otherId, awayTeamId: rivalId)), isFalse);
   });
 }
