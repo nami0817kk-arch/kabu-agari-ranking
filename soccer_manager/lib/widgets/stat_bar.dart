@@ -14,8 +14,17 @@ class StatBar extends StatelessWidget {
     this.color,
   });
 
+  static Color _autoColor(double ratio) {
+    if (ratio >= 0.75) return Colors.green.shade600;
+    if (ratio >= 0.5) return Colors.lightGreen.shade700;
+    if (ratio >= 0.3) return Colors.orange.shade700;
+    return Colors.red.shade400;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ratio = (value / max).clamp(0, 1).toDouble();
+    final barColor = color ?? _autoColor(ratio);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -25,16 +34,16 @@ class StatBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(label),
-              Text('$value'),
+              Text('$value', style: TextStyle(color: barColor, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
-              value: (value / max).clamp(0, 1).toDouble(),
+              value: ratio,
               minHeight: 8,
-              color: color,
+              color: barColor,
             ),
           ),
         ],

@@ -4,10 +4,7 @@ import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
 import 'finance_screen.dart';
-import 'fixtures_screen.dart';
-import 'lineup_screen.dart';
 import 'match_screen.dart';
-import 'squad_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
@@ -28,12 +25,14 @@ class HomeScreen extends StatelessWidget {
       return _DismissalScreen(clubName: save.clubName);
     }
 
+    final scheme = Theme.of(context).colorScheme;
     final league = save.league;
     final userTeam = gameState.userTeam;
     final standings = league.sortedStandings;
     final userRank = standings.indexWhere((r) => r.teamId == userTeam.id) + 1;
     final next = league.nextUnplayedFixture;
     final seasonComplete = league.isSeasonComplete;
+    final net = _netWeekly(gameState);
 
     return Scaffold(
       appBar: AppBar(title: Text(save.clubName)),
@@ -46,39 +45,62 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('シーズン ${league.season}', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text('順位: $userRank / ${standings.length}位（目標: ${save.boardTargetRank}位以内）'),
-                  Text('資金: ${save.budget}万円　（週収支: ${_netWeekly(gameState) >= 0 ? '+' : ''}${_netWeekly(gameState)}万円）'),
-                  Text('平均総合力: ${userTeam.overallRating}　フォーメーション: ${userTeam.formation.label}'),
-                  const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('監督への信頼度'),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: save.confidence / 100,
-                            minHeight: 8,
-                            color: save.confidence <= 25 ? Colors.redAccent : null,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('${save.confidence}'),
+                      Text('シーズン ${league.season}', style: Theme.of(context).textTheme.titleMedium),
+                      Chip(label: Text(userTeam.formation.label)),
                     ],
                   ),
+                  const SizedBox(height: 4),
+                  Text('目標: ${save.boardTargetRank}位以内', style: TextStyle(color: scheme.onSurfaceVariant)),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 2.1,
+            children: [
+              _StatTile(
+                icon: Icons.emoji_events,
+                label: '順位',
+                value: '$userRank / ${standings.length}',
+                color: Colors.amber.shade800,
+              ),
+              _StatTile(
+                icon: Icons.account_balance_wallet,
+                label: '資金',
+                value: '${save.budget}万円',
+                sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
+                color: net >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+              ),
+              _StatTile(
+                icon: Icons.bar_chart,
+                label: '平均総合力',
+                value: '${userTeam.overallRating}',
+                color: Colors.blue.shade700,
+              ),
+              _StatTile(
+                icon: Icons.shield,
+                label: '監督への信頼度',
+                value: '${save.confidence}',
+                progress: save.confidence / 100,
+                color: save.confidence <= 25 ? Colors.redAccent : Colors.teal.shade700,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (seasonComplete)
             Card(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              color: scheme.primaryContainer,
               child: ListTile(
+                leading: const Icon(Icons.flag),
                 title: const Text('シーズン終了！'),
                 subtitle: Text('最終順位: $userRank位'),
                 trailing: FilledButton(
@@ -90,7 +112,10 @@ class HomeScreen extends StatelessWidget {
           else if (next != null)
             Card(
               child: ListTile(
-                leading: const Icon(Icons.event),
+                leading: CircleAvatar(
+                  backgroundColor: scheme.primaryContainer,
+                  child: const Icon(Icons.event),
+                ),
                 title: Text('第${next.matchday}節'),
                 subtitle: Text(_fixtureLabel(league, next)),
                 trailing: FilledButton(
@@ -100,46 +125,45 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 16),
-          _MenuTile(
-            icon: Icons.groups,
-            label: 'スカッド',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SquadScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.checklist,
-            label: 'スタメン編成',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LineupScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.swap_horiz,
-            label: '移籍市場',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.emoji_people,
-            label: 'ユース・スカウト',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const YouthScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.fitness_center,
-            label: 'トレーニング',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TrainingScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.account_balance,
-            label: 'クラブ経営',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinanceScreen())),
-          ),
-          _MenuTile(
-            icon: Icons.leaderboard,
-            label: '日程・順位表',
-            onTap: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FixturesScreen())),
+          Text('クラブ運営', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.5,
+            children: [
+              _ActionTile(
+                icon: Icons.fitness_center,
+                label: 'トレーニング',
+                color: Colors.deepOrange.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TrainingScreen())),
+              ),
+              _ActionTile(
+                icon: Icons.swap_horiz,
+                label: '移籍市場',
+                color: Colors.indigo.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferScreen())),
+              ),
+              _ActionTile(
+                icon: Icons.emoji_people,
+                label: 'ユース・スカウト',
+                color: Colors.teal.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const YouthScreen())),
+              ),
+              _ActionTile(
+                icon: Icons.account_balance,
+                label: 'クラブ経営',
+                color: Colors.brown.shade400,
+                onTap: () =>
+                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinanceScreen())),
+              ),
+            ],
           ),
         ],
       ),
@@ -175,6 +199,101 @@ class HomeScreen extends StatelessWidget {
         MaterialPageRoute(builder: (_) => MatchScreen(result: result, league: league)),
       );
     }
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? sub;
+  final Color color;
+  final double? progress;
+
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    this.sub,
+    this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          if (sub != null)
+            Text(sub!, style: TextStyle(fontSize: 11, color: color)),
+          if (progress != null) ...[
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(value: progress, minHeight: 6, color: color),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionTile({required this.icon, required this.label, required this.color, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              CircleAvatar(backgroundColor: color, child: Icon(icon, color: Colors.white, size: 20)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -219,26 +338,6 @@ class _DismissalScreen extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MenuTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MenuTile({required this.icon, required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
       ),
     );
   }

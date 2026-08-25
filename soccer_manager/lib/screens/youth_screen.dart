@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../logic/scouting_engine.dart';
-import '../models/player.dart';
 import '../state/game_state.dart';
+import '../widgets/position_colors.dart';
 
 class YouthScreen extends StatelessWidget {
   const YouthScreen({super.key});
@@ -55,7 +55,7 @@ class YouthScreen extends StatelessWidget {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: CircleAvatar(child: Text(p.position.label)),
+                          leading: PositionAvatar(position: p.position),
                           title: Text(p.name),
                           subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
                           trailing: Row(

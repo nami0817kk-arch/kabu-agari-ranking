@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
+import '../widgets/position_colors.dart';
 import '../widgets/stat_bar.dart';
 
 class PlayerDetailScreen extends StatelessWidget {
@@ -31,9 +32,17 @@ class PlayerDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text(
-            '${p.position.label} ${p.position.fullLabel} ・ ${p.age}歳',
-            style: Theme.of(context).textTheme.titleMedium,
+          Row(
+            children: [
+              PositionAvatar(position: p.position, highlighted: true),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  '${p.position.fullLabel} ・ ${p.age}歳',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
           ),
           if (p.secondaryPositions.isNotEmpty)
             Padding(

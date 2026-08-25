@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/game_state.dart';
-import 'home_screen.dart';
+import 'main_shell.dart';
 
 class StartScreen extends StatefulWidget {
   const StartScreen({super.key});
@@ -50,7 +50,7 @@ class _StartScreenState extends State<StartScreen> {
                     width: double.infinity,
                     child: FilledButton(
                       onPressed: () => Navigator.of(context).pushReplacement(
-                        MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        MaterialPageRoute(builder: (_) => const MainShell()),
                       ),
                       child: Text('続きから (${gameState.save!.clubName})'),
                     ),
@@ -94,7 +94,7 @@ class _StartScreenState extends State<StartScreen> {
     final gameState = context.read<GameState>();
     await gameState.startNewGame(name);
     if (context.mounted) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const HomeScreen()));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
     }
   }
 

@@ -4,6 +4,7 @@ import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../widgets/position_colors.dart';
 
 class LineupScreen extends StatelessWidget {
   const LineupScreen({super.key});
@@ -147,22 +148,26 @@ class _PlayerTile extends StatelessWidget {
     final quotaFull = currentInPosition >= quota;
     final canToggle = !p.isInjured && (isStarting || !quotaFull);
 
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: isStarting ? Theme.of(context).colorScheme.primaryContainer : null,
-        child: Text(p.position.label),
-      ),
-      title: Text(p.name),
-      subtitle: Text(
-        p.isInjured
-            ? '負傷中（あと${p.injuryWeeks}週）'
-            : '${p.age}歳 / 総合 ${p.overall}'
-                '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
-        style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
-      ),
-      trailing: Checkbox(
-        value: isStarting,
-        onChanged: canToggle ? (_) => context.read<GameState>().toggleStartingPlayer(playerId) : null,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      child: ListTile(
+        tileColor: isStarting
+            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
+            : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        leading: PositionAvatar(position: p.position, highlighted: isStarting),
+        title: Text(p.name),
+        subtitle: Text(
+          p.isInjured
+              ? '負傷中（あと${p.injuryWeeks}週）'
+              : '${p.age}歳 / 総合 ${p.overall}'
+                  '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
+          style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
+        ),
+        trailing: Checkbox(
+          value: isStarting,
+          onChanged: canToggle ? (_) => context.read<GameState>().toggleStartingPlayer(playerId) : null,
+        ),
       ),
     );
   }

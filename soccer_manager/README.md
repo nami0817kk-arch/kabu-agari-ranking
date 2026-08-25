@@ -6,6 +6,10 @@ Web版（お試し公開）: https://nami0817kk-arch.github.io/kabu-agari-rankin
 （`.github/workflows/soccer-manager-web.yml` がpush時にビルド・GitHub Pagesへ自動デプロイする。
 既存の値上がりランキングサイトのデプロイ先(Cloudflare Pages)とは独立しており影響しない）
 
+ホーム/スカッド/戦術/順位表をボトムナビゲーションで切り替える構成。ホーム画面は
+順位・資金・総合力・信頼度をカード形式で一覧でき、選手はポジションの大分類
+（GK=黄/DEF=青/MID=緑/ATT=赤）で色分けして表示される。
+
 自分のクラブを創設し、下記のループを繰り返してリーグ優勝を目指す。
 
 - **ポジション**: GK/DR/DC/DL/WBR/WBL/DM/MR/MC/ML/AMR/AMC/AML/STの14種類。選手ごとに主ポジションに加え、無理なくこなせる副ポジション（0〜2個）を持つ
@@ -30,8 +34,8 @@ lib/
   logic/      選手生成・試合シミュレーション・トレーニング・リーグ日程生成のロジック
   state/      GameState（ChangeNotifier） - セーブ/ロードとゲーム進行を管理
   game/       Flame製の簡易ピッチアニメーション（試合結果画面で再生）
-  screens/    各画面のUI
-  widgets/    共通ウィジェット
+  screens/    各画面のUI。main_shell.dartがホーム/スカッド/戦術/順位表のボトムナビを管理
+  widgets/    共通ウィジェット（StatBar、ポジション別カラーのPositionAvatarなど）
   data/       選手名・クラブ名のダミー名称プール
 ```
 
