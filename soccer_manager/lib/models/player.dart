@@ -102,6 +102,102 @@ extension PositionLabel on Position {
   }
 }
 
+/// 選手の性格。不満度(happiness)の変動しやすさや移籍希望の出やすさに影響する。
+enum PlayerPersonality { professional, balanced, ambitious, temperamental, loyal }
+
+extension PlayerPersonalityInfo on PlayerPersonality {
+  String get label {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 'プロフェッショナル';
+      case PlayerPersonality.balanced:
+        return 'バランス型';
+      case PlayerPersonality.ambitious:
+        return '野心家';
+      case PlayerPersonality.temperamental:
+        return '気分屋';
+      case PlayerPersonality.loyal:
+        return '忠誠心の強い選手';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return '不満が溜まりにくく、安定した意欲を保つ';
+      case PlayerPersonality.balanced:
+        return '標準的な反応を示す';
+      case PlayerPersonality.ambitious:
+        return 'ベンチや低成績にすぐ不満を抱く';
+      case PlayerPersonality.temperamental:
+        return '状況次第で気分が大きく変動する';
+      case PlayerPersonality.loyal:
+        return '多少の不満があってもクラブに留まりやすい';
+    }
+  }
+
+  double get benchSensitivity {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 0.6;
+      case PlayerPersonality.balanced:
+        return 1.0;
+      case PlayerPersonality.ambitious:
+        return 1.5;
+      case PlayerPersonality.temperamental:
+        return 1.3;
+      case PlayerPersonality.loyal:
+        return 0.8;
+    }
+  }
+
+  double get wageSensitivity {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 0.7;
+      case PlayerPersonality.balanced:
+        return 1.0;
+      case PlayerPersonality.ambitious:
+        return 1.3;
+      case PlayerPersonality.temperamental:
+        return 1.2;
+      case PlayerPersonality.loyal:
+        return 0.7;
+    }
+  }
+
+  double get resultSensitivity {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 0.7;
+      case PlayerPersonality.balanced:
+        return 1.0;
+      case PlayerPersonality.ambitious:
+        return 1.4;
+      case PlayerPersonality.temperamental:
+        return 1.2;
+      case PlayerPersonality.loyal:
+        return 0.8;
+    }
+  }
+
+  /// 不満度がこの値を下回ると移籍を希望し始める。
+  int get transferRequestThreshold {
+    switch (this) {
+      case PlayerPersonality.loyal:
+        return 10;
+      case PlayerPersonality.professional:
+        return 15;
+      case PlayerPersonality.balanced:
+        return 20;
+      case PlayerPersonality.temperamental:
+        return 25;
+      case PlayerPersonality.ambitious:
+        return 30;
+    }
+  }
+}
+
 /// 旧バージョン（gk/df/mf/fwの4区分）のセーブデータからポジション名を解決する。
 Position parsePosition(String raw) {
   switch (raw) {
@@ -146,6 +242,19 @@ class Player {
   /// 契約残り週数。0になると自由契約としてチームを去る。
   int contractWeeksRemaining;
 
+  /// 性格。不満度の変動しやすさ・移籍希望の出やすさに影響する。
+  PlayerPersonality personality;
+
+  /// 不満度（0-100）。低いほど移籍を希望しやすくなる。
+  int happiness;
+
+  /// ローンでの加入かどうか。ローン選手は契約更新・放出の対象外で、
+  /// [loanWeeksRemaining]が0になると自動的にチームを離れる。
+  bool isLoan;
+
+  /// ローン期間の残り週数（ローン選手でない場合は0）。
+  int loanWeeksRemaining;
+
   Player({
     required this.id,
     required this.name,
@@ -160,11 +269,18 @@ class Player {
     this.individualFocus,
     this.wage = 20,
     this.contractWeeksRemaining = 20,
+    this.personality = PlayerPersonality.balanced,
+    this.happiness = 70,
+    this.isLoan = false,
+    this.loanWeeksRemaining = 0,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
   /// このポジション（主・副とも）を無理なくこなせるか。
   bool canPlay(Position pos) => position == pos || secondaryPositions.contains(pos);
+
+  /// 不満度が性格ごとの閾値を下回り、移籍を希望しているかどうか。
+  bool get wantsTransfer => happiness < personality.transferRequestThreshold;
 
   int attributeValue(String key) => attributes[key] ?? 50;
 
@@ -259,6 +375,10 @@ class Player {
         'individualFocus': individualFocus?.name,
         'wage': wage,
         'contractWeeksRemaining': contractWeeksRemaining,
+        'personality': personality.name,
+        'happiness': happiness,
+        'isLoan': isLoan,
+        'loanWeeksRemaining': loanWeeksRemaining,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -286,6 +406,12 @@ class Player {
           : TrainingFocus.values.byName(json['individualFocus'] as String),
       wage: json['wage'] as int? ?? 20,
       contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
+      personality: json['personality'] == null
+          ? PlayerPersonality.balanced
+          : PlayerPersonality.values.byName(json['personality'] as String),
+      happiness: json['happiness'] as int? ?? 70,
+      isLoan: json['isLoan'] as bool? ?? false,
+      loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
     );
   }
 

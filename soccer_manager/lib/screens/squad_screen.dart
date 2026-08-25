@@ -33,7 +33,19 @@ class SquadScreen extends StatelessWidget {
                   : null,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               leading: PositionAvatar(position: p.position, highlighted: isStarting),
-              title: Text(p.name),
+              title: Row(
+                children: [
+                  Flexible(child: Text(p.name, overflow: TextOverflow.ellipsis)),
+                  if (p.isLoan) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.swap_horiz, size: 16, color: Colors.indigo),
+                  ],
+                  if (p.wantsTransfer) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.sentiment_dissatisfied, size: 16, color: Colors.redAccent),
+                  ],
+                ],
+              ),
               subtitle: Text(
                 p.isInjured ? '負傷中（あと${p.injuryWeeks}週）' : '${p.age}歳 / 総合 ${p.overall}',
                 style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,

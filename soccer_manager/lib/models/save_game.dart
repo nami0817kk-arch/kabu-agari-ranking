@@ -1,7 +1,9 @@
 import 'club_infrastructure.dart';
 import 'cup.dart';
+import 'installment.dart';
 import 'league.dart';
 import 'player.dart';
+import 'sponsor.dart';
 import 'team.dart';
 
 class SaveGame {
@@ -33,6 +35,15 @@ class SaveGame {
   /// 大陸カップに参加する海外クラブ(出場資格がある間のみ生成される)。
   List<Team> continentalTeams;
 
+  /// 現在契約中のスポンサー。未契約の場合はnull。
+  SponsorDeal? sponsorDeal;
+
+  /// 契約更新・新規契約のために提示されている候補(未選択の間はスポンサー収入が発生しない)。
+  List<SponsorDeal> pendingSponsorOffers;
+
+  /// 分割払いで獲得した選手の残金支払い予定。
+  List<Installment> pendingInstallments;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -45,10 +56,15 @@ class SaveGame {
     List<Cup>? cups,
     this.lastSeasonRank,
     List<Team>? continentalTeams,
+    this.sponsorDeal,
+    List<SponsorDeal>? pendingSponsorOffers,
+    List<Installment>? pendingInstallments,
   })  : youthProspects = youthProspects ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
         cups = cups ?? [],
-        continentalTeams = continentalTeams ?? [];
+        continentalTeams = continentalTeams ?? [],
+        pendingSponsorOffers = pendingSponsorOffers ?? [],
+        pendingInstallments = pendingInstallments ?? [];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -62,6 +78,9 @@ class SaveGame {
         'cups': cups.map((c) => c.toJson()).toList(),
         'lastSeasonRank': lastSeasonRank,
         'continentalTeams': continentalTeams.map((t) => t.toJson()).toList(),
+        'sponsorDeal': sponsorDeal?.toJson(),
+        'pendingSponsorOffers': pendingSponsorOffers.map((s) => s.toJson()).toList(),
+        'pendingInstallments': pendingInstallments.map((i) => i.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -80,6 +99,17 @@ class SaveGame {
         lastSeasonRank: json['lastSeasonRank'] as int?,
         continentalTeams: (json['continentalTeams'] as List?)
                 ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        sponsorDeal: json['sponsorDeal'] == null
+            ? null
+            : SponsorDeal.fromJson(json['sponsorDeal'] as Map<String, dynamic>),
+        pendingSponsorOffers: (json['pendingSponsorOffers'] as List?)
+                ?.map((e) => SponsorDeal.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        pendingInstallments: (json['pendingInstallments'] as List?)
+                ?.map((e) => Installment.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );

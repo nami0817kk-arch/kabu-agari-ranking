@@ -53,8 +53,23 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 8),
-          if (isStarting)
-            Chip(label: const Text('スタメン'), backgroundColor: Theme.of(context).colorScheme.primaryContainer),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              if (isStarting)
+                Chip(label: const Text('スタメン'), backgroundColor: Theme.of(context).colorScheme.primaryContainer),
+              if (p.isLoan)
+                const Chip(label: Text('ローン加入中'), backgroundColor: Colors.indigo, labelStyle: TextStyle(color: Colors.white)),
+              if (p.wantsTransfer)
+                const Chip(
+                  label: Text('移籍を希望している'),
+                  backgroundColor: Colors.redAccent,
+                  labelStyle: TextStyle(color: Colors.white),
+                ),
+              Chip(label: Text(p.personality.label)),
+            ],
+          ),
           if (p.isInjured)
             Padding(
               padding: const EdgeInsets.only(top: 8),
@@ -66,7 +81,13 @@ class PlayerDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Text('総合力: ${p.overall}', style: Theme.of(context).textTheme.titleLarge),
           Text('市場価値: ${p.marketValue}万円'),
-          Text('週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週'),
+          Text(
+            p.isLoan
+                ? '週俸: ${p.wage}万円 / ローン残り${p.loanWeeksRemaining}週'
+                : '週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週',
+          ),
+          const SizedBox(height: 4),
+          Text(p.personality.description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 16),
           StatBar(label: '攻撃', value: p.attack),
           StatBar(label: '守備', value: p.defense),
@@ -76,6 +97,12 @@ class PlayerDetailScreen extends StatelessWidget {
           StatBar(label: '潜在能力', value: p.potential, color: Colors.purple),
           StatBar(label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
           StatBar(label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
+          StatBar(
+            label: '不満度(高いほど満足)',
+            value: p.happiness,
+            max: 100,
+            color: p.happiness < 30 ? Colors.redAccent : Colors.green,
+          ),
           const Divider(height: 32),
           Text('詳細能力値', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
@@ -95,18 +122,44 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 24),
-          FilledButton(
-            onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
-            child: Text('契約更新する（$renewalCost万円 / +40週）'),
-          ),
+          if (p.isLoan)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'ローン加入中の選手は契約更新・放出の対象外です。ローン期間終了時に自動的にチームを離れます。',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            )
+          else ...[
+            FilledButton(
+              onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
+              child: Text('契約更新する（$renewalCost万円 / +40週）'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: team.players.length <= minSquadSize ? null : () => _confirmSell(context, sellPrice),
+              child: Text('放出する（$sellPrice万円）'),
+            ),
+          ],
           const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: team.players.length <= minSquadSize ? null : () => _confirmSell(context, sellPrice),
-            child: Text('放出する（$sellPrice万円）'),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.chat_bubble_outline),
+            onPressed: () => _reassure(context),
+            label: const Text('話し合う（不満度を和らげる）'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _reassure(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final ok = await gameState.reassurePlayer(playerId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? '選手を安心させた' : '既に満足しており、話し合う必要はなさそうだ')),
+      );
+    }
   }
 
   Future<void> _renew(BuildContext context) async {

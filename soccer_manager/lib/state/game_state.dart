@@ -5,19 +5,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/club_infrastructure.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
+import '../models/installment.dart';
 import '../models/player.dart';
 import '../models/save_game.dart';
+import '../models/sponsor.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
 import '../logic/cup_engine.dart';
+import '../logic/happiness_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/lineup_utils.dart';
 import '../logic/match_engine.dart';
 import '../logic/scouting_engine.dart';
+import '../logic/sponsor_engine.dart';
 import '../logic/training_engine.dart';
 import '../logic/transfer_market.dart';
 import '../data/name_pool.dart';
@@ -100,6 +104,7 @@ class GameState extends ChangeNotifier {
           teamIds: teams.map((t) => t.id).toList(),
         ),
       ],
+      pendingSponsorOffers: SponsorEngine.generateOffers(userTeam.overallRating),
     );
     transferMarket = TransferMarket.generate();
     lastContractExpirations = [];
@@ -234,6 +239,17 @@ class GameState extends ChangeNotifier {
     _persist();
   }
 
+  /// スタメンの特定選手を別の選手と入れ替える(戦術画面のピッチタップ操作用)。
+  /// クォータ判定は行わず、指定された選手をそのまま入れ替える。
+  void swapStartingPlayer({String? outPlayerId, required String inPlayerId}) {
+    if (_save == null) return;
+    final team = userTeam;
+    if (outPlayerId != null) team.startingXI.remove(outPlayerId);
+    if (!team.startingXI.contains(inPlayerId)) team.startingXI.add(inPlayerId);
+    notifyListeners();
+    _persist();
+  }
+
   Future<bool> buyPlayer(String playerId) async {
     if (_save == null) return false;
     final player = transferMarket.firstWhere((p) => p.id == playerId);
@@ -252,6 +268,7 @@ class GameState extends ChangeNotifier {
     final team = userTeam;
     if (team.players.length <= minSquadSize) return false;
     final player = team.players.firstWhere((p) => p.id == playerId);
+    if (player.isLoan) return false; // ローン選手は他クラブの所有物のため放出できない
     final sellPrice = (player.marketValue * 0.7).round();
     team.players.removeWhere((p) => p.id == playerId);
     team.startingXI.remove(playerId);
@@ -269,10 +286,87 @@ class GameState extends ChangeNotifier {
   Future<bool> renewContract(String playerId) async {
     if (_save == null) return false;
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    if (player.isLoan) return false; // ローン選手には通常の契約更新は適用されない
     final cost = ContractEngine.renewalCost(player);
     if (_save!.budget < cost) return false;
     _save!.budget -= cost;
     ContractEngine.renewContract(player);
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  /// 選手と話し合い、不満度を引き上げる。既に十分満足している場合は失敗する。
+  Future<bool> reassurePlayer(String playerId) async {
+    if (_save == null) return false;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    final ok = HappinessEngine.reassure(player);
+    if (ok) {
+      notifyListeners();
+      await _persist();
+    }
+    return ok;
+  }
+
+  /// 分割払い(頭金3割 + 残額を4週で均等払い)で移籍市場の選手を獲得する。
+  Future<bool> buyPlayerOnInstallments(String playerId) async {
+    if (_save == null) return false;
+    final idx = transferMarket.indexWhere((p) => p.id == playerId);
+    if (idx < 0) return false;
+    if (userTeam.players.length >= maxSquadSize) return false;
+    final player = transferMarket[idx];
+    final total = player.marketValue;
+    final downPayment = (total * 0.3).round();
+    if (_save!.budget < downPayment) return false;
+
+    _save!.budget -= downPayment;
+    const weeks = 4;
+    final remaining = total - downPayment;
+    _save!.pendingInstallments.add(Installment(
+      description: '${player.name} 分割払い残金',
+      weeklyAmount: (remaining / weeks).ceil(),
+      weeksRemaining: weeks,
+    ));
+    userTeam.players.add(player);
+    transferMarket.removeAt(idx);
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  /// ローン(期限付き移籍)で移籍市場の選手を獲得する。頭金は移籍金の2割、
+  /// 週俸は6割に軽減される代わりに20週で自動的にチームを離れる。
+  static const int loanFeeRatioPercent = 20;
+  static const int loanDurationWeeks = 20;
+
+  Future<bool> signLoanPlayer(String playerId) async {
+    if (_save == null) return false;
+    final idx = transferMarket.indexWhere((p) => p.id == playerId);
+    if (idx < 0) return false;
+    if (userTeam.players.length >= maxSquadSize) return false;
+    final player = transferMarket[idx];
+    final fee = (player.marketValue * loanFeeRatioPercent / 100).round();
+    if (_save!.budget < fee) return false;
+
+    _save!.budget -= fee;
+    player.isLoan = true;
+    player.loanWeeksRemaining = loanDurationWeeks;
+    player.wage = (player.wage * 0.6).round().clamp(1, 999);
+    userTeam.players.add(player);
+    transferMarket.removeAt(idx);
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  /// 契約中のスポンサーがなければ、次に選べる候補を返す(既に選択済みならnull)。
+  List<SponsorDeal> get pendingSponsorOffers => _save?.pendingSponsorOffers ?? [];
+
+  Future<bool> chooseSponsor(int offerIndex) async {
+    if (_save == null) return false;
+    if (offerIndex < 0 || offerIndex >= _save!.pendingSponsorOffers.length) return false;
+    _save!.sponsorDeal = _save!.pendingSponsorOffers[offerIndex];
+    _save!.pendingSponsorOffers = [];
     notifyListeners();
     await _persist();
     return true;
@@ -323,11 +417,15 @@ class GameState extends ChangeNotifier {
     final teamCount = league.teams.length;
     final rankBonus = ((teamCount - rank) * 20).clamp(0, 999);
     final base = 150 + rankBonus;
-    if (teamId == _save!.userTeamId) {
-      final stadiumLevel = _save!.infrastructure.facilityLevel(FacilityType.stadium);
-      return base + (stadiumLevel - 1) * 80;
-    }
-    return base;
+    if (teamId != _save!.userTeamId) return base;
+
+    final stadiumLevel = _save!.infrastructure.facilityLevel(FacilityType.stadium);
+    // 観客動員は監督への信頼度と現在の順位に連動する(強豪・高信頼ほど満員に近づく)。
+    final attendanceFactor =
+        (0.7 + _save!.confidence / 250 + (teamCount - rank) / teamCount * 0.3).clamp(0.6, 1.4);
+    final matchdayIncome = ((base + (stadiumLevel - 1) * 80) * attendanceFactor).round();
+    final sponsorIncome = _save!.sponsorDeal?.weeklyIncome ?? 0;
+    return matchdayIncome + sponsorIncome;
   }
 
   int get weeklyWageBill => ContractEngine.weeklyWageBill(userTeam) + _save!.infrastructure.totalStaffWeeklyWage;
@@ -351,9 +449,31 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // ユーザークラブのみ契約消化・契約切れを処理する（CPUクラブは対象外）
+    // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）
     final expired = ContractEngine.advanceWeek(userTeam);
     lastContractExpirations = expired.map((p) => p.name).toList();
+
+    // 選手の不満度を更新する。
+    final preMatchRank = league.sortedStandings.indexWhere((r) => r.teamId == _save!.userTeamId) + 1;
+    HappinessEngine.applyWeekly(userTeam, leagueRank: preMatchRank, boardTargetRank: _save!.boardTargetRank);
+
+    // スポンサー契約の消化・分割払いの引き落とし。
+    if (_save!.sponsorDeal != null) {
+      _save!.sponsorDeal!.weeksRemaining -= 1;
+      if (_save!.sponsorDeal!.weeksRemaining <= 0) {
+        _save!.sponsorDeal = null;
+      }
+    }
+    if (_save!.sponsorDeal == null && _save!.pendingSponsorOffers.isEmpty) {
+      _save!.pendingSponsorOffers = SponsorEngine.generateOffers(userTeam.overallRating);
+    }
+    for (final inst in List<Installment>.from(_save!.pendingInstallments)) {
+      _save!.budget -= inst.weeklyAmount;
+      inst.weeksRemaining -= 1;
+      if (inst.weeksRemaining <= 0) {
+        _save!.pendingInstallments.remove(inst);
+      }
+    }
 
     final md = next.matchday;
     MatchResult? userResult;

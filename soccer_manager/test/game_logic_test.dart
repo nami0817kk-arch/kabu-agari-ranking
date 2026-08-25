@@ -3,10 +3,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
+import 'package:soccer_manager/logic/happiness_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
+import 'package:soccer_manager/logic/sponsor_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
 import 'package:soccer_manager/models/attributes.dart';
@@ -375,5 +377,113 @@ void main() {
     } while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20);
 
     expect(gameState.domesticCup!.isComplete, isTrue);
+  });
+
+  test('HappinessEngine boosts happiness for starters and penalizes benched players', () {
+    final team = PlayerGenerator.generateSquad(id: 'hteam', name: 'Happy FC', strengthTier: 60);
+    LineupUtils.autoFill(team);
+    for (final p in team.players) {
+      p.happiness = 50;
+      p.personality = PlayerPersonality.balanced;
+    }
+    final starter = team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    final benched = team.players.firstWhere((p) => !team.startingXI.contains(p.id));
+    // 待遇要因を打ち消して出場機会の影響だけを検証できるようにする。
+    starter.wage = 99999;
+    benched.wage = 1;
+
+    HappinessEngine.applyWeekly(team, leagueRank: 1, boardTargetRank: 4);
+
+    expect(starter.happiness, greaterThan(50));
+    expect(benched.happiness, lessThan(50));
+  });
+
+  test('HappinessEngine.reassure raises happiness but not above the threshold gate', () {
+    final p = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
+    p.happiness = 20;
+
+    final ok = HappinessEngine.reassure(p);
+
+    expect(ok, isTrue);
+    expect(p.happiness, 40);
+  });
+
+  test('HappinessEngine.reassure fails once happiness is already high', () {
+    final p = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
+    p.happiness = 80;
+
+    final ok = HappinessEngine.reassure(p);
+
+    expect(ok, isFalse);
+    expect(p.happiness, 80);
+  });
+
+  test('Player.wantsTransfer reflects personality-specific thresholds', () {
+    final p = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
+    p.personality = PlayerPersonality.ambitious; // 閾値30
+
+    p.happiness = 35;
+    expect(p.wantsTransfer, isFalse);
+
+    p.happiness = 29;
+    expect(p.wantsTransfer, isTrue);
+  });
+
+  test('SponsorEngine.generateOffers trades higher income for shorter duration', () {
+    final offers = SponsorEngine.generateOffers(70);
+    expect(offers.length, 3);
+    final sorted = [...offers]..sort((a, b) => a.weeklyIncome.compareTo(b.weeklyIncome));
+    expect(sorted.first.weeksRemaining, greaterThan(sorted.last.weeksRemaining));
+  });
+
+  test('GameState.chooseSponsor applies the selected deal and clears offers', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.pendingSponsorOffers, isNotEmpty);
+
+    final ok = await gameState.chooseSponsor(0);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.sponsorDeal, isNotNull);
+    expect(gameState.pendingSponsorOffers, isEmpty);
+  });
+
+  test('GameState.signLoanPlayer adds a loan player that returns after loanDurationWeeks', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    gameState.save!.budget = target.marketValue; // ローン料は移籍金の一部で足りるはず
+
+    final ok = await gameState.signLoanPlayer(target.id);
+
+    expect(ok, isTrue);
+    final signed = gameState.userTeam.players.firstWhere((p) => p.id == target.id);
+    expect(signed.isLoan, isTrue);
+    expect(signed.loanWeeksRemaining, GameState.loanDurationWeeks);
+  });
+
+  test('GameState.buyPlayerOnInstallments splits the remaining cost into weekly payments', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    gameState.save!.budget = target.marketValue; // 頭金分は十分ある
+
+    final ok = await gameState.buyPlayerOnInstallments(target.id);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.pendingInstallments.length, 1);
+    expect(gameState.userTeam.players.any((p) => p.id == target.id), isTrue);
+  });
+
+  test('ContractEngine.advanceWeek removes a loan player once loanWeeksRemaining reaches 0', () {
+    final team = PlayerGenerator.generateSquad(id: 'lteam', name: 'Loan FC', strengthTier: 60);
+    final loanPlayer = team.players.first;
+    loanPlayer.isLoan = true;
+    loanPlayer.loanWeeksRemaining = 1;
+
+    final expired = ContractEngine.advanceWeek(team);
+
+    expect(expired.any((p) => p.id == loanPlayer.id), isTrue);
+    expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
   });
 }

@@ -4,6 +4,7 @@ import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../widgets/formation_layout.dart';
 import '../widgets/position_colors.dart';
 
 class LineupScreen extends StatelessWidget {
@@ -14,12 +15,12 @@ class LineupScreen extends StatelessWidget {
     final gameState = context.watch<GameState>();
     final team = gameState.userTeam;
     final formation = team.formation;
-
-    final posOrder = Position.values.where((pos) => team.players.any((p) => p.position == pos)).toList();
+    final bench = team.players.where((p) => !team.startingXI.contains(p.id)).toList()
+      ..sort((a, b) => a.position.index.compareTo(b.position.index));
 
     return Scaffold(
       appBar: AppBar(title: const Text('スタメン・戦術')),
-      body: Column(
+      body: ListView(
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
@@ -89,73 +90,261 @@ class LineupScreen extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton(
-                onPressed: () => context.read<GameState>().autoFillStartingXI(),
-                child: const Text('自動編成'),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                for (final pos in posOrder) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 4),
-                    child: Text(
-                      '${pos.label} ${pos.fullLabel}（${_countInPosition(team.startingXI, team, pos)}/${formation.quotaFor(pos)}）',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                  ),
-                  ...team.players.where((p) => p.position == pos).map(
-                        (p) => _PlayerTile(playerId: p.id),
-                      ),
-                ],
+                OutlinedButton(
+                  onPressed: () => context.read<GameState>().autoFillStartingXI(),
+                  child: const Text('自動編成'),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('選手をタップして入れ替え', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: AspectRatio(
+              aspectRatio: 0.72,
+              child: _PitchView(team: team, formation: formation),
+            ),
+          ),
+          const Divider(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
+          ),
+          for (final p in bench) _BenchTile(playerId: p.id),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
+}
 
-  int _countInPosition(List<String> startingXI, Team team, Position pos) {
-    return startingXI
-        .map((id) => team.players.firstWhere((p) => p.id == id))
-        .where((p) => p.position == pos)
-        .length;
+/// スタメン11人をフォーメーションのスロット順に割り当てる。
+/// 完全一致がいない枠(グループ代用など)は残りの先発から総合力順に補う。
+List<Player?> _resolveSlotAssignments(Team team, Formation formation) {
+  final byId = {for (final p in team.players) p.id: p};
+  final startingPlayers = team.startingXI.map((id) => byId[id]).whereType<Player>().toList();
+
+  final remainingByPosition = <Position, List<Player>>{};
+  for (final p in startingPlayers) {
+    remainingByPosition.putIfAbsent(p.position, () => []).add(p);
+  }
+  for (final list in remainingByPosition.values) {
+    list.sort((a, b) => b.overall.compareTo(a.overall));
+  }
+
+  final slots = formation.slots;
+  final assignments = <Player?>[];
+  for (final slotPos in slots) {
+    final list = remainingByPosition[slotPos];
+    if (list != null && list.isNotEmpty) {
+      assignments.add(list.removeAt(0));
+    } else {
+      assignments.add(null);
+    }
+  }
+
+  final leftovers = remainingByPosition.values.expand((l) => l).toList()
+    ..sort((a, b) => b.overall.compareTo(a.overall));
+  for (int i = 0; i < assignments.length; i++) {
+    if (assignments[i] == null && leftovers.isNotEmpty) {
+      assignments[i] = leftovers.removeAt(0);
+    }
+  }
+  return assignments;
+}
+
+class _PitchView extends StatelessWidget {
+  final Team team;
+  final Formation formation;
+
+  const _PitchView({required this.team, required this.formation});
+
+  @override
+  Widget build(BuildContext context) {
+    final slots = formation.slots;
+    final offsets = FormationLayout.offsetsFor(formation);
+    final assignments = _resolveSlotAssignments(team, formation);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final h = constraints.maxHeight;
+          return CustomPaint(
+            painter: _PitchPainter(),
+            child: Stack(
+              children: [
+                for (int i = 0; i < slots.length; i++)
+                  Positioned(
+                    left: (offsets[i].dx * w - 26).clamp(0, w - 52),
+                    top: (offsets[i].dy * h - 26).clamp(0, h - 52),
+                    child: _SlotChip(
+                      slotPosition: slots[i],
+                      player: assignments[i],
+                      onTap: () => _showSlotSheet(context, slots[i], assignments[i]),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showSlotSheet(BuildContext context, Position slotPosition, Player? current) {
+    final gameState = context.read<GameState>();
+    final candidates = team.players
+        .where((p) => !p.isInjured)
+        .where((p) => p.id != current?.id)
+        .where((p) =>
+            p.position == slotPosition ||
+            p.secondaryPositions.contains(slotPosition) ||
+            p.position.group == slotPosition.group)
+        .toList()
+      ..sort((a, b) => b.overall.compareTo(a.overall));
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('${slotPosition.fullLabel}(${slotPosition.label})に配置', style: Theme.of(ctx).textTheme.titleMedium),
+            ),
+            if (current != null)
+              ListTile(
+                leading: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                title: const Text('この枠を空ける'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  gameState.toggleStartingPlayer(current.id);
+                },
+              ),
+            for (final p in candidates)
+              ListTile(
+                leading: PositionAvatar(position: p.position),
+                title: Text(p.name),
+                subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  gameState.swapStartingPlayer(outPlayerId: current?.id, inPlayerId: p.id);
+                },
+              ),
+            if (candidates.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('交代できる選手がいません'),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
-class _PlayerTile extends StatelessWidget {
+class _PitchPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final bg = Paint()..color = const Color(0xFF2E7D32);
+    canvas.drawRect(Offset.zero & size, bg);
+
+    final line = Paint()
+      ..color = Colors.white.withValues(alpha: 0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRect(Rect.fromLTWH(4, 4, size.width - 8, size.height - 8), line);
+    canvas.drawLine(Offset(4, size.height / 2), Offset(size.width - 4, size.height / 2), line);
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width * 0.16, line);
+
+    final boxW = size.width * 0.55;
+    final boxH = size.height * 0.12;
+    canvas.drawRect(Rect.fromLTWH(size.width / 2 - boxW / 2, 4, boxW, boxH), line);
+    canvas.drawRect(
+      Rect.fromLTWH(size.width / 2 - boxW / 2, size.height - 4 - boxH, boxW, boxH),
+      line,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _SlotChip extends StatelessWidget {
+  final Position slotPosition;
+  final Player? player;
+  final VoidCallback onTap;
+
+  const _SlotChip({required this.slotPosition, required this.player, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = player;
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 52,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            p == null
+                ? CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    child: Text(slotPosition.label, style: const TextStyle(fontSize: 10, color: Colors.white)),
+                  )
+                : PositionAvatar(position: p.position, highlighted: true),
+            const SizedBox(height: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                p == null ? '空き' : p.name.split(' ').last,
+                style: const TextStyle(fontSize: 10, color: Colors.white),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BenchTile extends StatelessWidget {
   final String playerId;
 
-  const _PlayerTile({required this.playerId});
+  const _BenchTile({required this.playerId});
 
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final team = gameState.userTeam;
     final p = team.players.firstWhere((pl) => pl.id == playerId);
-    final isStarting = team.startingXI.contains(playerId);
     final quota = team.formation.quotaFor(p.position);
     final currentInPosition = team.startingXI
         .map((id) => team.players.firstWhere((pl) => pl.id == id))
         .where((pl) => pl.position == p.position)
         .length;
-    final quotaFull = currentInPosition >= quota;
-    final canToggle = !p.isInjured && (isStarting || !quotaFull);
+    final canAdd = !p.isInjured && currentInPosition < quota;
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 3),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       child: ListTile(
-        tileColor: isStarting
-            ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3)
-            : null,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        leading: PositionAvatar(position: p.position, highlighted: isStarting),
+        leading: PositionAvatar(position: p.position),
         title: Text(p.name),
         subtitle: Text(
           p.isInjured
@@ -164,9 +353,9 @@ class _PlayerTile extends StatelessWidget {
                   '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
           style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
         ),
-        trailing: Checkbox(
-          value: isStarting,
-          onChanged: canToggle ? (_) => context.read<GameState>().toggleStartingPlayer(playerId) : null,
+        trailing: OutlinedButton(
+          onPressed: canAdd ? () => context.read<GameState>().toggleStartingPlayer(p.id) : null,
+          child: const Text('スタメンへ'),
         ),
       ),
     );

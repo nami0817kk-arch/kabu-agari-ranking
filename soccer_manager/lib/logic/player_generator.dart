@@ -197,6 +197,8 @@ class PlayerGenerator {
       potential: potential,
       fatigue: _rng.nextInt(15),
       morale: 65 + _rng.nextInt(25),
+      personality: PlayerPersonality.values[_rng.nextInt(PlayerPersonality.values.length)],
+      happiness: 55 + _rng.nextInt(30),
     );
     player.wage = (player.marketValue / 40).round().clamp(5, 500);
     player.contractWeeksRemaining = 15 + _rng.nextInt(30);

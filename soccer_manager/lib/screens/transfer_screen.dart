@@ -38,16 +38,15 @@ class TransferScreen extends StatelessWidget {
               itemCount: gameState.transferMarket.length,
               itemBuilder: (context, i) {
                 final p = gameState.transferMarket[i];
-                final canAfford = save.budget >= p.marketValue;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: ListTile(
                     leading: PositionAvatar(position: p.position),
                     title: Text(p.name),
-                    subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
+                    subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万'),
                     trailing: FilledButton(
-                      onPressed: (!canAfford || squadFull) ? null : () => _buy(context, p),
-                      child: Text('${p.marketValue}万'),
+                      onPressed: squadFull ? null : () => _showAcquireSheet(context, p),
+                      child: const Text('獲得する'),
                     ),
                   ),
                 );
@@ -59,12 +58,66 @@ class TransferScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _buy(BuildContext context, Player player) async {
+  void _showAcquireSheet(BuildContext context, Player player) {
     final gameState = context.read<GameState>();
-    final ok = await gameState.buyPlayer(player.id);
+    final save = gameState.save!;
+    final total = player.marketValue;
+    final downPayment = (total * 0.3).round();
+    final loanFee = (total * GameState.loanFeeRatioPercent / 100).round();
+
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${player.name}を獲得', style: Theme.of(ctx).textTheme.titleMedium),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.payments),
+                title: const Text('一括で獲得'),
+                subtitle: Text('$total万円を即座に支払う'),
+                enabled: save.budget >= total,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _acquire(context, () => gameState.buyPlayer(player.id), player.name);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_view_week),
+                title: const Text('分割払いで獲得'),
+                subtitle: Text('頭金$downPayment万円 + 残額を4週で均等払い'),
+                enabled: save.budget >= downPayment,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _acquire(context, () => gameState.buyPlayerOnInstallments(player.id), player.name);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.swap_horiz),
+                title: const Text('ローンで獲得'),
+                subtitle: Text('契約金$loanFee万円・週俸6割・${GameState.loanDurationWeeks}週で契約終了'),
+                enabled: save.budget >= loanFee,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _acquire(context, () => gameState.signLoanPlayer(player.id), player.name);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _acquire(BuildContext context, Future<bool> Function() action, String name) async {
+    final ok = await action();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? '${player.name}を獲得しました' : '獲得できませんでした')),
+        SnackBar(content: Text(ok ? '$nameを獲得しました' : '獲得できませんでした')),
       );
     }
   }
