@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'attributes.dart';
 import 'training_focus.dart';
 
 enum Position { gk, df, mf, fw }
@@ -24,10 +25,10 @@ class Player {
   String name;
   int age;
   Position position;
-  int attack;
-  int defense;
-  int technique;
-  int stamina;
+
+  /// 技術・メンタル・フィジカル・GKの詳細能力値（[AttributeKeys.all]の42項目、1-99）。
+  Map<String, int> attributes;
+
   int potential;
   int fatigue;
   int morale;
@@ -47,18 +48,71 @@ class Player {
     required this.name,
     required this.age,
     required this.position,
-    required this.attack,
-    required this.defense,
-    required this.technique,
-    required this.stamina,
     required this.potential,
+    Map<String, int>? attributes,
     this.fatigue = 0,
     this.morale = 75,
     this.injuryWeeks = 0,
     this.individualFocus,
     this.wage = 20,
     this.contractWeeksRemaining = 20,
-  });
+  }) : attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
+
+  int attributeValue(String key) => attributes[key] ?? 50;
+
+  void setAttributeValue(String key, int value) {
+    attributes[key] = value.clamp(1, 99);
+  }
+
+  int _weightedAverage(Map<String, int> weights) {
+    var total = 0;
+    var weightSum = 0;
+    weights.forEach((key, weight) {
+      total += attributeValue(key) * weight;
+      weightSum += weight;
+    });
+    if (weightSum == 0) return 50;
+    return (total / weightSum).round();
+  }
+
+  /// 攻撃力（シュート・崩し・オフザボールの複合値）
+  int get attack => _weightedAverage({
+        AttributeKeys.finishing: 3,
+        AttributeKeys.longShots: 2,
+        AttributeKeys.dribbling: 2,
+        AttributeKeys.offTheBall: 2,
+        AttributeKeys.composure: 1,
+        AttributeKeys.pace: 1,
+      });
+
+  /// 守備力（対人・ポジショニングの複合値）
+  int get defense => _weightedAverage({
+        AttributeKeys.tackling: 3,
+        AttributeKeys.marking: 3,
+        AttributeKeys.positioning: 2,
+        AttributeKeys.anticipation: 2,
+        AttributeKeys.strength: 1,
+        AttributeKeys.aggression: 1,
+      });
+
+  /// 技術（パス・ボールコントロールの複合値）
+  int get technique => _weightedAverage({
+        AttributeKeys.passing: 3,
+        AttributeKeys.firstTouch: 2,
+        AttributeKeys.vision: 2,
+        AttributeKeys.technique: 2,
+        AttributeKeys.crossing: 1,
+        AttributeKeys.decisions: 1,
+      });
+
+  /// スタミナ（持久力・運動量の複合値）
+  int get stamina => _weightedAverage({
+        AttributeKeys.stamina: 3,
+        AttributeKeys.naturalFitness: 2,
+        AttributeKeys.workRate: 2,
+        AttributeKeys.strength: 1,
+        AttributeKeys.acceleration: 1,
+      });
 
   int get overall => ((attack + defense + technique + stamina) / 4).round();
 
@@ -83,49 +137,12 @@ class Player {
     return value.round().clamp(50, 20000);
   }
 
-  int statValue(String stat) {
-    switch (stat) {
-      case 'attack':
-        return attack;
-      case 'defense':
-        return defense;
-      case 'technique':
-        return technique;
-      case 'stamina':
-        return stamina;
-      default:
-        throw ArgumentError('unknown stat $stat');
-    }
-  }
-
-  void setStatValue(String stat, int value) {
-    switch (stat) {
-      case 'attack':
-        attack = value;
-        break;
-      case 'defense':
-        defense = value;
-        break;
-      case 'technique':
-        technique = value;
-        break;
-      case 'stamina':
-        stamina = value;
-        break;
-      default:
-        throw ArgumentError('unknown stat $stat');
-    }
-  }
-
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'age': age,
         'position': position.name,
-        'attack': attack,
-        'defense': defense,
-        'technique': technique,
-        'stamina': stamina,
+        'attributes': attributes,
         'potential': potential,
         'fatigue': fatigue,
         'morale': morale,
@@ -135,23 +152,70 @@ class Player {
         'contractWeeksRemaining': contractWeeksRemaining,
       };
 
-  factory Player.fromJson(Map<String, dynamic> json) => Player(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        age: json['age'] as int,
-        position: Position.values.byName(json['position'] as String),
-        attack: json['attack'] as int,
-        defense: json['defense'] as int,
-        technique: json['technique'] as int,
-        stamina: json['stamina'] as int,
-        potential: json['potential'] as int,
-        fatigue: json['fatigue'] as int? ?? 0,
-        morale: json['morale'] as int? ?? 75,
-        injuryWeeks: json['injuryWeeks'] as int? ?? 0,
-        individualFocus: json['individualFocus'] == null
-            ? null
-            : TrainingFocus.values.byName(json['individualFocus'] as String),
-        wage: json['wage'] as int? ?? 20,
-        contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
-      );
+  factory Player.fromJson(Map<String, dynamic> json) {
+    final rawAttributes = json['attributes'] as Map<String, dynamic>?;
+    final attributes = rawAttributes != null
+        ? {for (final k in AttributeKeys.all) k: (rawAttributes[k] as int?) ?? 50}
+        : _migrateLegacyAttributes(json);
+
+    return Player(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      age: json['age'] as int,
+      position: Position.values.byName(json['position'] as String),
+      attributes: attributes,
+      potential: json['potential'] as int,
+      fatigue: json['fatigue'] as int? ?? 0,
+      morale: json['morale'] as int? ?? 75,
+      injuryWeeks: json['injuryWeeks'] as int? ?? 0,
+      individualFocus: json['individualFocus'] == null
+          ? null
+          : TrainingFocus.values.byName(json['individualFocus'] as String),
+      wage: json['wage'] as int? ?? 20,
+      contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
+    );
+  }
+
+  /// 旧セーブ（attack/defense/technique/staminaの4値のみ）からの移行用。
+  /// 該当する系統の詳細項目にそれぞれの値を割り当て、それ以外は50で埋める。
+  static Map<String, int> _migrateLegacyAttributes(Map<String, dynamic> json) {
+    final legacyAttack = json['attack'] as int? ?? 50;
+    final legacyDefense = json['defense'] as int? ?? 50;
+    final legacyTechnique = json['technique'] as int? ?? 50;
+    final legacyStamina = json['stamina'] as int? ?? 50;
+
+    final map = {for (final k in AttributeKeys.all) k: 50};
+    for (final k in [
+      AttributeKeys.finishing,
+      AttributeKeys.longShots,
+      AttributeKeys.dribbling,
+      AttributeKeys.offTheBall,
+    ]) {
+      map[k] = legacyAttack;
+    }
+    for (final k in [
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.positioning,
+      AttributeKeys.anticipation,
+    ]) {
+      map[k] = legacyDefense;
+    }
+    for (final k in [
+      AttributeKeys.passing,
+      AttributeKeys.firstTouch,
+      AttributeKeys.vision,
+      AttributeKeys.technique,
+    ]) {
+      map[k] = legacyTechnique;
+    }
+    for (final k in [
+      AttributeKeys.stamina,
+      AttributeKeys.naturalFitness,
+      AttributeKeys.workRate,
+    ]) {
+      map[k] = legacyStamina;
+    }
+    return map;
+  }
 }

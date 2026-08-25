@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../models/attributes.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../data/name_pool.dart';
@@ -6,6 +7,96 @@ import '../data/name_pool.dart';
 class PlayerGenerator {
   static final Random _rng = Random();
   static int _idCounter = 0;
+
+  static const _gkStrong = {
+    AttributeKeys.handling,
+    AttributeKeys.reflexes,
+    AttributeKeys.commandOfArea,
+    AttributeKeys.aerialReach,
+    AttributeKeys.kicking,
+    AttributeKeys.oneOnOnes,
+  };
+  static const _gkWeakOutfield = {
+    AttributeKeys.finishing,
+    AttributeKeys.longShots,
+    AttributeKeys.dribbling,
+    AttributeKeys.crossing,
+    AttributeKeys.pace,
+    AttributeKeys.acceleration,
+  };
+  static const _gkModestDefensive = {
+    AttributeKeys.tackling,
+    AttributeKeys.marking,
+    AttributeKeys.positioning,
+    AttributeKeys.anticipation,
+    AttributeKeys.concentration,
+  };
+
+  static const _dfStrong = {
+    AttributeKeys.tackling,
+    AttributeKeys.marking,
+    AttributeKeys.positioning,
+    AttributeKeys.strength,
+    AttributeKeys.heading,
+    AttributeKeys.aggression,
+    AttributeKeys.anticipation,
+  };
+  static const _dfWeak = {
+    AttributeKeys.finishing,
+    AttributeKeys.dribbling,
+    AttributeKeys.longShots,
+    AttributeKeys.flair,
+  };
+
+  static const _mfStrong = {
+    AttributeKeys.passing,
+    AttributeKeys.vision,
+    AttributeKeys.firstTouch,
+    AttributeKeys.technique,
+    AttributeKeys.workRate,
+    AttributeKeys.stamina,
+    AttributeKeys.decisions,
+    AttributeKeys.teamwork,
+  };
+
+  static const _fwStrong = {
+    AttributeKeys.finishing,
+    AttributeKeys.longShots,
+    AttributeKeys.dribbling,
+    AttributeKeys.offTheBall,
+    AttributeKeys.pace,
+    AttributeKeys.acceleration,
+    AttributeKeys.composure,
+    AttributeKeys.flair,
+  };
+  static const _fwWeak = {
+    AttributeKeys.tackling,
+    AttributeKeys.marking,
+  };
+
+  static int _positionBonus(String key, Position position) {
+    switch (position) {
+      case Position.gk:
+        if (_gkStrong.contains(key)) return 25;
+        if (_gkModestDefensive.contains(key)) return 5;
+        if (_gkWeakOutfield.contains(key)) return -20;
+        return -5;
+      case Position.df:
+        if (AttributeKeys.goalkeeping.contains(key)) return -40;
+        if (_dfStrong.contains(key)) return 15;
+        if (_dfWeak.contains(key)) return -10;
+        return 0;
+      case Position.mf:
+        if (AttributeKeys.goalkeeping.contains(key)) return -40;
+        if (_mfStrong.contains(key)) return 12;
+        return 0;
+      case Position.fw:
+        if (AttributeKeys.goalkeeping.contains(key)) return -40;
+        if (_fwStrong.contains(key)) return 15;
+        if (_fwWeak.contains(key)) return -10;
+        return 0;
+    }
+  }
 
   static Player generate({
     required Position position,
@@ -26,44 +117,19 @@ class PlayerGenerator {
     }
     final baseAbility = (potential * ageFactor).round().clamp(25, 99);
 
-    int attack = baseAbility;
-    int defense = baseAbility;
-    int technique = baseAbility;
-    int stamina = baseAbility;
-
-    switch (position) {
-      case Position.gk:
-        defense += 12;
-        attack -= 30;
-        technique -= 10;
-        break;
-      case Position.df:
-        defense += 14;
-        attack -= 14;
-        break;
-      case Position.mf:
-        technique += 8;
-        break;
-      case Position.fw:
-        attack += 14;
-        defense -= 14;
-        break;
+    final attributes = <String, int>{};
+    for (final key in AttributeKeys.all) {
+      final variance = _rng.nextInt(17) - 8; // -8 〜 +8
+      final value = baseAbility + _positionBonus(key, position) + variance;
+      attributes[key] = value.clamp(1, 99);
     }
-
-    attack = attack.clamp(20, 99);
-    defense = defense.clamp(20, 99);
-    technique = technique.clamp(20, 99);
-    stamina = stamina.clamp(20, 99);
 
     final player = Player(
       id: id,
       name: NamePool.randomPlayerName(),
       age: age,
       position: position,
-      attack: attack,
-      defense: defense,
-      technique: technique,
-      stamina: stamina,
+      attributes: attributes,
       potential: potential,
       fatigue: _rng.nextInt(15),
       morale: 65 + _rng.nextInt(25),

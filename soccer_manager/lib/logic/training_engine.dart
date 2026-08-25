@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../models/attributes.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../models/training_focus.dart';
@@ -20,17 +21,44 @@ class TrainingEngine {
   static void _applyToPlayer(Player p, TrainingFocus focus) {
     switch (focus) {
       case TrainingFocus.attack:
-        _grow(p, 'attack', (p.position == Position.fw || p.position == Position.mf) ? 0.5 : 0.15);
-        _grow(p, 'technique', 0.25);
+        final primary = (p.position == Position.fw || p.position == Position.mf) ? 0.5 : 0.15;
+        for (final k in [
+          AttributeKeys.finishing,
+          AttributeKeys.longShots,
+          AttributeKeys.dribbling,
+          AttributeKeys.offTheBall,
+        ]) {
+          _grow(p, k, primary);
+        }
+        for (final k in [AttributeKeys.passing, AttributeKeys.firstTouch, AttributeKeys.technique]) {
+          _grow(p, k, 0.25);
+        }
         p.fatigue = (p.fatigue + 12).clamp(0, 100);
         break;
       case TrainingFocus.defense:
-        _grow(p, 'defense', (p.position == Position.df || p.position == Position.gk) ? 0.5 : 0.15);
-        _grow(p, 'technique', 0.2);
+        final primary = (p.position == Position.df || p.position == Position.gk) ? 0.5 : 0.15;
+        for (final k in [
+          AttributeKeys.tackling,
+          AttributeKeys.marking,
+          AttributeKeys.positioning,
+          AttributeKeys.anticipation,
+        ]) {
+          _grow(p, k, primary);
+        }
+        for (final k in [AttributeKeys.passing, AttributeKeys.firstTouch, AttributeKeys.technique]) {
+          _grow(p, k, 0.2);
+        }
         p.fatigue = (p.fatigue + 12).clamp(0, 100);
         break;
       case TrainingFocus.fitness:
-        _grow(p, 'stamina', 0.45);
+        for (final k in [
+          AttributeKeys.stamina,
+          AttributeKeys.naturalFitness,
+          AttributeKeys.acceleration,
+          AttributeKeys.strength,
+        ]) {
+          _grow(p, k, 0.45);
+        }
         p.fatigue = (p.fatigue + 6).clamp(0, 100);
         break;
       case TrainingFocus.rest:
@@ -44,19 +72,18 @@ class TrainingEngine {
     }
   }
 
-  static void _grow(Player p, String stat, double chance) {
+  static void _grow(Player p, String key, double chance) {
     var c = chance;
     if (p.age > 30) c *= 0.4;
     if (_rng.nextDouble() > c) return;
-    final current = p.statValue(stat);
+    final current = p.attributeValue(key);
     if (current >= p.potential) return;
-    p.setStatValue(stat, (current + 1).clamp(1, p.potential));
+    p.setAttributeValue(key, (current + 1).clamp(1, p.potential));
   }
 
   static void _decline(Player p) {
-    const stats = ['attack', 'defense', 'technique', 'stamina'];
-    final s = stats[_rng.nextInt(stats.length)];
-    final current = p.statValue(s);
-    p.setStatValue(s, (current - 1).clamp(20, 99));
+    final key = AttributeKeys.all[_rng.nextInt(AttributeKeys.all.length)];
+    final current = p.attributeValue(key);
+    p.setAttributeValue(key, (current - 1).clamp(20, 99));
   }
 }

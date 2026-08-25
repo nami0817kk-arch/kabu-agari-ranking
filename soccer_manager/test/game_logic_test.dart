@@ -8,6 +8,7 @@ import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
+import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
@@ -130,7 +131,7 @@ void main() {
     team.defaultTrainingFocus = TrainingFocus.rest;
     final target = team.players.firstWhere((p) => p.position == Position.fw);
     target.individualFocus = TrainingFocus.attack;
-    target.attack = 40;
+    target.setAttributeValue(AttributeKeys.finishing, 40);
     target.potential = 99;
     target.fatigue = 50;
 
@@ -181,6 +182,46 @@ void main() {
     expect(ok, isTrue);
     expect(gameState.save!.youthProspects, isEmpty);
     expect(gameState.userTeam.players.length, beforeCount + 1);
+  });
+
+  test('PlayerGenerator populates all 42 detailed attributes within range', () {
+    final p = PlayerGenerator.generate(position: Position.mf, strengthTier: 60);
+    expect(p.attributes.keys.toSet(), AttributeKeys.all.toSet());
+    for (final key in AttributeKeys.all) {
+      expect(p.attributeValue(key), inInclusiveRange(1, 99));
+    }
+  });
+
+  test('Goalkeepers have much higher goalkeeping attributes than forwards', () {
+    final gk = PlayerGenerator.generate(position: Position.gk, strengthTier: 60);
+    final fw = PlayerGenerator.generate(position: Position.fw, strengthTier: 60);
+    expect(gk.attributeValue(AttributeKeys.handling), greaterThan(fw.attributeValue(AttributeKeys.handling)));
+    expect(gk.attributeValue(AttributeKeys.reflexes), greaterThan(fw.attributeValue(AttributeKeys.reflexes)));
+  });
+
+  test('Player.overall is the average of the four composite ratings', () {
+    final p = PlayerGenerator.generate(position: Position.mf, strengthTier: 60);
+    final expected = ((p.attack + p.defense + p.technique + p.stamina) / 4).round();
+    expect(p.overall, expected);
+  });
+
+  test('Player.fromJson migrates a legacy save without an attributes map', () {
+    final legacyJson = {
+      'id': 'legacy1',
+      'name': 'Legacy Player',
+      'age': 25,
+      'position': 'mf',
+      'attack': 70,
+      'defense': 60,
+      'technique': 65,
+      'stamina': 55,
+      'potential': 75,
+    };
+    final p = Player.fromJson(legacyJson);
+    expect(p.attributeValue(AttributeKeys.finishing), 70);
+    expect(p.attributeValue(AttributeKeys.tackling), 60);
+    expect(p.attributeValue(AttributeKeys.passing), 65);
+    expect(p.attributeValue(AttributeKeys.stamina), 55);
   });
 
   test('GameState.renewContract deducts cost and resets contract length', () async {

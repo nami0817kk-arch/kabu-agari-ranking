@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/attributes.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/stat_bar.dart';
@@ -17,6 +18,13 @@ class PlayerDetailScreen extends StatelessWidget {
     final isStarting = team.startingXI.contains(p.id);
     final sellPrice = (p.marketValue * 0.7).round();
     final renewalCost = gameState.renewalCostFor(p.id);
+
+    final categories = [
+      AttributeCategory.technical,
+      AttributeCategory.mental,
+      AttributeCategory.physical,
+      if (p.position == Position.gk) AttributeCategory.goalkeeping,
+    ];
 
     return Scaffold(
       appBar: AppBar(title: Text(p.name)),
@@ -48,6 +56,24 @@ class PlayerDetailScreen extends StatelessWidget {
           StatBar(label: '潜在能力', value: p.potential, color: Colors.purple),
           StatBar(label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
           StatBar(label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
+          const Divider(height: 32),
+          Text('詳細能力値', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          for (final category in categories)
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                title: Text(category.label),
+                initiallyExpanded: false,
+                children: [
+                  for (final key in category.keys)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: StatBar(label: AttributeKeys.labelOf(key), value: p.attributeValue(key)),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 24),
           FilledButton(
             onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
