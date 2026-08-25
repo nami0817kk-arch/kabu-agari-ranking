@@ -31,7 +31,18 @@ class PlayerDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('${p.position.label} ・ ${p.age}歳', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            '${p.position.label} ${p.position.fullLabel} ・ ${p.age}歳',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          if (p.secondaryPositions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '対応可能ポジション: ${p.secondaryPositions.map((s) => s.label).join(', ')}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
           const SizedBox(height: 8),
           if (isStarting)
             Chip(label: const Text('スタメン'), backgroundColor: Theme.of(context).colorScheme.primaryContainer),

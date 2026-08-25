@@ -21,7 +21,8 @@ class TrainingEngine {
   static void _applyToPlayer(Player p, TrainingFocus focus) {
     switch (focus) {
       case TrainingFocus.attack:
-        final primary = (p.position == Position.fw || p.position == Position.mf) ? 0.5 : 0.15;
+        final primary =
+            (p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid) ? 0.5 : 0.15;
         for (final k in [
           AttributeKeys.finishing,
           AttributeKeys.longShots,
@@ -36,7 +37,8 @@ class TrainingEngine {
         p.fatigue = (p.fatigue + 12).clamp(0, 100);
         break;
       case TrainingFocus.defense:
-        final primary = (p.position == Position.df || p.position == Position.gk) ? 0.5 : 0.15;
+        final primary =
+            (p.position.group == PositionGroup.def || p.position.group == PositionGroup.gk) ? 0.5 : 0.15;
         for (final k in [
           AttributeKeys.tackling,
           AttributeKeys.marking,

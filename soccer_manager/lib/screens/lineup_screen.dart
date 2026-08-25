@@ -14,7 +14,7 @@ class LineupScreen extends StatelessWidget {
     final team = gameState.userTeam;
     final formation = team.formation;
 
-    const posOrder = [Position.gk, Position.df, Position.mf, Position.fw];
+    final posOrder = Position.values.where((pos) => team.players.any((p) => p.position == pos)).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text('スタメン・戦術')),
@@ -104,7 +104,7 @@ class LineupScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 4),
                     child: Text(
-                      '${pos.label}（${_countInPosition(team.startingXI, team, pos)}/${formation.quotaFor(pos)}）',
+                      '${pos.label} ${pos.fullLabel}（${_countInPosition(team.startingXI, team, pos)}/${formation.quotaFor(pos)}）',
                       style: Theme.of(context).textTheme.titleSmall,
                     ),
                   ),
@@ -154,7 +154,10 @@ class _PlayerTile extends StatelessWidget {
       ),
       title: Text(p.name),
       subtitle: Text(
-        p.isInjured ? '負傷中（あと${p.injuryWeeks}週）' : '${p.age}歳 / 総合 ${p.overall}',
+        p.isInjured
+            ? '負傷中（あと${p.injuryWeeks}週）'
+            : '${p.age}歳 / 総合 ${p.overall}'
+                '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
         style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
       ),
       trailing: Checkbox(

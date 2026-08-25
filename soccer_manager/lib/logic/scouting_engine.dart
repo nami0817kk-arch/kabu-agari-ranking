@@ -9,8 +9,7 @@ class ScoutingEngine {
   static const int maxProspects = 6;
 
   static Player _generateProspect({required int tierMin, required int tierMax}) {
-    const positions = [Position.gk, Position.df, Position.mf, Position.fw];
-    final position = positions[_rng.nextInt(positions.length)];
+    final position = Position.values[_rng.nextInt(Position.values.length)];
     final tier = tierMin + _rng.nextInt(tierMax - tierMin + 1);
     final age = 16 + _rng.nextInt(4);
     return PlayerGenerator.generate(position: position, strengthTier: tier, ageOverride: age);

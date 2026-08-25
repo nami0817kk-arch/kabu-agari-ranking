@@ -3,20 +3,120 @@ import 'dart:math';
 import 'attributes.dart';
 import 'training_focus.dart';
 
-enum Position { gk, df, mf, fw }
+/// Football Manager風の詳細ポジション（14種類）。
+enum Position { gk, dr, dc, dl, wbr, wbl, dm, mr, mc, ml, amr, amc, aml, st }
+
+/// 大分類（GK/DEF/MID/ATT）。試合シミュレーションの攻撃力・守備力算出や
+/// トレーニング成長率の判定など、粗い分類で十分な処理に用いる。
+enum PositionGroup { gk, def, mid, att }
 
 extension PositionLabel on Position {
   String get label {
     switch (this) {
       case Position.gk:
         return 'GK';
-      case Position.df:
-        return 'DF';
-      case Position.mf:
-        return 'MF';
-      case Position.fw:
-        return 'FW';
+      case Position.dr:
+        return 'DR';
+      case Position.dc:
+        return 'DC';
+      case Position.dl:
+        return 'DL';
+      case Position.wbr:
+        return 'WBR';
+      case Position.wbl:
+        return 'WBL';
+      case Position.dm:
+        return 'DM';
+      case Position.mr:
+        return 'MR';
+      case Position.mc:
+        return 'MC';
+      case Position.ml:
+        return 'ML';
+      case Position.amr:
+        return 'AMR';
+      case Position.amc:
+        return 'AMC';
+      case Position.aml:
+        return 'AML';
+      case Position.st:
+        return 'ST';
     }
+  }
+
+  /// 日本語での正式名称。
+  String get fullLabel {
+    switch (this) {
+      case Position.gk:
+        return 'ゴールキーパー';
+      case Position.dr:
+        return '右サイドバック';
+      case Position.dc:
+        return 'センターバック';
+      case Position.dl:
+        return '左サイドバック';
+      case Position.wbr:
+        return '右ウイングバック';
+      case Position.wbl:
+        return '左ウイングバック';
+      case Position.dm:
+        return '守備的MF';
+      case Position.mr:
+        return '右MF';
+      case Position.mc:
+        return 'センターMF';
+      case Position.ml:
+        return '左MF';
+      case Position.amr:
+        return '右トップ下';
+      case Position.amc:
+        return 'トップ下';
+      case Position.aml:
+        return '左トップ下';
+      case Position.st:
+        return 'ストライカー';
+    }
+  }
+
+  PositionGroup get group {
+    switch (this) {
+      case Position.gk:
+        return PositionGroup.gk;
+      case Position.dr:
+      case Position.dc:
+      case Position.dl:
+      case Position.wbr:
+      case Position.wbl:
+        return PositionGroup.def;
+      case Position.dm:
+      case Position.mr:
+      case Position.mc:
+      case Position.ml:
+        return PositionGroup.mid;
+      case Position.amr:
+      case Position.amc:
+      case Position.aml:
+      case Position.st:
+        return PositionGroup.att;
+    }
+  }
+}
+
+/// 旧バージョン（gk/df/mf/fwの4区分）のセーブデータからポジション名を解決する。
+Position parsePosition(String raw) {
+  switch (raw) {
+    case 'df':
+      return Position.dc;
+    case 'mf':
+      return Position.mc;
+    case 'fw':
+      return Position.st;
+    default:
+      try {
+        return Position.values.byName(raw);
+      } catch (_) {
+        return Position.mc;
+      }
   }
 }
 
@@ -25,6 +125,9 @@ class Player {
   String name;
   int age;
   Position position;
+
+  /// 主ポジションほどではないが無理なくこなせるポジション（0〜2個程度）。
+  List<Position> secondaryPositions;
 
   /// 技術・メンタル・フィジカル・GKの詳細能力値（[AttributeKeys.all]の42項目、1-99）。
   Map<String, int> attributes;
@@ -49,6 +152,7 @@ class Player {
     required this.age,
     required this.position,
     required this.potential,
+    List<Position>? secondaryPositions,
     Map<String, int>? attributes,
     this.fatigue = 0,
     this.morale = 75,
@@ -56,7 +160,11 @@ class Player {
     this.individualFocus,
     this.wage = 20,
     this.contractWeeksRemaining = 20,
-  }) : attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
+  })  : secondaryPositions = secondaryPositions ?? [],
+        attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
+
+  /// このポジション（主・副とも）を無理なくこなせるか。
+  bool canPlay(Position pos) => position == pos || secondaryPositions.contains(pos);
 
   int attributeValue(String key) => attributes[key] ?? 50;
 
@@ -142,6 +250,7 @@ class Player {
         'name': name,
         'age': age,
         'position': position.name,
+        'secondaryPositions': secondaryPositions.map((p) => p.name).toList(),
         'attributes': attributes,
         'potential': potential,
         'fatigue': fatigue,
@@ -162,7 +271,11 @@ class Player {
       id: json['id'] as String,
       name: json['name'] as String,
       age: json['age'] as int,
-      position: Position.values.byName(json['position'] as String),
+      position: parsePosition(json['position'] as String),
+      secondaryPositions: (json['secondaryPositions'] as List?)
+              ?.map((e) => parsePosition(e as String))
+              .toList() ??
+          [],
       attributes: attributes,
       potential: json['potential'] as int,
       fatigue: json['fatigue'] as int? ?? 0,

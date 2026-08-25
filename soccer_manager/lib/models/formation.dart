@@ -1,6 +1,6 @@
 import '../models/player.dart';
 
-enum Formation { f442, f433, f352, f532 }
+enum Formation { f442, f433, f4231, f352 }
 
 extension FormationInfo on Formation {
   String get label {
@@ -9,64 +9,50 @@ extension FormationInfo on Formation {
         return '4-4-2';
       case Formation.f433:
         return '4-3-3';
+      case Formation.f4231:
+        return '4-2-3-1';
       case Formation.f352:
         return '3-5-2';
-      case Formation.f532:
-        return '5-3-2';
     }
   }
 
-  int get df {
+  /// フォーメーションを構成する具体的な11ポジション。
+  List<Position> get slots {
     switch (this) {
       case Formation.f442:
-        return 4;
+        return const [
+          Position.gk,
+          Position.dr, Position.dc, Position.dc, Position.dl,
+          Position.mr, Position.mc, Position.mc, Position.ml,
+          Position.st, Position.st,
+        ];
       case Formation.f433:
-        return 4;
+        return const [
+          Position.gk,
+          Position.dr, Position.dc, Position.dc, Position.dl,
+          Position.mc, Position.mc, Position.mc,
+          Position.amr, Position.aml, Position.st,
+        ];
+      case Formation.f4231:
+        return const [
+          Position.gk,
+          Position.dr, Position.dc, Position.dc, Position.dl,
+          Position.dm, Position.dm,
+          Position.amr, Position.amc, Position.aml,
+          Position.st,
+        ];
       case Formation.f352:
-        return 3;
-      case Formation.f532:
-        return 5;
+        return const [
+          Position.gk,
+          Position.dc, Position.dc, Position.dc,
+          Position.wbr, Position.mc, Position.mc, Position.mc, Position.wbl,
+          Position.st, Position.st,
+        ];
     }
   }
 
-  int get mf {
-    switch (this) {
-      case Formation.f442:
-        return 4;
-      case Formation.f433:
-        return 3;
-      case Formation.f352:
-        return 5;
-      case Formation.f532:
-        return 3;
-    }
-  }
-
-  int get fw {
-    switch (this) {
-      case Formation.f442:
-        return 2;
-      case Formation.f433:
-        return 3;
-      case Formation.f352:
-        return 2;
-      case Formation.f532:
-        return 2;
-    }
-  }
-
-  int quotaFor(Position position) {
-    switch (position) {
-      case Position.gk:
-        return 1;
-      case Position.df:
-        return df;
-      case Position.mf:
-        return mf;
-      case Position.fw:
-        return fw;
-    }
-  }
+  /// このフォーメーションで特定ポジションが必要な人数。
+  int quotaFor(Position position) => slots.where((p) => p == position).length;
 
   double get attackBias {
     switch (this) {
@@ -74,10 +60,10 @@ extension FormationInfo on Formation {
         return 1.0;
       case Formation.f433:
         return 1.08;
+      case Formation.f4231:
+        return 0.98;
       case Formation.f352:
-        return 1.04;
-      case Formation.f532:
-        return 0.90;
+        return 1.05;
     }
   }
 
@@ -87,10 +73,10 @@ extension FormationInfo on Formation {
         return 1.0;
       case Formation.f433:
         return 0.94;
+      case Formation.f4231:
+        return 1.08;
       case Formation.f352:
-        return 0.96;
-      case Formation.f532:
-        return 1.10;
+        return 0.97;
     }
   }
 }

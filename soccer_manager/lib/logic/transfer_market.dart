@@ -7,15 +7,9 @@ class TransferMarket {
 
   /// フリーエージェント風の移籍候補選手を生成する。
   static List<Player> generate({int count = 10}) {
-    const positions = [
-      Position.gk,
-      Position.df,
-      Position.mf,
-      Position.fw,
-    ];
     final players = <Player>[];
     for (int i = 0; i < count; i++) {
-      final position = positions[_rng.nextInt(positions.length)];
+      final position = Position.values[_rng.nextInt(Position.values.length)];
       final tier = 40 + _rng.nextInt(45);
       players.add(PlayerGenerator.generate(position: position, strengthTier: tier));
     }

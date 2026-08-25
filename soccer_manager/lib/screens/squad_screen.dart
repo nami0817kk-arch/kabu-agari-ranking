@@ -10,10 +10,9 @@ class SquadScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
-    const posOrder = {Position.gk: 0, Position.df: 1, Position.mf: 2, Position.fw: 3};
     final players = [...gameState.userTeam.players]
       ..sort((a, b) {
-        final c = posOrder[a.position]!.compareTo(posOrder[b.position]!);
+        final c = a.position.index.compareTo(b.position.index);
         if (c != 0) return c;
         return b.overall.compareTo(a.overall);
       });

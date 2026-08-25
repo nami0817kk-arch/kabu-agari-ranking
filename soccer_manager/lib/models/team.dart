@@ -55,9 +55,7 @@ class Team {
         id: json['id'] as String,
         name: json['name'] as String,
         isUserTeam: json['isUserTeam'] as bool? ?? false,
-        formation: json['formation'] == null
-            ? Formation.f442
-            : Formation.values.byName(json['formation'] as String),
+        formation: _parseFormation(json['formation'] as String?),
         startingXI: (json['startingXI'] as List?)?.map((e) => e as String).toList() ?? [],
         defaultTrainingFocus: json['defaultTrainingFocus'] == null
             ? TrainingFocus.rest
@@ -68,4 +66,13 @@ class Team {
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),
       );
+
+  /// 廃止されたフォーメーション名（旧f532など）のセーブでもクラッシュしないようにする。
+  static Formation _parseFormation(String? name) {
+    if (name == null) return Formation.f442;
+    for (final f in Formation.values) {
+      if (f.name == name) return f;
+    }
+    return Formation.f442;
+  }
 }

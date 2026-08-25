@@ -12,6 +12,7 @@ import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
+import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/state/game_state.dart';
 
 void main() {
@@ -19,29 +20,44 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  test('LineupUtils.autoFill respects formation position quotas', () {
+  test('LineupUtils.autoFill fills the formation slot groups correctly', () {
     final team = PlayerGenerator.generateSquad(id: 't1', name: 'Test FC', strengthTier: 60);
     team.formation = Formation.f433;
     LineupUtils.autoFill(team);
 
     expect(team.startingXI.length, 11);
     final byId = {for (final p in team.players) p.id: p};
-    final lineup = team.startingXI.map((id) => byId[id]!).toList();
-    expect(lineup.where((p) => p.position == Position.gk).length, 1);
-    expect(lineup.where((p) => p.position == Position.df).length, 4);
-    expect(lineup.where((p) => p.position == Position.mf).length, 3);
-    expect(lineup.where((p) => p.position == Position.fw).length, 3);
+    // 完全一致した候補がいない枠は同じ大分類(グループ)内から補われるため、
+    // 常に保証できるのはグループ単位の人数一致。
+    final lineupGroups = team.startingXI.map((id) => byId[id]!.position.group).toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    final expectedGroups = Formation.f433.slots.map((p) => p.group).toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    expect(lineupGroups, expectedGroups);
   });
 
   test('LineupUtils.autoFill excludes injured players', () {
     final team = PlayerGenerator.generateSquad(id: 't2', name: 'Test FC', strengthTier: 60);
-    for (final p in team.players.where((p) => p.position == Position.fw)) {
+    for (final p in team.players.where((p) => p.position == Position.st)) {
       p.injuryWeeks = 2;
     }
     LineupUtils.autoFill(team);
     final byId = {for (final p in team.players) p.id: p};
     final lineup = team.startingXI.map((id) => byId[id]!).toList();
     expect(lineup.every((p) => !p.isInjured), isTrue);
+  });
+
+  test('LineupUtils.autoFill falls back to same-group players when a position is missing', () {
+    final team = PlayerGenerator.generateSquad(id: 't1b', name: 'Test FC', strengthTier: 60);
+    team.players.removeWhere((p) => p.position == Position.st);
+    team.formation = Formation.f442; // needs 2 ST, none available
+    LineupUtils.autoFill(team);
+
+    expect(team.startingXI.length, 11);
+    final byId = {for (final p in team.players) p.id: p};
+    final lineup = team.startingXI.map((id) => byId[id]!).toList();
+    // ST枠はATTグループの他ポジション(AMR/AMC/AML)で代用されているはず
+    expect(lineup.any((p) => p.position.group == PositionGroup.att), isTrue);
   });
 
   test('TransferMarket.generate returns the requested count', () {
@@ -129,7 +145,7 @@ void main() {
   test('TrainingEngine respects a player individual focus override', () {
     final team = PlayerGenerator.generateSquad(id: 't5', name: 'Test FC', strengthTier: 60);
     team.defaultTrainingFocus = TrainingFocus.rest;
-    final target = team.players.firstWhere((p) => p.position == Position.fw);
+    final target = team.players.firstWhere((p) => p.position == Position.st);
     target.individualFocus = TrainingFocus.attack;
     target.setAttributeValue(AttributeKeys.finishing, 40);
     target.potential = 99;
@@ -185,7 +201,7 @@ void main() {
   });
 
   test('PlayerGenerator populates all 42 detailed attributes within range', () {
-    final p = PlayerGenerator.generate(position: Position.mf, strengthTier: 60);
+    final p = PlayerGenerator.generate(position: Position.mc, strengthTier: 60);
     expect(p.attributes.keys.toSet(), AttributeKeys.all.toSet());
     for (final key in AttributeKeys.all) {
       expect(p.attributeValue(key), inInclusiveRange(1, 99));
@@ -194,13 +210,13 @@ void main() {
 
   test('Goalkeepers have much higher goalkeeping attributes than forwards', () {
     final gk = PlayerGenerator.generate(position: Position.gk, strengthTier: 60);
-    final fw = PlayerGenerator.generate(position: Position.fw, strengthTier: 60);
+    final fw = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
     expect(gk.attributeValue(AttributeKeys.handling), greaterThan(fw.attributeValue(AttributeKeys.handling)));
     expect(gk.attributeValue(AttributeKeys.reflexes), greaterThan(fw.attributeValue(AttributeKeys.reflexes)));
   });
 
   test('Player.overall is the average of the four composite ratings', () {
-    final p = PlayerGenerator.generate(position: Position.mf, strengthTier: 60);
+    final p = PlayerGenerator.generate(position: Position.mc, strengthTier: 60);
     final expected = ((p.attack + p.defense + p.technique + p.stamina) / 4).round();
     expect(p.overall, expected);
   });
@@ -222,6 +238,31 @@ void main() {
     expect(p.attributeValue(AttributeKeys.tackling), 60);
     expect(p.attributeValue(AttributeKeys.passing), 65);
     expect(p.attributeValue(AttributeKeys.stamina), 55);
+  });
+
+  test('parsePosition migrates legacy df/mf/fw position names', () {
+    expect(parsePosition('df'), Position.dc);
+    expect(parsePosition('mf'), Position.mc);
+    expect(parsePosition('fw'), Position.st);
+    expect(parsePosition('gk'), Position.gk);
+    expect(parsePosition('amc'), Position.amc);
+  });
+
+  test('Formation.f442 has 11 slots matching its label composition', () {
+    final slots = Formation.f442.slots;
+    expect(slots.length, 11);
+    expect(slots.where((p) => p == Position.gk).length, 1);
+    expect(slots.where((p) => p == Position.st).length, 2);
+    expect(slots.where((p) => p.group == PositionGroup.def).length, 4);
+    expect(slots.where((p) => p.group == PositionGroup.mid).length, 4);
+  });
+
+  test('Team.fromJson falls back to f442 for a removed formation name', () {
+    final team = PlayerGenerator.generateSquad(id: 'tf', name: 'Test FC', strengthTier: 60);
+    final json = team.toJson();
+    json['formation'] = 'f532'; // 廃止された旧フォーメーション名
+    final restored = Team.fromJson(json);
+    expect(restored.formation, Formation.f442);
   });
 
   test('GameState.renewContract deducts cost and resets contract length', () async {

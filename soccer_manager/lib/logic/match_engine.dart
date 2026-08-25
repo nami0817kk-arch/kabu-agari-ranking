@@ -26,8 +26,9 @@ class MatchEngine {
   }
 
   static double _attackPower(Team t, List<Player> lineup) {
-    final relevant =
-        lineup.where((p) => p.position == Position.fw || p.position == Position.mf).toList();
+    final relevant = lineup
+        .where((p) => p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid)
+        .toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(0, (s, p) => s + p.attack * _condition(p));
     final lineFactor = 1 + (t.lineHeight - 50) / 400;
@@ -35,8 +36,9 @@ class MatchEngine {
   }
 
   static double _defensePower(Team t, List<Player> lineup) {
-    final relevant =
-        lineup.where((p) => p.position == Position.df || p.position == Position.gk).toList();
+    final relevant = lineup
+        .where((p) => p.position.group == PositionGroup.def || p.position.group == PositionGroup.gk)
+        .toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(0, (s, p) => s + p.defense * _condition(p));
     final pressFactor = 1 + (t.pressing - 50) / 400;
@@ -45,8 +47,9 @@ class MatchEngine {
   }
 
   static Player? _pickScorer(List<Player> lineup) {
-    final candidates =
-        lineup.where((p) => p.position == Position.fw || p.position == Position.mf).toList();
+    final candidates = lineup
+        .where((p) => p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid)
+        .toList();
     if (candidates.isEmpty) return lineup.isNotEmpty ? lineup.first : null;
     final total = candidates.fold<int>(0, (s, p) => s + p.attack);
     if (total <= 0) return candidates[_rng.nextInt(candidates.length)];
