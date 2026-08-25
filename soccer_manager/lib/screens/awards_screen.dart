@@ -9,17 +9,34 @@ class AwardsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
-    final awards = gameState.seasonAwards;
+    final awards = gameState.seasonAwards.reversed.toList();
+    final clubName = gameState.userTeam.name;
 
     return Scaffold(
       appBar: AppBar(title: const Text('個人タイトル')),
       body: awards.isEmpty
-          ? const Center(child: Text('まだ表彰記録がありません(シーズン終了時に確定します)'))
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.emoji_events_outlined,
+                        size: 64, color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    const Text('まだ表彰記録がありません(シーズン終了時に確定します)',
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: awards.length,
               itemBuilder: (context, i) {
                 final a = awards[i];
+                final scorerIsOwnClub = a.topScorerTeamName == clubName;
+                final mvpIsOwnClub = a.mvpTeamName == clubName;
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
@@ -27,20 +44,42 @@ class AwardsScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('シーズン${a.season}', style: Theme.of(context).textTheme.titleMedium),
+                        Text('シーズン${a.season}',
+                            style: Theme.of(context).textTheme.titleMedium),
                         const Divider(height: 20),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.sports_soccer, color: Colors.green),
-                          title: const Text('得点王'),
+                          leading: const Icon(Icons.sports_soccer,
+                              color: Colors.green),
+                          title: Row(
+                            children: [
+                              const Text('得点王'),
+                              if (scorerIsOwnClub) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.shield,
+                                    size: 14, color: Colors.blueAccent),
+                              ],
+                            ],
+                          ),
                           subtitle: a.topScorerName == null
                               ? const Text('該当者なし')
-                              : Text('${a.topScorerName}（${a.topScorerTeamName}） - ${a.topScorerGoals}得点'),
+                              : Text(
+                                  '${a.topScorerName}（${a.topScorerTeamName}） - ${a.topScorerGoals}得点'),
                         ),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.emoji_events, color: Colors.amber),
-                          title: const Text('年間MVP'),
+                          leading: const Icon(Icons.emoji_events,
+                              color: Colors.amber),
+                          title: Row(
+                            children: [
+                              const Text('年間MVP'),
+                              if (mvpIsOwnClub) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.shield,
+                                    size: 14, color: Colors.blueAccent),
+                              ],
+                            ],
+                          ),
                           subtitle: a.mvpName == null
                               ? const Text('該当者なし')
                               : Text('${a.mvpName}（${a.mvpTeamName}）'),
