@@ -17,7 +17,7 @@ class LineupScreen extends StatelessWidget {
     const posOrder = [Position.gk, Position.df, Position.mf, Position.fw];
 
     return Scaffold(
-      appBar: AppBar(title: const Text('スタメン編成')),
+      appBar: AppBar(title: const Text('スタメン・戦術')),
       body: Column(
         children: [
           Padding(
@@ -37,6 +37,52 @@ class LineupScreen extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text('${team.startingXI.length}/11'),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('プレッシング')),
+                    Expanded(
+                      child: Slider(
+                        value: team.pressing.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.pressing}',
+                        onChanged: (v) => context.read<GameState>().setPressing(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.pressing}')),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('ライン高さ')),
+                    Expanded(
+                      child: Slider(
+                        value: team.lineHeight.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.lineHeight}',
+                        onChanged: (v) => context.read<GameState>().setLineHeight(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.lineHeight}')),
+                  ],
+                ),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
               ],
             ),
           ),

@@ -30,7 +30,8 @@ class MatchEngine {
         lineup.where((p) => p.position == Position.fw || p.position == Position.mf).toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(0, (s, p) => s + p.attack * _condition(p));
-    return (total / relevant.length) * t.formation.attackBias;
+    final lineFactor = 1 + (t.lineHeight - 50) / 400;
+    return (total / relevant.length) * t.formation.attackBias * lineFactor;
   }
 
   static double _defensePower(Team t, List<Player> lineup) {
@@ -38,7 +39,9 @@ class MatchEngine {
         lineup.where((p) => p.position == Position.df || p.position == Position.gk).toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(0, (s, p) => s + p.defense * _condition(p));
-    return (total / relevant.length) * t.formation.defenseBias;
+    final pressFactor = 1 + (t.pressing - 50) / 400;
+    final lineRiskFactor = 1 + (50 - t.lineHeight) / 500;
+    return (total / relevant.length) * t.formation.defenseBias * pressFactor * lineRiskFactor;
   }
 
   static Player? _pickScorer(List<Player> lineup) {
@@ -53,6 +56,14 @@ class MatchEngine {
       r -= p.attack;
     }
     return candidates.last;
+  }
+
+  static void _applyFatigue(Team t, List<Player> lineup) {
+    final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
+    for (final p in lineup) {
+      final gain = (12 + _rng.nextInt(8)) * pressFatigueFactor;
+      p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
+    }
   }
 
   static void _rollInjuries(List<Player> lineup) {
@@ -107,9 +118,8 @@ class MatchEngine {
     }
     events.sort((a, b) => a.minute.compareTo(b.minute));
 
-    for (final p in [...homeLineup, ...awayLineup]) {
-      p.fatigue = (p.fatigue + 12 + _rng.nextInt(8)).clamp(0, 100);
-    }
+    _applyFatigue(home, homeLineup);
+    _applyFatigue(away, awayLineup);
     _rollInjuries(homeLineup);
     _rollInjuries(awayLineup);
 

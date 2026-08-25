@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'training_focus.dart';
+
 enum Position { gk, df, mf, fw }
 
 extension PositionLabel on Position {
@@ -31,6 +33,15 @@ class Player {
   int morale;
   int injuryWeeks;
 
+  /// 個別のトレーニング方針。nullの場合はチームの既定方針に従う。
+  TrainingFocus? individualFocus;
+
+  /// 週俸（万円）
+  int wage;
+
+  /// 契約残り週数。0になると自由契約としてチームを去る。
+  int contractWeeksRemaining;
+
   Player({
     required this.id,
     required this.name,
@@ -44,6 +55,9 @@ class Player {
     this.fatigue = 0,
     this.morale = 75,
     this.injuryWeeks = 0,
+    this.individualFocus,
+    this.wage = 20,
+    this.contractWeeksRemaining = 20,
   });
 
   int get overall => ((attack + defense + technique + stamina) / 4).round();
@@ -116,6 +130,9 @@ class Player {
         'fatigue': fatigue,
         'morale': morale,
         'injuryWeeks': injuryWeeks,
+        'individualFocus': individualFocus?.name,
+        'wage': wage,
+        'contractWeeksRemaining': contractWeeksRemaining,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) => Player(
@@ -131,5 +148,10 @@ class Player {
         fatigue: json['fatigue'] as int? ?? 0,
         morale: json['morale'] as int? ?? 75,
         injuryWeeks: json['injuryWeeks'] as int? ?? 0,
+        individualFocus: json['individualFocus'] == null
+            ? null
+            : TrainingFocus.values.byName(json['individualFocus'] as String),
+        wage: json['wage'] as int? ?? 20,
+        contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
       );
 }

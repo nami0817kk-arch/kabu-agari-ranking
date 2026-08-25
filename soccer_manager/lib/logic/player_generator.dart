@@ -7,9 +7,13 @@ class PlayerGenerator {
   static final Random _rng = Random();
   static int _idCounter = 0;
 
-  static Player generate({required Position position, required int strengthTier}) {
+  static Player generate({
+    required Position position,
+    required int strengthTier,
+    int? ageOverride,
+  }) {
     final id = 'pl${_idCounter++}';
-    final age = 17 + _rng.nextInt(18);
+    final age = ageOverride ?? (17 + _rng.nextInt(18));
     final potential = (strengthTier + _rng.nextInt(21) - 10).clamp(40, 99);
 
     double ageFactor;
@@ -51,7 +55,7 @@ class PlayerGenerator {
     technique = technique.clamp(20, 99);
     stamina = stamina.clamp(20, 99);
 
-    return Player(
+    final player = Player(
       id: id,
       name: NamePool.randomPlayerName(),
       age: age,
@@ -64,6 +68,9 @@ class PlayerGenerator {
       fatigue: _rng.nextInt(15),
       morale: 65 + _rng.nextInt(25),
     );
+    player.wage = (player.marketValue / 40).round().clamp(5, 500);
+    player.contractWeeksRemaining = 15 + _rng.nextInt(30);
+    return player;
   }
 
   static Team generateSquad({

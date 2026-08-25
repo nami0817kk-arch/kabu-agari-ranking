@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
+import 'finance_screen.dart';
 import 'fixtures_screen.dart';
 import 'lineup_screen.dart';
 import 'match_screen.dart';
@@ -10,6 +11,7 @@ import 'squad_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
+import 'youth_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -47,7 +49,7 @@ class HomeScreen extends StatelessWidget {
                   Text('シーズン ${league.season}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   Text('順位: $userRank / ${standings.length}位（目標: ${save.boardTargetRank}位以内）'),
-                  Text('資金: ${save.budget}万円'),
+                  Text('資金: ${save.budget}万円　（週収支: ${_netWeekly(gameState) >= 0 ? '+' : ''}${_netWeekly(gameState)}万円）'),
                   Text('平均総合力: ${userTeam.overallRating}　フォーメーション: ${userTeam.formation.label}'),
                   const SizedBox(height: 12),
                   Row(
@@ -116,10 +118,22 @@ class HomeScreen extends StatelessWidget {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferScreen())),
           ),
           _MenuTile(
+            icon: Icons.emoji_people,
+            label: 'ユース・スカウト',
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const YouthScreen())),
+          ),
+          _MenuTile(
             icon: Icons.fitness_center,
             label: 'トレーニング',
             onTap: () =>
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TrainingScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.account_balance,
+            label: 'クラブ経営',
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinanceScreen())),
           ),
           _MenuTile(
             icon: Icons.leaderboard,
@@ -132,6 +146,10 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  int _netWeekly(GameState gameState) {
+    return gameState.weeklyIncomeFor(gameState.userTeam.id) - gameState.weeklyWageBill;
+  }
+
   String _fixtureLabel(League league, Fixture f) {
     final home = league.teams.firstWhere((t) => t.id == f.homeTeamId).name;
     final away = league.teams.firstWhere((t) => t.id == f.awayTeamId).name;
@@ -142,7 +160,17 @@ class HomeScreen extends StatelessWidget {
     final gameState = context.read<GameState>();
     final league = gameState.save!.league;
     final result = await gameState.playNextMatchday();
-    if (context.mounted && result != null) {
+    if (!context.mounted) return;
+
+    final expired = gameState.lastContractExpirations;
+    if (expired.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('契約満了で退団: ${expired.join('、')}')),
+      );
+      gameState.lastContractExpirations = [];
+    }
+
+    if (result != null) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => MatchScreen(result: result, league: league)),
       );

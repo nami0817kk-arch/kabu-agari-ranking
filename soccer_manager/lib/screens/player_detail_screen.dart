@@ -16,6 +16,7 @@ class PlayerDetailScreen extends StatelessWidget {
     final p = team.players.firstWhere((pl) => pl.id == playerId);
     final isStarting = team.startingXI.contains(p.id);
     final sellPrice = (p.marketValue * 0.7).round();
+    final renewalCost = gameState.renewalCostFor(p.id);
 
     return Scaffold(
       appBar: AppBar(title: Text(p.name)),
@@ -37,6 +38,7 @@ class PlayerDetailScreen extends StatelessWidget {
           const SizedBox(height: 16),
           Text('総合力: ${p.overall}', style: Theme.of(context).textTheme.titleLarge),
           Text('市場価値: ${p.marketValue}万円'),
+          Text('週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週'),
           const SizedBox(height: 16),
           StatBar(label: '攻撃', value: p.attack),
           StatBar(label: '守備', value: p.defense),
@@ -47,6 +49,11 @@ class PlayerDetailScreen extends StatelessWidget {
           StatBar(label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
           StatBar(label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
           const SizedBox(height: 24),
+          FilledButton(
+            onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
+            child: Text('契約更新する（$renewalCost万円 / +40週）'),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton(
             onPressed: team.players.length <= minSquadSize ? null : () => _confirmSell(context, sellPrice),
             child: Text('放出する（$sellPrice万円）'),
@@ -54,6 +61,16 @@ class PlayerDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _renew(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final ok = await gameState.renewContract(playerId);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? '契約を更新しました' : '契約を更新できませんでした')),
+      );
+    }
   }
 
   void _confirmSell(BuildContext context, int sellPrice) {
