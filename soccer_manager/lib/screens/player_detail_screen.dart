@@ -19,6 +19,9 @@ class PlayerDetailScreen extends StatelessWidget {
     final isStarting = team.startingXI.contains(p.id);
     final sellPrice = (p.marketValue * 0.7).round();
     final renewalCost = gameState.renewalCostFor(p.id);
+    final signingBonus = gameState.signingBonusFor(p.id);
+    final newAppearanceFee = gameState.appearanceFeeFor(p.id);
+    final totalRenewalCost = renewalCost + signingBonus;
 
     final categories = [
       AttributeCategory.technical,
@@ -167,9 +170,15 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             )
           else ...[
+            Text('現在の出場手当: ${p.appearanceFee}万円/試合', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 8),
             FilledButton(
-              onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
-              child: Text('契約更新する（$renewalCost万円 / +40週）'),
+              onPressed: gameState.save!.budget < totalRenewalCost ? null : () => _renew(context),
+              child: Text(
+                '契約更新する（基本$renewalCost万円 + サインボーナス$signingBonus万円 / +40週 / '
+                '新出場手当$newAppearanceFee万円）',
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 8),
             OutlinedButton(

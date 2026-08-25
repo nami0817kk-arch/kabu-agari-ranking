@@ -17,6 +17,7 @@ import '../models/sponsor.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../logic/ai_transfer_engine.dart';
 import '../logic/awards_engine.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
@@ -135,6 +136,7 @@ class GameState extends ChangeNotifier {
       friendlies: _generateFriendlies(teams, 'user'),
       secondDivisionTeams: secondDivisionTeams,
       currentDivisionTier: 1,
+      clubHistory: [clubName],
     );
     final rival = cpuTeams[rng.nextInt(cpuTeams.length)];
     _save!.rivalTeamId = rival.id;
@@ -351,11 +353,23 @@ class GameState extends ChangeNotifier {
     return ContractEngine.renewalCost(player);
   }
 
+  /// 契約更新時に一括で必要なサインボーナス(万円)。
+  int signingBonusFor(String playerId) {
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    return ContractEngine.signingBonusFor(player);
+  }
+
+  /// 契約更新後、リーグ公式戦にスタメン出場するたびに支払う出場手当(万円)。
+  int appearanceFeeFor(String playerId) {
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    return ContractEngine.appearanceFeeFor(player);
+  }
+
   Future<bool> renewContract(String playerId) async {
     if (_save == null) return false;
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
     if (player.isLoan) return false; // ローン選手には通常の契約更新は適用されない
-    final cost = ContractEngine.renewalCost(player);
+    final cost = ContractEngine.renewalCost(player) + ContractEngine.signingBonusFor(player);
     if (_save!.budget < cost) return false;
     _save!.budget -= cost;
     ContractEngine.renewContract(player);
@@ -722,7 +736,14 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayでローン放出から復帰した選手名。
   List<String> lastLoanReturns = [];
 
+  /// 直近のplayNextMatchdayで発生したCPUクラブ同士の移籍ニュース。ない場合はnull。
+  String? lastAiTransferNews;
+
+  /// 直近のplayNextMatchdayでスタメン出場手当として支払った総額(万円)。
+  int lastAppearanceFeesPaid = 0;
+
   static final Random _dutyRng = Random();
+  static final Random _aiTransferRng = Random();
 
   /// 代表召集の週次処理: 期間終了・新規招集抽選を行う(ユーザークラブのみ)。
   /// スタメンから招集された場合は自動で欠員を埋める。招集された選手名を返す(UI通知用)。
@@ -793,10 +814,12 @@ class GameState extends ChangeNotifier {
   Future<bool> acceptJobOffer() async {
     if (_save == null || _save!.pendingJobOfferTeamId == null) return false;
     final newTeamId = _save!.pendingJobOfferTeamId!;
+    final newTeamName = _save!.league.teams.firstWhere((t) => t.id == newTeamId).name;
     _save!.userTeamId = newTeamId;
     _save!.pendingJobOfferTeamId = null;
     _save!.confidence = 60;
     _save!.boardTargetRank = BoardEngine.estimateTargetRank(_save!.league, newTeamId);
+    _save!.clubHistory.add(newTeamName);
     notifyListeners();
     await _persist();
     return true;
@@ -833,6 +856,28 @@ class GameState extends ChangeNotifier {
   static const double derbyAttendanceMultiplier = 1.5;
   static const double derbyConfidenceMultiplier = 1.5;
 
+  /// 観客動員率(0.0-1.0)。監督への信頼度と現在の順位に連動する(強豪・高信頼ほど満員に近づく)。
+  double get userAttendanceFactor {
+    final league = _save!.league;
+    final standings = league.sortedStandings;
+    final rank = standings.indexWhere((r) => r.teamId == _save!.userTeamId) + 1;
+    final teamCount = league.teams.length;
+    var factor = (0.7 + _save!.confidence / 250 + (teamCount - rank) / teamCount * 0.3).clamp(0.6, 1.4);
+    // 2部リーグは1部より観客動員が少ない。
+    if (_save!.currentDivisionTier == 2) factor *= 0.7;
+    return factor.clamp(0.0, 1.0);
+  }
+
+  /// 自クラブのスタジアム収容人数。
+  int get stadiumCapacity =>
+      ClubInfrastructure.stadiumCapacity(_save!.infrastructure.facilityLevel(FacilityType.stadium));
+
+  /// 通常開催時に見込まれる観客動員数(収容人数 x 動員率)。
+  int get expectedAttendance => (stadiumCapacity * userAttendanceFactor).round();
+
+  /// 直近の試合の観客動員数(ダービーなら増幅される)。未実施の場合はnull。
+  int? lastMatchAttendance;
+
   int weeklyIncomeFor(String teamId) {
     final league = _save!.league;
     final standings = league.sortedStandings;
@@ -843,12 +888,8 @@ class GameState extends ChangeNotifier {
     if (teamId != _save!.userTeamId) return base;
 
     final stadiumLevel = _save!.infrastructure.facilityLevel(FacilityType.stadium);
-    // 観客動員は監督への信頼度と現在の順位に連動する(強豪・高信頼ほど満員に近づく)。
-    final attendanceFactor =
-        (0.7 + _save!.confidence / 250 + (teamCount - rank) / teamCount * 0.3).clamp(0.6, 1.4);
-    var matchdayIncome = ((base + (stadiumLevel - 1) * 80) * attendanceFactor).round();
-    // 2部リーグは1部より観客動員が少ない。
-    if (_save!.currentDivisionTier == 2) matchdayIncome = (matchdayIncome * 0.7).round();
+    var matchdayIncome = ((base + (stadiumLevel - 1) * 80) * userAttendanceFactor).round();
+    // 2部リーグは1部より観客動員が少ない(userAttendanceFactorに反映済み)。
     final sponsorIncome = _save!.sponsorDeal?.weeklyIncome ?? 0;
     return matchdayIncome + sponsorIncome;
   }
@@ -976,6 +1017,9 @@ class GameState extends ChangeNotifier {
     // 代表召集の週次処理(期間終了・新規招集抽選。スタメン欠員は自動で埋める)。
     lastInternationalCallUps = _advanceInternationalDuty();
 
+    // CPUクラブ同士の移籍市場の週次処理(ユーザーは関与しない)。
+    lastAiTransferNews = AiTransferEngine.maybeGenerate(league.teams, _save!.userTeamId, _aiTransferRng);
+
     // ローン放出の週次処理(期間終了で自動的にチームへ復帰する)。
     lastLoanReturns = [];
     for (final p in userTeam.players.where((p) => p.isLoanedOut)) {
@@ -1002,11 +1046,25 @@ class GameState extends ChangeNotifier {
     }
 
     var income = weeklyIncomeFor(_save!.userTeamId);
-    if (userFixture != null && isRivalFixture(userFixture)) {
+    final isDerby = userFixture != null && isRivalFixture(userFixture);
+    if (isDerby) {
       income = (income * derbyAttendanceMultiplier).round();
     }
+    var attendance = expectedAttendance;
+    if (isDerby) attendance = (attendance * derbyAttendanceMultiplier).round();
+    lastMatchAttendance = attendance.clamp(0, stadiumCapacity);
     _save!.budget += income;
     _save!.budget -= weeklyWageBill;
+
+    // リーグ公式戦にスタメン出場した選手には出場手当を支払う(親善試合・カップ戦は対象外)。
+    if (userFixture != null) {
+      lastAppearanceFeesPaid = userTeam.players
+          .where((p) => userTeam.startingXI.contains(p.id))
+          .fold<int>(0, (s, p) => s + p.appearanceFee);
+      _save!.budget -= lastAppearanceFeesPaid;
+    } else {
+      lastAppearanceFeesPaid = 0;
+    }
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
 
@@ -1096,6 +1154,7 @@ class GameState extends ChangeNotifier {
       final prize = type == CupType.continental ? 1500 : 700;
       _save!.budget += prize;
       _save!.confidence = (_save!.confidence + (type == CupType.continental ? 20 : 10)).clamp(0, 100);
+      _save!.trophyHistory.add('シーズン${_save!.league.season}: ${cup.name} 優勝');
     }
     notifyListeners();
     await _persist();
@@ -1130,6 +1189,17 @@ class GameState extends ChangeNotifier {
     final wasTier1 = _save!.currentDivisionTier == 1;
 
     _save!.seasonAwards.add(AwardsEngine.computeAwards(league, league.season));
+
+    // 監督としての通算成績を更新する。
+    final userRow = standings.firstWhere((r) => r.teamId == _save!.userTeamId);
+    _save!.careerWins += userRow.won;
+    _save!.careerDraws += userRow.draw;
+    _save!.careerLosses += userRow.lost;
+    _save!.careerSeasons += 1;
+    if (finalRank == 1) {
+      final divisionLabel = wasTier1 ? _save!.leagueName : '${_save!.leagueName}(2部)';
+      _save!.trophyHistory.add('シーズン${league.season}: $divisionLabel 優勝');
+    }
 
     // 2部リーグは1部より観客動員・賞金が少ない。
     var prizeMoney = BoardEngine.seasonPrizeMoney(finalRank: finalRank, teamCount: league.teams.length);

@@ -285,6 +285,9 @@ class Player {
   int loanedOutWeeksRemaining;
   String? loanedOutToClubName;
 
+  /// 出場手当(万円)。契約更新時に決定され、リーグ公式戦でスタメン出場するたびに支払われる。
+  int appearanceFee;
+
   Player({
     required this.id,
     required this.name,
@@ -309,6 +312,7 @@ class Player {
     this.isTransferListed = false,
     this.loanedOutWeeksRemaining = 0,
     this.loanedOutToClubName,
+    this.appearanceFee = 0,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
@@ -426,6 +430,7 @@ class Player {
         'isTransferListed': isTransferListed,
         'loanedOutWeeksRemaining': loanedOutWeeksRemaining,
         'loanedOutToClubName': loanedOutToClubName,
+        'appearanceFee': appearanceFee,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -465,6 +470,7 @@ class Player {
       isTransferListed: json['isTransferListed'] as bool? ?? false,
       loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
       loanedOutToClubName: json['loanedOutToClubName'] as String?,
+      appearanceFee: json['appearanceFee'] as int? ?? 0,
     );
   }
 

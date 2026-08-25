@@ -30,6 +30,19 @@ class FormationLayout {
       Offset(0.88, 0.48), Offset(0.65, 0.5), Offset(0.5, 0.42), Offset(0.35, 0.5), Offset(0.12, 0.48),
       Offset(0.62, 0.85), Offset(0.38, 0.85),
     ],
+    Formation.f4141: [
+      Offset(0.5, 0.06),
+      Offset(0.85, 0.22), Offset(0.62, 0.18), Offset(0.38, 0.18), Offset(0.15, 0.22),
+      Offset(0.5, 0.38),
+      Offset(0.85, 0.58), Offset(0.62, 0.55), Offset(0.38, 0.55), Offset(0.15, 0.58),
+      Offset(0.5, 0.88),
+    ],
+    Formation.f343: [
+      Offset(0.5, 0.06),
+      Offset(0.65, 0.18), Offset(0.5, 0.14), Offset(0.35, 0.18),
+      Offset(0.88, 0.45), Offset(0.62, 0.42), Offset(0.38, 0.42), Offset(0.12, 0.45),
+      Offset(0.78, 0.72), Offset(0.22, 0.72), Offset(0.5, 0.85),
+    ],
   };
 
   static List<Offset> offsetsFor(Formation formation) => _layouts[formation]!;

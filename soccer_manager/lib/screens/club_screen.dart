@@ -55,6 +55,10 @@ class ClubScreen extends StatelessWidget {
               level: infra.facilityLevel(type),
               cost: gameState.facilityUpgradeCostFor(type),
               costLabel: '建設費',
+              extraLabel: type == FacilityType.stadium
+                  ? '収容人数 ${ClubInfrastructure.stadiumCapacity(infra.facilityLevel(type))}人'
+                      ' (平均動員目安 ${gameState.expectedAttendance}人)'
+                  : null,
               canAfford: save.budget >= gameState.facilityUpgradeCostFor(type),
               onUpgrade: () => gameState.upgradeFacility(type),
             ),

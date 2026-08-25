@@ -87,6 +87,18 @@ class SaveGame {
   /// ユーザークラブが現在所属するディビジョン(1部/2部)。
   int currentDivisionTier;
 
+  /// 監督としての通算成績。
+  int careerWins;
+  int careerDraws;
+  int careerLosses;
+  int careerSeasons;
+
+  /// 獲得したタイトルの履歴(リーグ優勝・カップ優勝など)。
+  List<String> trophyHistory;
+
+  /// これまで指揮したクラブ名の履歴(就任順)。
+  List<String> clubHistory;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -115,7 +127,15 @@ class SaveGame {
     this.pendingPressConference,
     List<Team>? secondDivisionTeams,
     this.currentDivisionTier = 1,
-  })  : youthProspects = youthProspects ?? [],
+    this.careerWins = 0,
+    this.careerDraws = 0,
+    this.careerLosses = 0,
+    this.careerSeasons = 0,
+    List<String>? trophyHistory,
+    List<String>? clubHistory,
+  })  : trophyHistory = trophyHistory ?? [],
+        clubHistory = clubHistory ?? [],
+        youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
         cups = cups ?? [],
@@ -156,6 +176,12 @@ class SaveGame {
         'pendingPressConference': pendingPressConference?.toJson(),
         'secondDivisionTeams': secondDivisionTeams.map((t) => t.toJson()).toList(),
         'currentDivisionTier': currentDivisionTier,
+        'careerWins': careerWins,
+        'careerDraws': careerDraws,
+        'careerLosses': careerLosses,
+        'careerSeasons': careerSeasons,
+        'trophyHistory': trophyHistory,
+        'clubHistory': clubHistory,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -220,5 +246,12 @@ class SaveGame {
                 .toList() ??
             [],
         currentDivisionTier: json['currentDivisionTier'] as int? ?? 1,
+        careerWins: json['careerWins'] as int? ?? 0,
+        careerDraws: json['careerDraws'] as int? ?? 0,
+        careerLosses: json['careerLosses'] as int? ?? 0,
+        careerSeasons: json['careerSeasons'] as int? ?? 0,
+        trophyHistory:
+            (json['trophyHistory'] as List?)?.map((e) => e as String).toList() ?? [],
+        clubHistory: (json['clubHistory'] as List?)?.map((e) => e as String).toList() ?? [],
       );
 }

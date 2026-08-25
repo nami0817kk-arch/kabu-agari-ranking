@@ -1,6 +1,6 @@
 import '../models/player.dart';
 
-enum Formation { f442, f433, f4231, f352 }
+enum Formation { f442, f433, f4231, f352, f4141, f343 }
 
 extension FormationInfo on Formation {
   String get label {
@@ -13,6 +13,10 @@ extension FormationInfo on Formation {
         return '4-2-3-1';
       case Formation.f352:
         return '3-5-2';
+      case Formation.f4141:
+        return '4-1-4-1';
+      case Formation.f343:
+        return '3-4-3';
     }
   }
 
@@ -48,6 +52,21 @@ extension FormationInfo on Formation {
           Position.wbr, Position.mc, Position.mc, Position.mc, Position.wbl,
           Position.st, Position.st,
         ];
+      case Formation.f4141:
+        return const [
+          Position.gk,
+          Position.dr, Position.dc, Position.dc, Position.dl,
+          Position.dm,
+          Position.mr, Position.mc, Position.mc, Position.ml,
+          Position.st,
+        ];
+      case Formation.f343:
+        return const [
+          Position.gk,
+          Position.dc, Position.dc, Position.dc,
+          Position.wbr, Position.mc, Position.mc, Position.wbl,
+          Position.amr, Position.aml, Position.st,
+        ];
     }
   }
 
@@ -64,6 +83,10 @@ extension FormationInfo on Formation {
         return 0.98;
       case Formation.f352:
         return 1.05;
+      case Formation.f4141:
+        return 0.95;
+      case Formation.f343:
+        return 1.12;
     }
   }
 
@@ -77,6 +100,10 @@ extension FormationInfo on Formation {
         return 1.08;
       case Formation.f352:
         return 0.97;
+      case Formation.f4141:
+        return 1.1;
+      case Formation.f343:
+        return 0.9;
     }
   }
 }

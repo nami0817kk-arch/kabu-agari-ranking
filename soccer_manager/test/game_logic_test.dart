@@ -1,5 +1,8 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soccer_manager/logic/ai_transfer_engine.dart';
 import 'package:soccer_manager/logic/awards_engine.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
@@ -27,6 +30,7 @@ import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/state/game_state.dart';
+import 'package:soccer_manager/widgets/formation_layout.dart';
 
 void main() {
   setUp(() {
@@ -286,6 +290,23 @@ void main() {
     expect(slots.where((p) => p.group == PositionGroup.mid).length, 4);
   });
 
+  test('Every Formation has 11 slots and a matching FormationLayout coordinate entry', () {
+    for (final formation in Formation.values) {
+      final slots = formation.slots;
+      expect(slots.length, 11, reason: '${formation.name} should have exactly 11 slots');
+      final offsets = FormationLayout.offsetsFor(formation);
+      expect(offsets.length, slots.length,
+          reason: '${formation.name} layout coordinates must match its slot count');
+    }
+  });
+
+  test('Formation.f4141 and f343 add distinct shapes not covered by the original four', () {
+    expect(Formation.f4141.slots.where((p) => p == Position.dm).length, 1);
+    expect(Formation.f4141.slots.where((p) => p.group == PositionGroup.def).length, 4);
+    expect(Formation.f343.slots.where((p) => p == Position.dc).length, 3);
+    expect(Formation.f343.slots.where((p) => p == Position.st).length, 1);
+  });
+
   test('Team.fromJson falls back to f442 for a removed formation name', () {
     final team = PlayerGenerator.generateSquad(id: 'tf', name: 'Test FC', strengthTier: 60);
     final json = team.toJson();
@@ -299,7 +320,7 @@ void main() {
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
     player.contractWeeksRemaining = 2;
-    final cost = gameState.renewalCostFor(player.id);
+    final cost = gameState.renewalCostFor(player.id) + gameState.signingBonusFor(player.id);
     gameState.save!.budget = cost;
 
     final ok = await gameState.renewContract(player.id);
@@ -1126,5 +1147,163 @@ void main() {
 
     expect(result.homeGoals, greaterThanOrEqualTo(0));
     expect(result.awayGoals, greaterThanOrEqualTo(0));
+  });
+
+  test('ClubInfrastructure.stadiumCapacity increases with facility level', () {
+    final level1 = ClubInfrastructure.stadiumCapacity(1);
+    final level5 = ClubInfrastructure.stadiumCapacity(5);
+    expect(level5, greaterThan(level1));
+  });
+
+  test('GameState.expectedAttendance stays within the stadium capacity', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    expect(gameState.expectedAttendance, greaterThan(0));
+    expect(gameState.expectedAttendance, lessThanOrEqualTo(gameState.stadiumCapacity));
+  });
+
+  test('GameState.playNextMatchday records last match attendance within capacity', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    await gameState.playNextMatchday();
+
+    expect(gameState.lastMatchAttendance, isNotNull);
+    expect(gameState.lastMatchAttendance, greaterThan(0));
+    expect(gameState.lastMatchAttendance, lessThanOrEqualTo(gameState.stadiumCapacity));
+  });
+
+  test('AiTransferEngine.maybeGenerate never touches the user team and preserves total player count', () {
+    final rng = Random(7);
+    final user = PlayerGenerator.generateSquad(id: 'user', name: 'ユーザーFC', strengthTier: 60);
+    final cpu1 = PlayerGenerator.generateSquad(id: 'cpu1', name: 'CPU1', strengthTier: 60);
+    final cpu2 = PlayerGenerator.generateSquad(id: 'cpu2', name: 'CPU2', strengthTier: 60);
+    final teams = [user, cpu1, cpu2];
+    final totalBefore = teams.fold<int>(0, (s, t) => s + t.players.length);
+    final userCountBefore = user.players.length;
+
+    for (int i = 0; i < 30; i++) {
+      AiTransferEngine.maybeGenerate(teams, 'user', rng);
+    }
+
+    final totalAfter = teams.fold<int>(0, (s, t) => s + t.players.length);
+    expect(totalAfter, totalBefore);
+    expect(user.players.length, userCountBefore);
+  });
+
+  test('GameState.playNextMatchday generates CPU-to-CPU transfer news without touching the user squad', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    // 契約切れによる離脱と混同しないよう、ユーザークラブの契約を十分延長しておく。
+    for (final p in gameState.userTeam.players) {
+      p.contractWeeksRemaining = 999;
+    }
+    final userCountBefore = gameState.userTeam.players.length;
+
+    for (int i = 0; i < 20; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) await gameState.playSecondHalf();
+      if (gameState.save!.league.isSeasonComplete) break;
+    }
+
+    expect(gameState.userTeam.players.length, userCountBefore);
+  });
+
+  test('ContractEngine.signingBonusFor and appearanceFeeFor scale with personality wage sensitivity', () {
+    final player = PlayerGenerator.generateSquad(id: 't', name: 'Test FC', strengthTier: 70).players.first;
+    player.personality = PlayerPersonality.ambitious;
+    final ambitiousBonus = ContractEngine.signingBonusFor(player);
+    final ambitiousFee = ContractEngine.appearanceFeeFor(player);
+
+    player.personality = PlayerPersonality.loyal;
+    final loyalBonus = ContractEngine.signingBonusFor(player);
+    final loyalFee = ContractEngine.appearanceFeeFor(player);
+
+    expect(ambitiousBonus, greaterThan(loyalBonus));
+    expect(ambitiousFee, greaterThan(loyalFee));
+  });
+
+  test('GameState.renewContract charges a signing bonus and sets a new appearance fee', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.contractWeeksRemaining = 2;
+    final baseCost = gameState.renewalCostFor(player.id);
+    final bonus = gameState.signingBonusFor(player.id);
+    expect(bonus, greaterThan(0));
+    gameState.save!.budget = baseCost + bonus;
+
+    final ok = await gameState.renewContract(player.id);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, 0);
+    expect(player.appearanceFee, greaterThan(0));
+  });
+
+  test('GameState.playNextMatchday pays appearance fees for the starting lineup', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    for (final id in team.startingXI) {
+      team.players.firstWhere((p) => p.id == id).appearanceFee = 10;
+    }
+    final expectedFee = team.startingXI.length * 10;
+
+    await gameState.playNextMatchday();
+
+    expect(gameState.lastAppearanceFeesPaid, expectedFee);
+  });
+
+  test('GameState.startNextSeason records career stats and a league trophy when the user finishes first', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      final userIsAway = f.awayTeamId == userId;
+      if (userIsHome || userIsAway) {
+        f.result = MatchResult(
+          matchday: f.matchday,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: userIsHome ? 3 : 0,
+          awayGoals: userIsHome ? 0 : 3,
+          events: [],
+        );
+      } else {
+        f.result = MatchResult(
+          matchday: f.matchday,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: 1,
+          awayGoals: 1,
+          events: [],
+        );
+      }
+    }
+
+    await gameState.startNextSeason();
+
+    expect(gameState.save!.careerSeasons, 1);
+    final totalMatches = gameState.save!.careerWins + gameState.save!.careerDraws + gameState.save!.careerLosses;
+    expect(totalMatches, greaterThan(0));
+    expect(gameState.save!.careerWins, totalMatches);
+    expect(gameState.save!.trophyHistory, isNotEmpty);
+    expect(gameState.save!.trophyHistory.last, contains('優勝'));
+  });
+
+  test('GameState.acceptJobOffer appends the new club to the manager\'s club history', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.pendingJobOfferTeamId = gameState.save!.league.teams.firstWhere((t) => !t.isUserTeam).id;
+    final newTeamName =
+        gameState.save!.league.teams.firstWhere((t) => t.id == gameState.save!.pendingJobOfferTeamId).name;
+
+    final ok = await gameState.acceptJobOffer();
+
+    expect(ok, isTrue);
+    expect(gameState.save!.clubHistory.length, 2);
+    expect(gameState.save!.clubHistory.last, newTeamName);
   });
 }

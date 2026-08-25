@@ -52,6 +52,9 @@ class ClubInfrastructure {
   static int staffWeeklyWage(int level) => level * 20;
   static int facilityUpgradeCost(int currentLevel) => 500 * currentLevel * currentLevel;
 
+  /// スタジアムのレベルに応じた収容人数。
+  static int stadiumCapacity(int level) => 12000 + (level - 1) * 6000;
+
   int get totalStaffWeeklyWage =>
       staffLevels.values.fold<int>(0, (s, lvl) => s + staffWeeklyWage(lvl));
 

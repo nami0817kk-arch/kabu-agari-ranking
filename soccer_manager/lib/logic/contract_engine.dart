@@ -34,12 +34,21 @@ class ContractEngine {
     return expired;
   }
 
-  /// 契約更新にかかる費用（万円）。ローン選手には適用されない。
+  /// 契約更新にかかる基本費用（万円）。ローン選手には適用されない。
   static int renewalCost(Player p) => (p.marketValue * 0.5).round();
+
+  /// 契約更新時に一括で要求されるサインボーナス（万円）。野心家など要求水準が
+  /// 高い性格ほど高額になる。
+  static int signingBonusFor(Player p) => (p.marketValue * 0.12 * p.personality.wageSensitivity).round();
+
+  /// リーグ公式戦にスタメン出場するたびに支払われる出場手当（万円）。
+  static int appearanceFeeFor(Player p) =>
+      (p.overall * 0.5 * p.personality.wageSensitivity).round().clamp(1, 60);
 
   static const int renewalWeeks = 40;
 
   static void renewContract(Player p) {
     p.contractWeeksRemaining = renewalWeeks;
+    p.appearanceFee = appearanceFeeFor(p);
   }
 }

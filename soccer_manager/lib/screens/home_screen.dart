@@ -9,6 +9,7 @@ import 'club_screen.dart';
 import 'cup_screen.dart';
 import 'finance_screen.dart';
 import 'live_match_screen.dart';
+import 'manager_career_screen.dart';
 import 'scout_report_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
@@ -106,6 +107,13 @@ class HomeScreen extends StatelessWidget {
                 value: '${gameState.managerReputation}',
                 progress: gameState.managerReputation / 100,
                 color: Colors.deepPurple,
+              ),
+              _StatTile(
+                icon: Icons.groups,
+                label: '観客動員',
+                value: '${gameState.lastMatchAttendance ?? gameState.expectedAttendance}人',
+                sub: '収容人数 ${gameState.stadiumCapacity}人',
+                color: Colors.brown.shade600,
               ),
             ],
           ),
@@ -295,6 +303,13 @@ class HomeScreen extends StatelessWidget {
                 onTap: () =>
                     Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AwardsScreen())),
               ),
+              _ActionTile(
+                icon: Icons.workspace_premium,
+                label: '監督キャリア',
+                color: Colors.indigo.shade700,
+                onTap: () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => const ManagerCareerScreen())),
+              ),
             ],
           ),
         ],
@@ -304,7 +319,10 @@ class HomeScreen extends StatelessWidget {
 
   int _netWeekly(GameState gameState) {
     final loanRepayment = gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
-    return gameState.weeklyIncomeFor(gameState.userTeam.id) - gameState.weeklyWageBill - loanRepayment;
+    final team = gameState.userTeam;
+    final appearanceFees =
+        team.players.where((p) => team.startingXI.contains(p.id)).fold<int>(0, (s, p) => s + p.appearanceFee);
+    return gameState.weeklyIncomeFor(team.id) - gameState.weeklyWageBill - loanRepayment - appearanceFees;
   }
 
   String _fixtureLabel(League league, Fixture f) {
@@ -356,6 +374,13 @@ class HomeScreen extends StatelessWidget {
         SnackBar(content: Text('ローン放出から復帰: ${loanReturns.join('、')}')),
       );
       gameState.lastLoanReturns = [];
+    }
+    final aiTransferNews = gameState.lastAiTransferNews;
+    if (aiTransferNews != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('移籍市場: $aiTransferNews')),
+      );
+      gameState.lastAiTransferNews = null;
     }
 
     if (firstHalf != null) {
