@@ -27,7 +27,7 @@ class _MatchScreenState extends State<MatchScreen> {
   void initState() {
     super.initState();
     _game = PitchGame(
-      result: widget.result,
+      events: widget.result.events,
       onEvent: (e) => setState(() => _revealed.add(e)),
       onFinished: () => setState(() => _finished = true),
       onMinuteTick: (m) => setState(() => _currentMinute = m),

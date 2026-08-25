@@ -16,6 +16,7 @@ import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/club_infrastructure.dart';
 import 'package:soccer_manager/models/cup.dart';
 import 'package:soccer_manager/models/formation.dart';
+import 'package:soccer_manager/models/incoming_offer.dart';
 import 'package:soccer_manager/models/league_theme.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
@@ -530,5 +531,168 @@ void main() {
 
     expect(gameState.save!.league.teams.length, teamsPerLeague);
     expect(gameState.save!.leagueName, LeagueTheme.spain.label);
+  });
+
+  test('MatchEngine.simulateMinutes only generates events within the requested minute range', () {
+    final home = PlayerGenerator.generateSquad(id: 'h', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(id: 'a', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    final half = MatchEngine.simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+
+    expect(half.events.every((e) => e.minute >= 46 && e.minute <= 90), isTrue);
+  });
+
+  test('GameState.playNextMatchday stops at half-time for the user fixture; playSecondHalf finalizes it', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final firstHalf = await gameState.playNextMatchday();
+
+    expect(firstHalf, isNotNull);
+    expect(gameState.isHalfTime, isTrue);
+    expect(firstHalf!.events.every((e) => e.minute <= 45), isTrue);
+
+    final merged = await gameState.playSecondHalf();
+
+    expect(merged, isNotNull);
+    expect(gameState.isHalfTime, isFalse);
+    final fixture = gameState.save!.league
+        .fixturesForMatchday(merged!.matchday)
+        .firstWhere((f) => f.homeTeamId == merged.homeTeamId && f.awayTeamId == merged.awayTeamId);
+    expect(fixture.result, isNotNull);
+  });
+
+  test('GameState.makeHalfTimeSubstitution swaps players and enforces the substitution limit', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    await gameState.playNextMatchday();
+    expect(gameState.isHalfTime, isTrue);
+
+    final team = gameState.userTeam;
+    final outId = team.startingXI.first;
+    final inId = team.players.firstWhere((p) => !team.startingXI.contains(p.id) && !p.isInjured).id;
+
+    final ok = gameState.makeHalfTimeSubstitution(outPlayerId: outId, inPlayerId: inId);
+
+    expect(ok, isTrue);
+    expect(team.startingXI.contains(inId), isTrue);
+    expect(team.startingXI.contains(outId), isFalse);
+    expect(gameState.substitutionsUsed, 1);
+  });
+
+  test('GameState.playFriendly resolves a friendly without affecting league standings', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.save!.friendlies, isNotEmpty);
+
+    final result = await gameState.playFriendly(0);
+
+    expect(result, isNotNull);
+    expect(gameState.save!.friendlies[0].result, isNotNull);
+    expect(gameState.save!.league.fixtures.every((f) => f.result == null), isTrue);
+  });
+
+  test('GameState.acceptIncomingOffer sells the player and adds the offered amount to budget', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+    gameState.save!.budget = 0;
+    gameState.save!.incomingOffers.add(IncomingOffer(
+      id: 'o1',
+      playerId: target.id,
+      playerName: target.name,
+      buyerClubName: 'よそのクラブ',
+      amount: 500,
+    ));
+
+    final ok = await gameState.acceptIncomingOffer('o1');
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, 500);
+    expect(gameState.userTeam.players.any((p) => p.id == target.id), isFalse);
+    expect(gameState.incomingOffers, isEmpty);
+  });
+
+  test('GameState.declineIncomingOffer removes the offer without affecting budget', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+    gameState.save!.budget = 1000;
+    gameState.save!.incomingOffers.add(IncomingOffer(
+      id: 'o2',
+      playerId: target.id,
+      playerName: target.name,
+      buyerClubName: 'よそのクラブ',
+      amount: 500,
+    ));
+
+    await gameState.declineIncomingOffer('o2');
+
+    expect(gameState.save!.budget, 1000);
+    expect(gameState.userTeam.players.any((p) => p.id == target.id), isTrue);
+    expect(gameState.incomingOffers, isEmpty);
+  });
+
+  test('GameState.setReleaseClause sets and clears the release clause', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+
+    await gameState.setReleaseClause(target.id, 1234);
+    expect(target.releaseClause, 1234);
+
+    await gameState.setReleaseClause(target.id, null);
+    expect(target.releaseClause, isNull);
+  });
+
+  test('GameState.acceptJobOffer switches clubs and resets confidence/board target', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final newTeamId = gameState.save!.league.teams.firstWhere((t) => t.id != 'user').id;
+    gameState.save!.pendingJobOfferTeamId = newTeamId;
+    gameState.save!.confidence = 10;
+
+    final ok = await gameState.acceptJobOffer();
+
+    expect(ok, isTrue);
+    expect(gameState.save!.userTeamId, newTeamId);
+    expect(gameState.save!.pendingJobOfferTeamId, isNull);
+    expect(gameState.save!.confidence, 60);
+  });
+
+  test('GameState.declineJobOffer clears the pending offer without switching clubs', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.pendingJobOfferTeamId = 'cpu0';
+
+    await gameState.declineJobOffer();
+
+    expect(gameState.save!.pendingJobOfferTeamId, isNull);
+    expect(gameState.save!.userTeamId, 'user');
+  });
+
+  test('GameState.startNextSeason generates a batch of youth intake candidates within bounds', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    await gameState.startNextSeason();
+
+    expect(gameState.pendingYouthIntake.length, inInclusiveRange(3, 5));
+    expect(gameState.managerReputation, inInclusiveRange(0, 100));
+  });
+
+  test('GameState.keepYouthIntakePlayer moves a candidate into youth prospects', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    await gameState.startNextSeason();
+    final candidate = gameState.pendingYouthIntake.first;
+
+    final ok = await gameState.keepYouthIntakePlayer(candidate.id);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.youthProspects.any((p) => p.id == candidate.id), isTrue);
+    expect(gameState.pendingYouthIntake.any((p) => p.id == candidate.id), isFalse);
   });
 }

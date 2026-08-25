@@ -86,6 +86,8 @@ class PlayerDetailScreen extends StatelessWidget {
                 ? '週俸: ${p.wage}万円 / ローン残り${p.loanWeeksRemaining}週'
                 : '週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週',
           ),
+          if (p.releaseClause != null)
+            Text('リリース条項: ${p.releaseClause}万円', style: const TextStyle(color: Colors.deepPurple)),
           const SizedBox(height: 4),
           Text(p.personality.description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 16),
@@ -147,6 +149,14 @@ class PlayerDetailScreen extends StatelessWidget {
             onPressed: () => _reassure(context),
             label: const Text('話し合う（不満度を和らげる）'),
           ),
+          if (!p.isLoan) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.gavel),
+              onPressed: () => _editReleaseClause(context, p.releaseClause, p.marketValue),
+              label: Text(p.releaseClause == null ? 'リリース条項を設定する' : 'リリース条項を変更する'),
+            ),
+          ],
         ],
       ),
     );
@@ -170,6 +180,51 @@ class PlayerDetailScreen extends StatelessWidget {
         SnackBar(content: Text(ok ? '契約を更新しました' : '契約を更新できませんでした')),
       );
     }
+  }
+
+  void _editReleaseClause(BuildContext context, int? current, int marketValue) {
+    final controller = TextEditingController(text: (current ?? marketValue).toString());
+    final gameState = context.read<GameState>();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('リリース条項の設定'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('市場価値: $marketValue万円'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '解放金額(万円)', border: OutlineInputBorder()),
+            ),
+          ],
+        ),
+        actions: [
+          if (current != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                gameState.setReleaseClause(playerId, null);
+              },
+              child: const Text('解除する'),
+            ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () {
+              final amount = int.tryParse(controller.text);
+              Navigator.pop(ctx);
+              if (amount != null && amount > 0) {
+                gameState.setReleaseClause(playerId, amount);
+              }
+            },
+            child: const Text('設定する'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _confirmSell(BuildContext context, int sellPrice) {

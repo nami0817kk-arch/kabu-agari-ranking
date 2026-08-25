@@ -255,6 +255,10 @@ class Player {
   /// ローン期間の残り週数（ローン選手でない場合は0）。
   int loanWeeksRemaining;
 
+  /// リリース条項(解放金額、万円)。設定されている場合、他クラブがこの金額を
+  /// 提示すると交渉なしで自動的に移籍が成立する。未設定はnull。
+  int? releaseClause;
+
   Player({
     required this.id,
     required this.name,
@@ -273,6 +277,7 @@ class Player {
     this.happiness = 70,
     this.isLoan = false,
     this.loanWeeksRemaining = 0,
+    this.releaseClause,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
@@ -379,6 +384,7 @@ class Player {
         'happiness': happiness,
         'isLoan': isLoan,
         'loanWeeksRemaining': loanWeeksRemaining,
+        'releaseClause': releaseClause,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -412,6 +418,7 @@ class Player {
       happiness: json['happiness'] as int? ?? 70,
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
+      releaseClause: json['releaseClause'] as int?,
     );
   }
 

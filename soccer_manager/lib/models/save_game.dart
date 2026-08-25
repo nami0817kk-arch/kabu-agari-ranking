@@ -1,5 +1,6 @@
 import 'club_infrastructure.dart';
 import 'cup.dart';
+import 'incoming_offer.dart';
 import 'installment.dart';
 import 'league.dart';
 import 'player.dart';
@@ -23,8 +24,18 @@ class SaveGame {
   /// 監督への信頼度（0-100）。0になると解任される。
   int confidence;
 
+  /// 監督としての世間の評価（0-100）。信頼度と異なり解任されても引き継がれ、
+  /// 他クラブからのオファーの受けやすさに影響する。
+  int managerReputation;
+
+  /// 他クラブから監督就任オファーが届いている場合、そのクラブのID。
+  String? pendingJobOfferTeamId;
+
   /// ユース昇格候補・スカウトした有望株。
   List<Player> youthProspects;
+
+  /// シーズン終了時に一括生成された、選抜待ちのユースインテーク候補。
+  List<Player> pendingYouthIntake;
 
   /// スタッフ・施設のレベル。
   ClubInfrastructure infrastructure;
@@ -47,6 +58,12 @@ class SaveGame {
   /// 分割払いで獲得した選手の残金支払い予定。
   List<Installment> pendingInstallments;
 
+  /// シーズン開幕前の親善試合日程。
+  List<Fixture> friendlies;
+
+  /// 他クラブから届いている、自クラブ選手への移籍オファー。
+  List<IncomingOffer> incomingOffers;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -55,7 +72,10 @@ class SaveGame {
     this.budget = 3000,
     this.boardTargetRank = 4,
     this.confidence = 60,
+    this.managerReputation = 50,
+    this.pendingJobOfferTeamId,
     List<Player>? youthProspects,
+    List<Player>? pendingYouthIntake,
     ClubInfrastructure? infrastructure,
     List<Cup>? cups,
     this.lastSeasonRank,
@@ -63,12 +83,17 @@ class SaveGame {
     this.sponsorDeal,
     List<SponsorDeal>? pendingSponsorOffers,
     List<Installment>? pendingInstallments,
+    List<Fixture>? friendlies,
+    List<IncomingOffer>? incomingOffers,
   })  : youthProspects = youthProspects ?? [],
+        pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
         cups = cups ?? [],
         continentalTeams = continentalTeams ?? [],
         pendingSponsorOffers = pendingSponsorOffers ?? [],
-        pendingInstallments = pendingInstallments ?? [];
+        pendingInstallments = pendingInstallments ?? [],
+        friendlies = friendlies ?? [],
+        incomingOffers = incomingOffers ?? [];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -78,7 +103,10 @@ class SaveGame {
         'budget': budget,
         'boardTargetRank': boardTargetRank,
         'confidence': confidence,
+        'managerReputation': managerReputation,
+        'pendingJobOfferTeamId': pendingJobOfferTeamId,
         'youthProspects': youthProspects.map((p) => p.toJson()).toList(),
+        'pendingYouthIntake': pendingYouthIntake.map((p) => p.toJson()).toList(),
         'infrastructure': infrastructure.toJson(),
         'cups': cups.map((c) => c.toJson()).toList(),
         'lastSeasonRank': lastSeasonRank,
@@ -86,6 +114,8 @@ class SaveGame {
         'sponsorDeal': sponsorDeal?.toJson(),
         'pendingSponsorOffers': pendingSponsorOffers.map((s) => s.toJson()).toList(),
         'pendingInstallments': pendingInstallments.map((i) => i.toJson()).toList(),
+        'friendlies': friendlies.map((f) => f.toJson()).toList(),
+        'incomingOffers': incomingOffers.map((o) => o.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -96,7 +126,13 @@ class SaveGame {
         budget: json['budget'] as int? ?? 3000,
         boardTargetRank: json['boardTargetRank'] as int? ?? 4,
         confidence: json['confidence'] as int? ?? 60,
+        managerReputation: json['managerReputation'] as int? ?? 50,
+        pendingJobOfferTeamId: json['pendingJobOfferTeamId'] as String?,
         youthProspects: (json['youthProspects'] as List?)
+                ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        pendingYouthIntake: (json['pendingYouthIntake'] as List?)
                 ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
@@ -116,6 +152,14 @@ class SaveGame {
             [],
         pendingInstallments: (json['pendingInstallments'] as List?)
                 ?.map((e) => Installment.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        friendlies: (json['friendlies'] as List?)
+                ?.map((e) => Fixture.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        incomingOffers: (json['incomingOffers'] as List?)
+                ?.map((e) => IncomingOffer.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );

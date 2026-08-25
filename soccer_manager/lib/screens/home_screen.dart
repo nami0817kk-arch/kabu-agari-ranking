@@ -6,10 +6,11 @@ import '../state/game_state.dart';
 import 'club_screen.dart';
 import 'cup_screen.dart';
 import 'finance_screen.dart';
-import 'match_screen.dart';
+import 'live_match_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
+import 'youth_intake_screen.dart';
 import 'youth_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -95,9 +96,86 @@ class HomeScreen extends StatelessWidget {
                 progress: save.confidence / 100,
                 color: save.confidence <= 25 ? Colors.redAccent : Colors.teal.shade700,
               ),
+              _StatTile(
+                icon: Icons.star,
+                label: '監督としての評価',
+                value: '${gameState.managerReputation}',
+                progress: gameState.managerReputation / 100,
+                color: Colors.deepPurple,
+              ),
             ],
           ),
           const SizedBox(height: 12),
+          if (gameState.pendingJobOfferTeam != null) _JobOfferCard(gameState: gameState),
+          if (gameState.pendingYouthIntake.isNotEmpty)
+            Card(
+              color: scheme.secondaryContainer,
+              child: ListTile(
+                leading: const Icon(Icons.emoji_people),
+                title: const Text('ユースインテーク'),
+                subtitle: Text('${gameState.pendingYouthIntake.length}名の新人候補が加入を待っています'),
+                trailing: FilledButton(
+                  onPressed: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const YouthIntakeScreen())),
+                  child: const Text('選抜する'),
+                ),
+              ),
+            ),
+          if (gameState.incomingOffers.isNotEmpty)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('移籍オファー', style: Theme.of(context).textTheme.titleSmall),
+                    for (final o in gameState.incomingOffers)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text('${o.buyerClubName}が${o.playerName}に${o.amount}万円')),
+                            TextButton(
+                              onPressed: () => gameState.declineIncomingOffer(o.id),
+                              child: const Text('拒否'),
+                            ),
+                            FilledButton(
+                              onPressed: () => gameState.acceptIncomingOffer(o.id),
+                              child: const Text('承諾'),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          if (!seasonComplete && save.friendlies.any((f) => f.result == null))
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('親善試合', style: Theme.of(context).textTheme.titleSmall),
+                    for (int i = 0; i < save.friendlies.length; i++)
+                      if (save.friendlies[i].result == null)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(_fixtureLabel(league, save.friendlies[i]))),
+                              OutlinedButton(
+                                onPressed: () => _playFriendly(context, i),
+                                child: const Text('開催'),
+                              ),
+                            ],
+                          ),
+                        ),
+                  ],
+                ),
+              ),
+            ),
           if (seasonComplete)
             Card(
               color: scheme.primaryContainer,
@@ -198,8 +276,7 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _playMatch(BuildContext context) async {
     final gameState = context.read<GameState>();
-    final league = gameState.save!.league;
-    final result = await gameState.playNextMatchday();
+    final firstHalf = await gameState.playNextMatchday();
     if (!context.mounted) return;
 
     final expired = gameState.lastContractExpirations;
@@ -209,12 +286,63 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastContractExpirations = [];
     }
+    final autoSold = gameState.lastReleaseClauseSales;
+    if (autoSold.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('リリース条項が発動し移籍が成立: ${autoSold.join('、')}')),
+      );
+      gameState.lastReleaseClauseSales = [];
+    }
 
-    if (result != null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => MatchScreen(result: result, teams: league.teams)),
+    if (firstHalf != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LiveMatchScreen()),
       );
     }
+  }
+
+  Future<void> _playFriendly(BuildContext context, int index) async {
+    final gameState = context.read<GameState>();
+    final result = await gameState.playFriendly(index);
+    if (context.mounted && result != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('親善試合結果: ${result.homeGoals} - ${result.awayGoals}')),
+      );
+    }
+  }
+}
+
+class _JobOfferCard extends StatelessWidget {
+  final GameState gameState;
+
+  const _JobOfferCard({required this.gameState});
+
+  @override
+  Widget build(BuildContext context) {
+    final team = gameState.pendingJobOfferTeam!;
+    return Card(
+      color: Theme.of(context).colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('他クラブからのオファー', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text('${team.name}の監督就任オファーが届いています(総合力 ${team.overallRating})'),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: () => gameState.declineJobOffer(), child: const Text('断る')),
+                const SizedBox(width: 8),
+                FilledButton(onPressed: () => gameState.acceptJobOffer(), child: const Text('就任する')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

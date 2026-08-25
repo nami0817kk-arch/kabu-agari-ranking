@@ -4,29 +4,37 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import '../models/match_result.dart';
 
+/// ピッチ上でのミニアニメーションと、[events]の分単位での実況出しを行う。
+/// [startMinute]〜[endMinute]の区間を[durationSeconds]かけて進行させるため、
+/// 前半・後半をそれぞれ独立したインスタンスとして使うこともできる。
 class PitchGame extends FlameGame {
-  final MatchResult result;
+  final List<MatchEvent> events;
+  final int startMinute;
+  final int endMinute;
+  final double durationSeconds;
   final void Function(MatchEvent event) onEvent;
   final VoidCallback onFinished;
   final void Function(int minute)? onMinuteTick;
 
   PitchGame({
-    required this.result,
+    required this.events,
+    this.startMinute = 1,
+    this.endMinute = 90,
+    this.durationSeconds = 12,
     required this.onEvent,
     required this.onFinished,
     this.onMinuteTick,
   });
 
-  static const double matchDurationSeconds = 12;
-
   late CircleComponent _ball;
   double _elapsed = 0;
   int _eventIndex = 0;
-  int _lastMinute = 0;
+  late int _lastMinute;
   bool _finished = false;
 
   @override
   Future<void> onLoad() async {
+    _lastMinute = startMinute - 1;
     add(RectangleComponent(size: size, paint: Paint()..color = const Color(0xFF2E7D32)));
     add(RectangleComponent(
       position: Vector2(size.x / 2 - 1, 0),
@@ -56,7 +64,8 @@ class PitchGame extends FlameGame {
     super.update(dt);
     if (_finished) return;
     _elapsed += dt;
-    final progressMinute = (_elapsed / matchDurationSeconds * 90).clamp(0, 90);
+    final span = endMinute - startMinute;
+    final progressMinute = (startMinute + (_elapsed / durationSeconds * span)).clamp(startMinute, endMinute);
     final minuteFloor = progressMinute.floor();
     if (minuteFloor > _lastMinute) {
       _lastMinute = minuteFloor;
@@ -67,18 +76,18 @@ class PitchGame extends FlameGame {
     final y = size.y / 2 + cos(_elapsed * 0.9) * (size.y / 2 - 16);
     _ball.position = Vector2(x, y);
 
-    while (_eventIndex < result.events.length && result.events[_eventIndex].minute <= progressMinute) {
-      onEvent(result.events[_eventIndex]);
+    while (_eventIndex < events.length && events[_eventIndex].minute <= progressMinute) {
+      onEvent(events[_eventIndex]);
       _eventIndex++;
     }
 
-    if (_elapsed >= matchDurationSeconds && !_finished) {
+    if (_elapsed >= durationSeconds && !_finished) {
       _finished = true;
-      while (_eventIndex < result.events.length) {
-        onEvent(result.events[_eventIndex]);
+      while (_eventIndex < events.length) {
+        onEvent(events[_eventIndex]);
         _eventIndex++;
       }
-      onMinuteTick?.call(90);
+      onMinuteTick?.call(endMinute);
       onFinished();
     }
   }

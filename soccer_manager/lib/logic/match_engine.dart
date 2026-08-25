@@ -5,6 +5,15 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../models/match_result.dart';
 
+/// 分単位区間([MatchEngine.simulateMinutes])1回分のスコア・イベント。
+class HalfResult {
+  final int homeGoals;
+  final int awayGoals;
+  final List<MatchEvent> events;
+
+  const HalfResult({required this.homeGoals, required this.awayGoals, required this.events});
+}
+
 class MatchEngine {
   static final Random _rng = Random();
 
@@ -100,12 +109,15 @@ class MatchEngine {
     return candidates.last;
   }
 
-  static MatchResult simulate({
+  /// [startMinute]〜[endMinute](両端含む)の区間だけをシミュレートする。
+  /// ハーフタイムでの交代・戦術変更を反映できるよう、前半・後半を別々に
+  /// 呼び出せるようにするための下位レベルAPI。疲労・負傷はここでは
+  /// 適用しない([applyPostMatchEffects]を試合終了後に別途呼ぶこと)。
+  static HalfResult simulateMinutes({
     required Team home,
     required Team away,
-    required int matchday,
-    double homeInjuryFactor = 1.0,
-    double awayInjuryFactor = 1.0,
+    required int startMinute,
+    required int endMinute,
   }) {
     final homeLineup = lineupOf(home);
     final awayLineup = lineupOf(away);
@@ -118,14 +130,17 @@ class MatchEngine {
     final events = <MatchEvent>[];
     int homeGoals = 0;
     int awayGoals = 0;
+    final span = endMinute - startMinute + 1;
 
-    final totalChances = 9 + _rng.nextInt(8);
+    final totalChances = ((9 + _rng.nextInt(8)) * span / 90).round().clamp(1, 20);
     final minutesUsed = <int>{};
     for (int i = 0; i < totalChances; i++) {
-      int minute;
+      int minute = startMinute;
+      var guard = 0;
       do {
-        minute = 1 + _rng.nextInt(90);
-      } while (minutesUsed.contains(minute));
+        minute = startMinute + _rng.nextInt(span);
+        guard++;
+      } while (minutesUsed.contains(minute) && guard < 50);
       minutesUsed.add(minute);
 
       final homeShare = homeAttack / (homeAttack + awayAttack);
@@ -153,9 +168,9 @@ class MatchEngine {
     }
 
     // カードイベント(警告・退場)を疑似的に生成する。
-    final cardChances = 1 + _rng.nextInt(4);
+    final cardChances = ((1 + _rng.nextInt(4)) * span / 90).round().clamp(0, 6);
     for (int i = 0; i < cardChances; i++) {
-      final minute = 1 + _rng.nextInt(90);
+      final minute = startMinute + _rng.nextInt(span);
       if (minutesUsed.contains(minute)) continue;
       minutesUsed.add(minute);
       final isHomeTeam = _rng.nextBool();
@@ -173,19 +188,49 @@ class MatchEngine {
     }
 
     events.sort((a, b) => a.minute.compareTo(b.minute));
+    return HalfResult(homeGoals: homeGoals, awayGoals: awayGoals, events: events);
+  }
 
+  /// 試合終了後に一度だけ呼ぶ、疲労蓄積・負傷判定。
+  static void applyPostMatchEffects({
+    required Team home,
+    required Team away,
+    double homeInjuryFactor = 1.0,
+    double awayInjuryFactor = 1.0,
+  }) {
+    final homeLineup = lineupOf(home);
+    final awayLineup = lineupOf(away);
     _applyFatigue(home, homeLineup);
     _applyFatigue(away, awayLineup);
     _rollInjuries(homeLineup, homeInjuryFactor);
     _rollInjuries(awayLineup, awayInjuryFactor);
+  }
+
+  /// 前半・後半をまとめて一括シミュレートする(CPU同士の試合・カップ戦など、
+  /// ハーフタイム操作が不要な場合に使う)。
+  static MatchResult simulate({
+    required Team home,
+    required Team away,
+    required int matchday,
+    double homeInjuryFactor = 1.0,
+    double awayInjuryFactor = 1.0,
+  }) {
+    final first = simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
+    final second = simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    applyPostMatchEffects(
+      home: home,
+      away: away,
+      homeInjuryFactor: homeInjuryFactor,
+      awayInjuryFactor: awayInjuryFactor,
+    );
 
     return MatchResult(
       matchday: matchday,
       homeTeamId: home.id,
       awayTeamId: away.id,
-      homeGoals: homeGoals,
-      awayGoals: awayGoals,
-      events: events,
+      homeGoals: first.homeGoals + second.homeGoals,
+      awayGoals: first.awayGoals + second.awayGoals,
+      events: [...first.events, ...second.events],
     );
   }
 }
