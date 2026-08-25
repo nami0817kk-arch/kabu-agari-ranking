@@ -1,12 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/contract_engine.dart';
+import '../models/player.dart';
+import '../models/team.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
+import '../widgets/position_filter_bar.dart';
 import 'player_compare_screen.dart';
 import 'player_detail_screen.dart';
 
+enum SquadSortOption { position, overall, age, potential, wage }
+
+extension on SquadSortOption {
+  String get label => switch (this) {
+        SquadSortOption.position => 'ポジション順',
+        SquadSortOption.overall => '総合力',
+        SquadSortOption.age => '年齢(若い順)',
+        SquadSortOption.potential => 'ポテンシャル',
+        SquadSortOption.wage => '週俸',
+      };
+}
+
 class SquadScreen extends StatefulWidget {
   const SquadScreen({super.key});
+
+  /// フィルタ・検索・並び替えを適用した選手リストを返す。UIから切り離してテスト可能にしてある。
+  static List<Player> filterAndSort(
+    List<Player> all, {
+    PositionGroup? group,
+    String query = '',
+    SquadSortOption sort = SquadSortOption.position,
+  }) {
+    var players = all;
+    if (group != null) {
+      players = players.where((p) => p.position.group == group).toList();
+    }
+    if (query.isNotEmpty) {
+      final q = query.toLowerCase();
+      players = players.where((p) => p.name.toLowerCase().contains(q)).toList();
+    } else {
+      players = [...players];
+    }
+    switch (sort) {
+      case SquadSortOption.position:
+        players.sort((a, b) {
+          final c = a.position.index.compareTo(b.position.index);
+          if (c != 0) return c;
+          return b.overall.compareTo(a.overall);
+        });
+        break;
+      case SquadSortOption.overall:
+        players.sort((a, b) => b.overall.compareTo(a.overall));
+        break;
+      case SquadSortOption.age:
+        players.sort((a, b) => a.age.compareTo(b.age));
+        break;
+      case SquadSortOption.potential:
+        players.sort((a, b) => b.potential.compareTo(a.potential));
+        break;
+      case SquadSortOption.wage:
+        players.sort((a, b) => b.wage.compareTo(a.wage));
+        break;
+    }
+    return players;
+  }
 
   @override
   State<SquadScreen> createState() => _SquadScreenState();
@@ -15,6 +72,16 @@ class SquadScreen extends StatefulWidget {
 class _SquadScreenState extends State<SquadScreen> {
   bool _compareMode = false;
   final List<String> _selected = [];
+  PositionGroup? _filterGroup;
+  SquadSortOption _sort = SquadSortOption.position;
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _toggleCompareMode() {
     setState(() {
@@ -37,16 +104,29 @@ class _SquadScreenState extends State<SquadScreen> {
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
-    final players = [...gameState.userTeam.players]..sort((a, b) {
-        final c = a.position.index.compareTo(b.position.index);
-        if (c != 0) return c;
-        return b.overall.compareTo(a.overall);
-      });
+    final team = gameState.userTeam;
+    final players = SquadScreen.filterAndSort(
+      team.players,
+      group: _filterGroup,
+      query: _query,
+      sort: _sort,
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_compareMode ? '選手を2人選択' : 'スカッド'),
         actions: [
+          if (!_compareMode)
+            PopupMenuButton<SquadSortOption>(
+              icon: const Icon(Icons.sort),
+              tooltip: '並び替え',
+              initialValue: _sort,
+              onSelected: (v) => setState(() => _sort = v),
+              itemBuilder: (context) => [
+                for (final option in SquadSortOption.values)
+                  PopupMenuItem(value: option, child: Text(option.label)),
+              ],
+            ),
           IconButton(
             icon: Icon(_compareMode ? Icons.close : Icons.compare_arrows),
             tooltip: _compareMode ? '比較モードを終了' : '選手を比較',
@@ -70,94 +150,196 @@ class _SquadScreenState extends State<SquadScreen> {
               label: const Text('比較する'),
             )
           : null,
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        itemCount: players.length,
-        itemBuilder: (context, i) {
-          final p = players[i];
-          final isStarting = gameState.userTeam.startingXI.contains(p.id);
-          final isSelected = _selected.contains(p.id);
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: ListTile(
-              tileColor: isSelected
-                  ? Theme.of(context).colorScheme.secondaryContainer
-                  : isStarting
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.3)
-                      : null,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              leading: _compareMode
-                  ? Checkbox(
-                      value: isSelected,
-                      onChanged: (_) => _toggleSelected(p.id))
-                  : PlayerFaceAvatar(
-                      playerId: p.id,
-                      position: p.position,
-                      size: 40,
-                      highlighted: isStarting),
-              title: Row(
-                children: [
-                  Flexible(
-                      child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                  if (p.isLoan) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.swap_horiz,
-                        size: 16, color: Colors.indigo),
-                  ],
-                  if (p.wantsTransfer) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.sentiment_dissatisfied,
-                        size: 16, color: Colors.redAccent),
-                  ],
-                  if (p.isOnInternationalDuty) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.flag, size: 16, color: Colors.blueAccent),
-                  ],
-                  if (p.isLoanedOut) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.flight_takeoff,
-                        size: 16, color: Colors.deepPurple),
-                  ],
-                  if (p.isTransferListed) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.sell_outlined,
-                        size: 16, color: Colors.orange),
-                  ],
-                ],
-              ),
-              subtitle: Text(
-                p.isInjured
-                    ? '負傷中（あと${p.injuryWeeks}週）'
-                    : p.isOnInternationalDuty
-                        ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
-                        : p.isLoanedOut
-                            ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
-                            : '${p.age}歳 / 総合 ${p.overall}',
-                style: (p.isInjured || p.isOnInternationalDuty || p.isLoanedOut)
-                    ? const TextStyle(color: Colors.redAccent)
-                    : null,
-              ),
-              trailing: _compareMode
-                  ? Text('${p.overall}',
-                      style: Theme.of(context).textTheme.titleMedium)
-                  : p.fatigue > 70
-                      ? const Icon(Icons.battery_alert, color: Colors.orange)
-                      : Text('${p.overall}',
-                          style: Theme.of(context).textTheme.titleMedium),
-              onTap: _compareMode
-                  ? () => _toggleSelected(p.id)
-                  : () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => PlayerDetailScreen(playerId: p.id)),
-                      ),
+      body: Column(
+        children: [
+          if (!_compareMode) _SquadSummaryCard(team: team),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: PositionFilterBar(
+              value: _filterGroup,
+              onChanged: (g) => setState(() => _filterGroup = g),
             ),
-          );
-        },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v),
+              decoration: InputDecoration(
+                hintText: '選手名で検索',
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: players.isEmpty
+                ? const Center(child: Text('該当する選手がいません'))
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    itemCount: players.length,
+                    itemBuilder: (context, i) {
+                      final p = players[i];
+                      final isStarting = team.startingXI.contains(p.id);
+                      final isSelected = _selected.contains(p.id);
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        child: ListTile(
+                          tileColor: isSelected
+                              ? Theme.of(context).colorScheme.secondaryContainer
+                              : isStarting
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
+                                      .withValues(alpha: 0.3)
+                                  : null,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          leading: _compareMode
+                              ? Checkbox(
+                                  value: isSelected,
+                                  onChanged: (_) => _toggleSelected(p.id))
+                              : PlayerFaceAvatar(
+                                  playerId: p.id,
+                                  position: p.position,
+                                  size: 40,
+                                  highlighted: isStarting),
+                          title: Row(
+                            children: [
+                              Flexible(
+                                  child: Text(p.name,
+                                      overflow: TextOverflow.ellipsis)),
+                              if (p.isLoan) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.swap_horiz,
+                                    size: 16, color: Colors.indigo),
+                              ],
+                              if (p.wantsTransfer) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.sentiment_dissatisfied,
+                                    size: 16, color: Colors.redAccent),
+                              ],
+                              if (p.isOnInternationalDuty) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.flag,
+                                    size: 16, color: Colors.blueAccent),
+                              ],
+                              if (p.isLoanedOut) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.flight_takeoff,
+                                    size: 16, color: Colors.deepPurple),
+                              ],
+                              if (p.isTransferListed) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.sell_outlined,
+                                    size: 16, color: Colors.orange),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            p.isInjured
+                                ? '負傷中（あと${p.injuryWeeks}週）'
+                                : p.isOnInternationalDuty
+                                    ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                                    : p.isLoanedOut
+                                        ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
+                                        : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}',
+                            style: (p.isInjured ||
+                                    p.isOnInternationalDuty ||
+                                    p.isLoanedOut)
+                                ? const TextStyle(color: Colors.redAccent)
+                                : null,
+                          ),
+                          trailing: _compareMode
+                              ? Text('${p.overall}',
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium)
+                              : p.fatigue > 70
+                                  ? const Icon(Icons.battery_alert,
+                                      color: Colors.orange)
+                                  : Text('${p.overall}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium),
+                          onTap: _compareMode
+                              ? () => _toggleSelected(p.id)
+                              : () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            PlayerDetailScreen(playerId: p.id)),
+                                  ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _SquadSummaryCard extends StatelessWidget {
+  final Team team;
+
+  const _SquadSummaryCard({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    final players = team.players;
+    final count = players.length;
+    final avgOverall = count == 0
+        ? 0
+        : (players.fold<int>(0, (s, p) => s + p.overall) / count).round();
+    final avgAge = count == 0
+        ? 0
+        : (players.fold<int>(0, (s, p) => s + p.age) / count).round();
+    final wageBill = ContractEngine.weeklyWageBill(team);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _SummaryItem(label: '人数', value: '$count'),
+              _SummaryItem(label: '平均総合', value: '$avgOverall'),
+              _SummaryItem(label: '平均年齢', value: '$avgAge歳'),
+              _SummaryItem(label: '週俸総額', value: '$wageBill万円'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _SummaryItem({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(value, style: Theme.of(context).textTheme.titleMedium),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
     );
   }
 }

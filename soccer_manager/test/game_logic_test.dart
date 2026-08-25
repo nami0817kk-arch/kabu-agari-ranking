@@ -30,6 +30,7 @@ import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/team.dart';
+import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/young_talent_screen.dart';
 import 'package:soccer_manager/state/game_state.dart';
 import 'package:soccer_manager/widgets/formation_layout.dart';
@@ -1640,5 +1641,67 @@ void main() {
 
     expect(top.length, 2);
     expect(top.first.player.id, 'p4');
+  });
+
+  test('SquadScreen.filterAndSort filters by position group and search query',
+      () {
+    Player make(String id, String name, Position pos) => Player(
+          id: id,
+          name: name,
+          age: 20,
+          position: pos,
+          potential: 70,
+        );
+
+    final gk = make('gk', 'GKプレイヤー', Position.gk);
+    final df = make('df', 'ディフェンダー', Position.dc);
+    final mf = make('mf', 'サントス', Position.mc);
+    final all = [gk, df, mf];
+
+    final defOnly = SquadScreen.filterAndSort(all, group: PositionGroup.def);
+    expect(defOnly.map((p) => p.id), ['df']);
+
+    final searched = SquadScreen.filterAndSort(all, query: 'サントス');
+    expect(searched.map((p) => p.id), ['mf']);
+
+    final none = SquadScreen.filterAndSort(all, query: '存在しない名前');
+    expect(none, isEmpty);
+  });
+
+  test('SquadScreen.filterAndSort sorts by the requested criterion', () {
+    Player make(String id,
+        {required int overall,
+        required int age,
+        required int potential,
+        required int wage}) {
+      final p = Player(
+          id: id,
+          name: id,
+          age: age,
+          position: Position.mc,
+          potential: potential,
+          wage: wage);
+      for (final key in AttributeKeys.all) {
+        p.setAttributeValue(key, overall);
+      }
+      return p;
+    }
+
+    final a = make('a', overall: 80, age: 30, potential: 60, wage: 100);
+    final b = make('b', overall: 60, age: 20, potential: 90, wage: 200);
+    final all = [a, b];
+
+    expect(
+        SquadScreen.filterAndSort(all, sort: SquadSortOption.overall).first.id,
+        'a');
+    expect(SquadScreen.filterAndSort(all, sort: SquadSortOption.age).first.id,
+        'b');
+    expect(
+        SquadScreen.filterAndSort(all, sort: SquadSortOption.potential)
+            .first
+            .id,
+        'b');
+    expect(SquadScreen.filterAndSort(all, sort: SquadSortOption.wage).first.id,
+        'b');
   });
 }
