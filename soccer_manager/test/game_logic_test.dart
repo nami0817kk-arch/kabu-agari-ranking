@@ -31,6 +31,7 @@ import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/screens/squad_screen.dart';
+import 'package:soccer_manager/screens/transfer_screen.dart';
 import 'package:soccer_manager/screens/young_talent_screen.dart';
 import 'package:soccer_manager/state/game_state.dart';
 import 'package:soccer_manager/widgets/formation_layout.dart';
@@ -1703,5 +1704,69 @@ void main() {
         'b');
     expect(SquadScreen.filterAndSort(all, sort: SquadSortOption.wage).first.id,
         'b');
+  });
+
+  test(
+      'TransferScreen.filterAndSort filters by position group and search query',
+      () {
+    Player make(String id, String name, Position pos) => Player(
+          id: id,
+          name: name,
+          age: 20,
+          position: pos,
+          potential: 70,
+        );
+
+    final gk = make('gk', 'GKプレイヤー', Position.gk);
+    final st = make('st', 'ストライカー', Position.st);
+    final all = [gk, st];
+
+    final attOnly = TransferScreen.filterAndSort(all, group: PositionGroup.att);
+    expect(attOnly.map((p) => p.id), ['st']);
+
+    final searched = TransferScreen.filterAndSort(all, query: 'ストライカー');
+    expect(searched.map((p) => p.id), ['st']);
+  });
+
+  test('TransferScreen.filterAndSort sorts by the requested criterion', () {
+    Player make(String id,
+        {required int overall, required int potential, required int age}) {
+      final p = Player(
+          id: id,
+          name: id,
+          age: age,
+          position: Position.mc,
+          potential: potential);
+      for (final key in AttributeKeys.all) {
+        p.setAttributeValue(key, overall);
+      }
+      return p;
+    }
+
+    final expensive = make('expensive', overall: 80, potential: 60, age: 25);
+    final cheap = make('cheap', overall: 40, potential: 90, age: 18);
+    final all = [expensive, cheap];
+
+    expect(
+        TransferScreen.filterAndSort(all, sort: TransferSortOption.overall)
+            .first
+            .id,
+        'expensive');
+    expect(
+        TransferScreen.filterAndSort(all, sort: TransferSortOption.potential)
+            .first
+            .id,
+        'cheap');
+    expect(
+        TransferScreen.filterAndSort(all, sort: TransferSortOption.age)
+            .first
+            .id,
+        'cheap');
+    expect(
+      TransferScreen.filterAndSort(all, sort: TransferSortOption.marketValue)
+          .first
+          .id,
+      cheap.marketValue <= expensive.marketValue ? 'cheap' : 'expensive',
+    );
   });
 }

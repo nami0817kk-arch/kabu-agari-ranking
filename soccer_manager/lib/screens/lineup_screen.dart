@@ -15,7 +15,9 @@ class LineupScreen extends StatelessWidget {
     final gameState = context.watch<GameState>();
     final team = gameState.userTeam;
     final formation = team.formation;
-    final bench = team.players.where((p) => !team.startingXI.contains(p.id)).toList()
+    final bench = team.players
+        .where((p) => !team.startingXI.contains(p.id))
+        .toList()
       ..sort((a, b) => a.position.index.compareTo(b.position.index));
 
     return Scaffold(
@@ -23,7 +25,7 @@ class LineupScreen extends StatelessWidget {
       body: ListView(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Row(
               children: [
                 const Text('フォーメーション: '),
@@ -31,11 +33,23 @@ class LineupScreen extends StatelessWidget {
                 DropdownButton<Formation>(
                   value: formation,
                   items: Formation.values
-                      .map((f) => DropdownMenuItem(value: f, child: Text(f.label)))
+                      .map((f) =>
+                          DropdownMenuItem(value: f, child: Text(f.label)))
                       .toList(),
                   onChanged: (f) {
                     if (f != null) context.read<GameState>().setFormation(f);
                   },
+                ),
+                const SizedBox(width: 8),
+                Chip(
+                  label: Text('攻撃 x${formation.attackBias.toStringAsFixed(2)}'),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 4),
+                Chip(
+                  label:
+                      Text('守備 x${formation.defenseBias.toStringAsFixed(2)}'),
+                  visualDensity: VisualDensity.compact,
                 ),
                 const Spacer(),
                 Text('${team.startingXI.length}/11'),
@@ -44,81 +58,92 @@ class LineupScreen extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                Row(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
                   children: [
-                    const SizedBox(width: 90, child: Text('プレッシング')),
-                    Expanded(
-                      child: Slider(
-                        value: team.pressing.toDouble(),
-                        min: 0,
-                        max: 100,
-                        divisions: 10,
-                        label: '${team.pressing}',
-                        onChanged: (v) => context.read<GameState>().setPressing(v.round()),
+                    Row(
+                      children: [
+                        const SizedBox(width: 90, child: Text('プレッシング')),
+                        Expanded(
+                          child: Slider(
+                            value: team.pressing.toDouble(),
+                            min: 0,
+                            max: 100,
+                            divisions: 10,
+                            label: '${team.pressing}',
+                            onChanged: (v) => context
+                                .read<GameState>()
+                                .setPressing(v.round()),
+                          ),
+                        ),
+                        SizedBox(width: 32, child: Text('${team.pressing}')),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const SizedBox(width: 90, child: Text('ライン高さ')),
+                        Expanded(
+                          child: Slider(
+                            value: team.lineHeight.toDouble(),
+                            min: 0,
+                            max: 100,
+                            divisions: 10,
+                            label: '${team.lineHeight}',
+                            onChanged: (v) => context
+                                .read<GameState>()
+                                .setLineHeight(v.round()),
+                          ),
+                        ),
+                        SizedBox(width: 32, child: Text('${team.lineHeight}')),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const SizedBox(width: 90, child: Text('攻撃の幅')),
+                        Expanded(
+                          child: Slider(
+                            value: team.width.toDouble(),
+                            min: 0,
+                            max: 100,
+                            divisions: 10,
+                            label: '${team.width}',
+                            onChanged: (v) =>
+                                context.read<GameState>().setWidth(v.round()),
+                          ),
+                        ),
+                        SizedBox(width: 32, child: Text('${team.width}')),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        const SizedBox(width: 90, child: Text('テンポ')),
+                        Expanded(
+                          child: Slider(
+                            value: team.tempo.toDouble(),
+                            min: 0,
+                            max: 100,
+                            divisions: 10,
+                            label: '${team.tempo}',
+                            onChanged: (v) =>
+                                context.read<GameState>().setTempo(v.round()),
+                          ),
+                        ),
+                        SizedBox(width: 32, child: Text('${team.tempo}')),
+                      ],
+                    ),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。\n'
+                        '幅を広げると攻撃力が増すが中央の守備が薄くなる。テンポを上げると攻撃的だが疲労が増えやすい。',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ),
-                    SizedBox(width: 32, child: Text('${team.pressing}')),
                   ],
                 ),
-                Row(
-                  children: [
-                    const SizedBox(width: 90, child: Text('ライン高さ')),
-                    Expanded(
-                      child: Slider(
-                        value: team.lineHeight.toDouble(),
-                        min: 0,
-                        max: 100,
-                        divisions: 10,
-                        label: '${team.lineHeight}',
-                        onChanged: (v) => context.read<GameState>().setLineHeight(v.round()),
-                      ),
-                    ),
-                    SizedBox(width: 32, child: Text('${team.lineHeight}')),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const SizedBox(width: 90, child: Text('攻撃の幅')),
-                    Expanded(
-                      child: Slider(
-                        value: team.width.toDouble(),
-                        min: 0,
-                        max: 100,
-                        divisions: 10,
-                        label: '${team.width}',
-                        onChanged: (v) => context.read<GameState>().setWidth(v.round()),
-                      ),
-                    ),
-                    SizedBox(width: 32, child: Text('${team.width}')),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const SizedBox(width: 90, child: Text('テンポ')),
-                    Expanded(
-                      child: Slider(
-                        value: team.tempo.toDouble(),
-                        min: 0,
-                        max: 100,
-                        divisions: 10,
-                        label: '${team.tempo}',
-                        onChanged: (v) => context.read<GameState>().setTempo(v.round()),
-                      ),
-                    ),
-                    SizedBox(width: 32, child: Text('${team.tempo}')),
-                  ],
-                ),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。\n'
-                    '幅を広げると攻撃力が増すが中央の守備が薄くなる。テンポを上げると攻撃的だが疲労が増えやすい。',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           Padding(
@@ -126,12 +151,14 @@ class LineupScreen extends StatelessWidget {
             child: Row(
               children: [
                 OutlinedButton(
-                  onPressed: () => context.read<GameState>().autoFillStartingXI(),
+                  onPressed: () =>
+                      context.read<GameState>().autoFillStartingXI(),
                   child: const Text('自動編成'),
                 ),
                 const SizedBox(width: 8),
                 const Expanded(
-                  child: Text('選手をタップして入れ替え', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  child: Text('選手をタップして入れ替え',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
                 ),
               ],
             ),
@@ -161,7 +188,8 @@ class LineupScreen extends StatelessWidget {
 /// 完全一致がいない枠(グループ代用など)は残りの先発から総合力順に補う。
 List<Player?> _resolveSlotAssignments(Team team, Formation formation) {
   final byId = {for (final p in team.players) p.id: p};
-  final startingPlayers = team.startingXI.map((id) => byId[id]).whereType<Player>().toList();
+  final startingPlayers =
+      team.startingXI.map((id) => byId[id]).whereType<Player>().toList();
 
   final remainingByPosition = <Position, List<Player>>{};
   for (final p in startingPlayers) {
@@ -221,7 +249,8 @@ class _PitchView extends StatelessWidget {
                     child: _SlotChip(
                       slotPosition: slots[i],
                       player: assignments[i],
-                      onTap: () => _showSlotSheet(context, slots[i], assignments[i]),
+                      onTap: () =>
+                          _showSlotSheet(context, slots[i], assignments[i]),
                     ),
                   ),
               ],
@@ -232,7 +261,8 @@ class _PitchView extends StatelessWidget {
     );
   }
 
-  void _showSlotSheet(BuildContext context, Position slotPosition, Player? current) {
+  void _showSlotSheet(
+      BuildContext context, Position slotPosition, Player? current) {
     final gameState = context.read<GameState>();
     final candidates = team.players
         .where((p) => !p.isInjured && !p.isOnInternationalDuty)
@@ -252,11 +282,13 @@ class _PitchView extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('${slotPosition.fullLabel}(${slotPosition.label})に配置', style: Theme.of(ctx).textTheme.titleMedium),
+              child: Text('${slotPosition.fullLabel}(${slotPosition.label})に配置',
+                  style: Theme.of(ctx).textTheme.titleMedium),
             ),
             if (current != null) ...[
               ListTile(
-                leading: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
+                leading: const Icon(Icons.remove_circle_outline,
+                    color: Colors.redAccent),
                 title: const Text('この枠を空ける'),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -289,7 +321,8 @@ class _PitchView extends StatelessWidget {
                 subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
                 onTap: () {
                   Navigator.pop(ctx);
-                  gameState.swapStartingPlayer(outPlayerId: current?.id, inPlayerId: p.id);
+                  gameState.swapStartingPlayer(
+                      outPlayerId: current?.id, inPlayerId: p.id);
                 },
               ),
             if (candidates.isEmpty)
@@ -315,14 +348,18 @@ class _PitchPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawRect(Rect.fromLTWH(4, 4, size.width - 8, size.height - 8), line);
-    canvas.drawLine(Offset(4, size.height / 2), Offset(size.width - 4, size.height / 2), line);
-    canvas.drawCircle(Offset(size.width / 2, size.height / 2), size.width * 0.16, line);
+    canvas.drawLine(Offset(4, size.height / 2),
+        Offset(size.width - 4, size.height / 2), line);
+    canvas.drawCircle(
+        Offset(size.width / 2, size.height / 2), size.width * 0.16, line);
 
     final boxW = size.width * 0.55;
     final boxH = size.height * 0.12;
-    canvas.drawRect(Rect.fromLTWH(size.width / 2 - boxW / 2, 4, boxW, boxH), line);
     canvas.drawRect(
-      Rect.fromLTWH(size.width / 2 - boxW / 2, size.height - 4 - boxH, boxW, boxH),
+        Rect.fromLTWH(size.width / 2 - boxW / 2, 4, boxW, boxH), line);
+    canvas.drawRect(
+      Rect.fromLTWH(
+          size.width / 2 - boxW / 2, size.height - 4 - boxH, boxW, boxH),
       line,
     );
   }
@@ -331,12 +368,19 @@ class _PitchPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+Color _dutyColor(PlayerDuty duty) => switch (duty) {
+      PlayerDuty.defend => Colors.blue.shade300,
+      PlayerDuty.support => Colors.grey.shade400,
+      PlayerDuty.attack => Colors.orange.shade400,
+    };
+
 class _SlotChip extends StatelessWidget {
   final Position slotPosition;
   final Player? player;
   final VoidCallback onTap;
 
-  const _SlotChip({required this.slotPosition, required this.player, required this.onTap});
+  const _SlotChip(
+      {required this.slotPosition, required this.player, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -348,13 +392,41 @@ class _SlotChip extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            p == null
-                ? CircleAvatar(
-                    radius: 18,
-                    backgroundColor: Colors.white.withValues(alpha: 0.3),
-                    child: Text(slotPosition.label, style: const TextStyle(fontSize: 10, color: Colors.white)),
-                  )
-                : PlayerFaceAvatar(playerId: p.id, position: p.position, size: 36, highlighted: true),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                p == null
+                    ? CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.white.withValues(alpha: 0.3),
+                        child: Text(slotPosition.label,
+                            style: const TextStyle(
+                                fontSize: 10, color: Colors.white)),
+                      )
+                    : PlayerFaceAvatar(
+                        playerId: p.id,
+                        position: p.position,
+                        size: 36,
+                        highlighted: true),
+                if (p != null)
+                  Positioned(
+                    right: -2,
+                    bottom: -2,
+                    child: Tooltip(
+                      message: p.duty.label,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: _dutyColor(p.duty),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 2),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -391,7 +463,8 @@ class _BenchTile extends StatelessWidget {
         .map((id) => team.players.firstWhere((pl) => pl.id == id))
         .where((pl) => pl.position == p.position)
         .length;
-    final canAdd = !p.isInjured && !p.isOnInternationalDuty && currentInPosition < quota;
+    final canAdd =
+        !p.isInjured && !p.isOnInternationalDuty && currentInPosition < quota;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -405,10 +478,14 @@ class _BenchTile extends StatelessWidget {
                   ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
                   : '${p.age}歳 / 総合 ${p.overall}'
                       '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
-          style: (p.isInjured || p.isOnInternationalDuty) ? const TextStyle(color: Colors.redAccent) : null,
+          style: (p.isInjured || p.isOnInternationalDuty)
+              ? const TextStyle(color: Colors.redAccent)
+              : null,
         ),
         trailing: OutlinedButton(
-          onPressed: canAdd ? () => context.read<GameState>().toggleStartingPlayer(p.id) : null,
+          onPressed: canAdd
+              ? () => context.read<GameState>().toggleStartingPlayer(p.id)
+              : null,
           child: const Text('スタメンへ'),
         ),
       ),

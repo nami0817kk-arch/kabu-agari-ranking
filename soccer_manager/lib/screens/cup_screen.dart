@@ -4,6 +4,7 @@ import '../logic/cup_engine.dart';
 import '../models/cup.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import 'match_screen.dart';
 
 class CupScreen extends StatelessWidget {
@@ -36,7 +37,9 @@ class _CupTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
-    final cup = type == CupType.domestic ? gameState.domesticCup : gameState.continentalCup;
+    final cup = type == CupType.domestic
+        ? gameState.domesticCup
+        : gameState.continentalCup;
 
     if (cup == null) {
       return Center(
@@ -54,7 +57,8 @@ class _CupTab extends StatelessWidget {
 
     final userId = gameState.userTeam.id;
     final teams = gameState.allTeamsForCups;
-    String nameOf(String id) => teams.firstWhere((t) => t.id == id, orElse: () => teams.first).name;
+    String nameOf(String id) =>
+        teams.firstWhere((t) => t.id == id, orElse: () => teams.first).name;
     final totalRounds = cup.rounds.length;
     final nextMatch = cup.nextUnplayedMatch;
     final userEliminated = cup.isEliminated(userId);
@@ -64,18 +68,26 @@ class _CupTab extends StatelessWidget {
       children: [
         if (cup.isComplete)
           Card(
-            color: cup.championId == userId ? Theme.of(context).colorScheme.primaryContainer : null,
+            color: cup.championId == userId
+                ? SemanticColors.positive(context).withValues(alpha: 0.15)
+                : null,
             child: ListTile(
-              leading: const Icon(Icons.emoji_events),
+              leading: Icon(
+                Icons.emoji_events,
+                color: cup.championId == userId
+                    ? SemanticColors.positive(context)
+                    : null,
+              ),
               title: Text('優勝: ${nameOf(cup.championId!)}'),
             ),
           )
         else if (userEliminated)
-          const Card(
+          Card(
             child: ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('自クラブは敗退しました'),
-              subtitle: Text('他クラブの結果は引き続き更新されます'),
+              leading: Icon(Icons.info_outline,
+                  color: SemanticColors.negative(context)),
+              title: const Text('自クラブは敗退しました'),
+              subtitle: const Text('他クラブの結果は引き続き更新されます'),
             ),
           ),
         if (nextMatch != null)
@@ -90,30 +102,37 @@ class _CupTab extends StatelessWidget {
             ),
           ),
         for (final round in cup.rounds) ...[
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 4),
-            child: Text(
-              CupEngine.roundLabel(round.first.round, totalRounds),
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+          _RoundSection(
+            title: CupEngine.roundLabel(round.first.round, totalRounds),
+            initiallyExpanded:
+                round.any((m) => m.result == null) || round == cup.rounds.last,
+            children: [
+              for (final m in round)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    tileColor:
+                        (m.homeTeamId == userId || m.awayTeamId == userId)
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primaryContainer
+                                .withValues(alpha: 0.25)
+                            : null,
+                    title: Text(
+                        '${nameOf(m.homeTeamId)} vs ${nameOf(m.awayTeamId)}'),
+                    subtitle: m.penaltyWinnerId != null
+                        ? Text('PK戦: ${nameOf(m.penaltyWinnerId!)}が勝利')
+                        : null,
+                    trailing: m.result == null
+                        ? const Text('未消化')
+                        : Text(
+                            '${m.result!.homeGoals} - ${m.result!.awayGoals}',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                  ),
+                ),
+            ],
           ),
-          for (final m in round)
-            Card(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: ListTile(
-                tileColor: (m.homeTeamId == userId || m.awayTeamId == userId)
-                    ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.25)
-                    : null,
-                title: Text('${nameOf(m.homeTeamId)} vs ${nameOf(m.awayTeamId)}'),
-                subtitle: m.penaltyWinnerId != null ? Text('PK戦: ${nameOf(m.penaltyWinnerId!)}が勝利') : null,
-                trailing: m.result == null
-                    ? const Text('未消化')
-                    : Text(
-                        '${m.result!.homeGoals} - ${m.result!.awayGoals}',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-              ),
-            ),
         ],
       ],
     );
@@ -123,15 +142,48 @@ class _CupTab extends StatelessWidget {
     final gameState = context.read<GameState>();
     final userId = gameState.userTeam.id;
     final List<Team> teams = gameState.allTeamsForCups;
-    final cup = type == CupType.domestic ? gameState.domesticCup : gameState.continentalCup;
+    final cup = type == CupType.domestic
+        ? gameState.domesticCup
+        : gameState.continentalCup;
     final match = cup?.nextUnplayedMatch;
-    final isUserMatch = match != null && (match.homeTeamId == userId || match.awayTeamId == userId);
+    final isUserMatch = match != null &&
+        (match.homeTeamId == userId || match.awayTeamId == userId);
     final result = await gameState.playNextCupMatch(type);
     if (!context.mounted) return;
     if (result != null && isUserMatch) {
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => MatchScreen(result: result, teams: teams, title: type.label)),
+        MaterialPageRoute(
+            builder: (_) =>
+                MatchScreen(result: result, teams: teams, title: type.label)),
       );
     }
+  }
+}
+
+/// カップ戦の1ラウンド分をまとめる折りたたみ可能なセクション。
+/// 消化済みの過去ラウンドはデフォルトで畳んでおき、画面のスクロール量を抑える。
+class _RoundSection extends StatelessWidget {
+  final String title;
+  final bool initiallyExpanded;
+  final List<Widget> children;
+
+  const _RoundSection({
+    required this.title,
+    required this.initiallyExpanded,
+    required this.children,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(top: 4),
+        title: Text(title, style: Theme.of(context).textTheme.titleSmall),
+        children: children,
+      ),
+    );
   }
 }

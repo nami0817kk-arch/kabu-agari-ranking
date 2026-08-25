@@ -101,6 +101,46 @@ class _SquadScreenState extends State<SquadScreen> {
     });
   }
 
+  void _showIconLegend(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('アイコンの意味'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _LegendRow(
+                icon: Icons.swap_horiz,
+                color: Colors.indigo,
+                label: 'ローンで加入中の選手'),
+            _LegendRow(
+                icon: Icons.sentiment_dissatisfied,
+                color: Colors.redAccent,
+                label: '移籍を希望している'),
+            _LegendRow(
+                icon: Icons.flag, color: Colors.blueAccent, label: '代表召集中'),
+            _LegendRow(
+                icon: Icons.flight_takeoff,
+                color: Colors.deepPurple,
+                label: '他クラブへローン放出中'),
+            _LegendRow(
+                icon: Icons.sell_outlined,
+                color: Colors.orange,
+                label: '移籍リストに登録中'),
+            _LegendRow(
+                icon: Icons.battery_alert,
+                color: Colors.orange,
+                label: '疲労が大きい'),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('閉じる')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
@@ -116,7 +156,12 @@ class _SquadScreenState extends State<SquadScreen> {
       appBar: AppBar(
         title: Text(_compareMode ? '選手を2人選択' : 'スカッド'),
         actions: [
-          if (!_compareMode)
+          if (!_compareMode) ...[
+            IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: 'アイコンの意味',
+              onPressed: () => _showIconLegend(context),
+            ),
             PopupMenuButton<SquadSortOption>(
               icon: const Icon(Icons.sort),
               tooltip: '並び替え',
@@ -127,6 +172,7 @@ class _SquadScreenState extends State<SquadScreen> {
                   PopupMenuItem(value: option, child: Text(option.label)),
               ],
             ),
+          ],
           IconButton(
             icon: Icon(_compareMode ? Icons.close : Icons.compare_arrows),
             tooltip: _compareMode ? '比較モードを終了' : '選手を比較',
@@ -340,6 +386,29 @@ class _SummaryItem extends StatelessWidget {
         Text(value, style: Theme.of(context).textTheme.titleMedium),
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
       ],
+    );
+  }
+}
+
+class _LegendRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _LegendRow(
+      {required this.icon, required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label)),
+        ],
+      ),
     );
   }
 }

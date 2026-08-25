@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/promotion_engine.dart';
 import '../models/league.dart';
+import '../models/match_result.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/club_emblem.dart';
+
+/// 大陸カップ出場資格が得られる順位(GameState.startNextSeasonの`finalRank <= 2`と一致)。
+const int _continentalQualifyCount = 2;
 
 class FixturesScreen extends StatelessWidget {
   const FixturesScreen({super.key});
@@ -40,34 +46,88 @@ class _StandingsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = league.sortedStandings;
-    return ListView.builder(
-      itemCount: rows.length,
-      itemBuilder: (context, i) {
-        final r = rows[i];
-        final team = league.teams.firstWhere((t) => t.id == r.teamId);
-        final isUser = r.teamId == userTeamId;
-        return Container(
-          color: isUser
-              ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.4)
-              : null,
-          child: ListTile(
-            leading: SizedBox(
-              width: 48,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(width: 20, child: Text('${i + 1}')),
-                  const SizedBox(width: 6),
-                  ClubEmblem(teamId: team.id, teamName: team.name, size: 24),
-                ],
-              ),
-            ),
-            title: Text(team.name),
-            subtitle: Text('${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
-            trailing: Text('${r.points}pt', style: Theme.of(context).textTheme.titleMedium),
+    final relegationStart = rows.length - PromotionEngine.swapCount;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              _ZoneLegend(color: Colors.amber.shade700, label: '大陸カップ出場圏'),
+              _ZoneLegend(
+                  color: SemanticColors.negative(context), label: '降格圏'),
+            ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: ListView.builder(
+            itemCount: rows.length,
+            itemBuilder: (context, i) {
+              final r = rows[i];
+              final team = league.teams.firstWhere((t) => t.id == r.teamId);
+              final isUser = r.teamId == userTeamId;
+              final zoneColor = i < _continentalQualifyCount
+                  ? Colors.amber.shade700
+                  : i >= relegationStart
+                      ? SemanticColors.negative(context)
+                      : null;
+              return Container(
+                decoration: BoxDecoration(
+                  color: isUser
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.4)
+                      : null,
+                  border: zoneColor == null
+                      ? null
+                      : Border(left: BorderSide(color: zoneColor, width: 4)),
+                ),
+                child: ListTile(
+                  leading: SizedBox(
+                    width: 48,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(width: 20, child: Text('${i + 1}')),
+                        const SizedBox(width: 6),
+                        ClubEmblem(
+                            teamId: team.id, teamName: team.name, size: 24),
+                      ],
+                    ),
+                  ),
+                  title: Text(team.name),
+                  subtitle: Text(
+                      '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
+                  trailing: Text('${r.points}pt',
+                      style: Theme.of(context).textTheme.titleMedium),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ZoneLegend extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _ZoneLegend({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(width: 10, height: 10, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      ],
     );
   }
 }
@@ -87,8 +147,9 @@ class _ScheduleTabState extends State<_ScheduleTab> {
   late int _selectedMatchday;
   final _chipScrollController = ScrollController();
 
-  int get _totalMatchdays =>
-      widget.league.fixtures.map((f) => f.matchday).reduce((a, b) => a > b ? a : b);
+  int get _totalMatchdays => widget.league.fixtures
+      .map((f) => f.matchday)
+      .reduce((a, b) => a > b ? a : b);
 
   int? get _nextMatchday => widget.league.nextUnplayedFixture?.matchday;
 
@@ -98,7 +159,8 @@ class _ScheduleTabState extends State<_ScheduleTab> {
     _selectedMatchday = _nextMatchday ?? _totalMatchdays;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_chipScrollController.hasClients) return;
-      final offset = ((_selectedMatchday - 1) * 76.0).clamp(0.0, _chipScrollController.position.maxScrollExtent);
+      final offset = ((_selectedMatchday - 1) * 76.0)
+          .clamp(0.0, _chipScrollController.position.maxScrollExtent);
       _chipScrollController.jumpTo(offset);
     });
   }
@@ -124,7 +186,8 @@ class _ScheduleTabState extends State<_ScheduleTab> {
               ButtonSegment(value: true, label: Text('全日程')),
             ],
             selected: {_showFullSchedule},
-            onSelectionChanged: (s) => setState(() => _showFullSchedule = s.first),
+            onSelectionChanged: (s) =>
+                setState(() => _showFullSchedule = s.first),
           ),
         ),
         if (_showFullSchedule) ...[
@@ -151,10 +214,14 @@ class _ScheduleTabState extends State<_ScheduleTab> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: _MatchdayList(league: league, matchday: _selectedMatchday, userTeamId: userTeamId),
+            child: _MatchdayList(
+                league: league,
+                matchday: _selectedMatchday,
+                userTeamId: userTeamId),
           ),
         ] else
-          Expanded(child: _UserFixtureList(league: league, userTeamId: userTeamId)),
+          Expanded(
+              child: _UserFixtureList(league: league, userTeamId: userTeamId)),
       ],
     );
   }
@@ -165,11 +232,13 @@ class _MatchdayList extends StatelessWidget {
   final int matchday;
   final String userTeamId;
 
-  const _MatchdayList({required this.league, required this.matchday, required this.userTeamId});
+  const _MatchdayList(
+      {required this.league, required this.matchday, required this.userTeamId});
 
   @override
   Widget build(BuildContext context) {
-    final fixtures = league.fixtures.where((f) => f.matchday == matchday).toList();
+    final fixtures =
+        league.fixtures.where((f) => f.matchday == matchday).toList();
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 4),
       itemCount: fixtures.length,
@@ -177,38 +246,56 @@ class _MatchdayList extends StatelessWidget {
         final f = fixtures[i];
         final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
         final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
-        final isUserMatch = f.homeTeamId == userTeamId || f.awayTeamId == userTeamId;
+        final isUserMatch =
+            f.homeTeamId == userTeamId || f.awayTeamId == userTeamId;
         final isDerby = context.read<GameState>().isRivalFixture(f);
         final result = f.result;
         return Container(
-          color: isUserMatch ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
+          color: isUserMatch
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
+              : null,
           child: ListTile(
-            leading: isDerby ? const Icon(Icons.local_fire_department, color: Colors.redAccent) : null,
+            leading: isDerby
+                ? const Icon(Icons.local_fire_department,
+                    color: Colors.redAccent)
+                : null,
             title: Row(
               children: [
                 Expanded(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Flexible(child: Text(home.name, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+                      Flexible(
+                          child: Text(home.name,
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis)),
                       const SizedBox(width: 6),
-                      ClubEmblem(teamId: home.id, teamName: home.name, size: 22),
+                      ClubEmblem(
+                          teamId: home.id, teamName: home.name, size: 22),
                     ],
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: Text(
-                    result == null ? 'vs' : '${result.homeGoals} - ${result.awayGoals}',
+                    result == null
+                        ? 'vs'
+                        : '${result.homeGoals} - ${result.awayGoals}',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                 ),
                 Expanded(
                   child: Row(
                     children: [
-                      ClubEmblem(teamId: away.id, teamName: away.name, size: 22),
+                      ClubEmblem(
+                          teamId: away.id, teamName: away.name, size: 22),
                       const SizedBox(width: 6),
-                      Flexible(child: Text(away.name, overflow: TextOverflow.ellipsis)),
+                      Flexible(
+                          child:
+                              Text(away.name, overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -241,13 +328,19 @@ class _UserFixtureList extends StatelessWidget {
         final f = userFixtures[i];
         final home = league.teams.firstWhere((t) => t.id == f.homeTeamId).name;
         final away = league.teams.firstWhere((t) => t.id == f.awayTeamId).name;
-        final opponentId = f.homeTeamId == userTeamId ? f.awayTeamId : f.homeTeamId;
+        final opponentId =
+            f.homeTeamId == userTeamId ? f.awayTeamId : f.homeTeamId;
         final opponent = league.teams.firstWhere((t) => t.id == opponentId);
         final result = f.result;
         final isNext = f.matchday == nextMatchday;
         final isDerby = context.read<GameState>().isRivalFixture(f);
         return Container(
-          color: isNext ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
+          color: isNext
+              ? Theme.of(context)
+                  .colorScheme
+                  .primaryContainer
+                  .withValues(alpha: 0.3)
+              : null,
           child: ListTile(
             leading: SizedBox(
               width: 76,
@@ -255,28 +348,49 @@ class _UserFixtureList extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(width: 44, child: Text('第${f.matchday}節')),
-                  ClubEmblem(teamId: opponent.id, teamName: opponent.name, size: 24),
+                  ClubEmblem(
+                      teamId: opponent.id, teamName: opponent.name, size: 24),
                 ],
               ),
             ),
             title: Row(
               children: [
-                Flexible(child: Text('$home vs $away', overflow: TextOverflow.ellipsis)),
+                Flexible(
+                    child: Text('$home vs $away',
+                        overflow: TextOverflow.ellipsis)),
                 if (isDerby) ...[
                   const SizedBox(width: 6),
-                  const Icon(Icons.local_fire_department, size: 16, color: Colors.redAccent),
+                  const Icon(Icons.local_fire_department,
+                      size: 16, color: Colors.redAccent),
                 ],
               ],
             ),
             trailing: result == null
-                ? Text(isNext ? '次節' : '未消化', style: isNext ? const TextStyle(fontWeight: FontWeight.bold) : null)
+                ? Text(isNext ? '次節' : '未消化',
+                    style: isNext
+                        ? const TextStyle(fontWeight: FontWeight.bold)
+                        : null)
                 : Text(
                     '${result.homeGoals} - ${result.awayGoals}',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: _resultColor(
+                              context, result, userTeamId, f.homeTeamId),
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
           ),
         );
       },
     );
+  }
+
+  Color? _resultColor(BuildContext context, MatchResult result,
+      String userTeamId, String homeTeamId) {
+    final userIsHome = homeTeamId == userTeamId;
+    final userGoals = userIsHome ? result.homeGoals : result.awayGoals;
+    final oppGoals = userIsHome ? result.awayGoals : result.homeGoals;
+    if (userGoals > oppGoals) return SemanticColors.positive(context);
+    if (userGoals < oppGoals) return SemanticColors.negative(context);
+    return SemanticColors.neutral(context);
   }
 }

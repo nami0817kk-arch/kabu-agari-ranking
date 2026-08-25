@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../logic/loan_engine.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 
 class FinanceScreen extends StatelessWidget {
   const FinanceScreen({super.key});
@@ -14,11 +15,13 @@ class FinanceScreen extends StatelessWidget {
     final team = gameState.userTeam;
     final income = gameState.weeklyIncomeFor(team.id);
     final wageBill = gameState.weeklyWageBill;
-    final loanRepayment = gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
+    final loanRepayment =
+        gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
     final net = income - wageBill - loanRepayment;
 
     final sortedByExpiry = team.players.where((p) => !p.isLoan).toList()
-      ..sort((a, b) => a.contractWeeksRemaining.compareTo(b.contractWeeksRemaining));
+      ..sort((a, b) =>
+          a.contractWeeksRemaining.compareTo(b.contractWeeksRemaining));
     final loanPlayers = team.players.where((p) => p.isLoan).toList();
 
     return Scaffold(
@@ -32,15 +35,22 @@ class FinanceScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('資金: ${save.budget}万円', style: Theme.of(context).textTheme.titleLarge),
+                  Text('資金: ${save.budget}万円',
+                      style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
                   Text('週間収入: +$income万円（観客動員・スポンサー収入込み）'),
                   Text('週間人件費: -$wageBill万円（スタッフ週俸込み）'),
                   if (loanRepayment > 0) Text('週間融資返済: -$loanRepayment万円'),
+                  const SizedBox(height: 8),
+                  _CashFlowBar(
+                      income: income, expenses: wageBill + loanRepayment),
+                  const SizedBox(height: 8),
                   Text(
                     '週間収支: ${net >= 0 ? '+' : ''}$net万円',
                     style: TextStyle(
-                      color: net >= 0 ? Colors.green : Colors.redAccent,
+                      color: net >= 0
+                          ? SemanticColors.positive(context)
+                          : SemanticColors.negative(context),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -85,7 +95,8 @@ class FinanceScreen extends StatelessWidget {
               ),
           ],
           const SizedBox(height: 16),
-          Text('契約状況（残り週数が少ない順）', style: Theme.of(context).textTheme.titleMedium),
+          Text('契約状況（残り週数が少ない順）',
+              style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           for (final p in sortedByExpiry)
             Card(
@@ -96,13 +107,48 @@ class FinanceScreen extends StatelessWidget {
                 trailing: Text(
                   '残り${p.contractWeeksRemaining}週',
                   style: TextStyle(
-                    color: p.contractWeeksRemaining <= 4 ? Colors.redAccent : null,
-                    fontWeight: p.contractWeeksRemaining <= 4 ? FontWeight.bold : null,
+                    color: p.contractWeeksRemaining <= 4
+                        ? SemanticColors.negative(context)
+                        : null,
+                    fontWeight:
+                        p.contractWeeksRemaining <= 4 ? FontWeight.bold : null,
                   ),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// 週間収入と支出(人件費+融資返済)の比率を視覚化する内訳バー。
+class _CashFlowBar extends StatelessWidget {
+  final int income;
+  final int expenses;
+
+  const _CashFlowBar({required this.income, required this.expenses});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = income + expenses;
+    if (total <= 0) return const SizedBox.shrink();
+    final incomeFlex = ((income / total) * 100).round().clamp(1, 99);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 10,
+        child: Row(
+          children: [
+            Expanded(
+                flex: incomeFlex,
+                child: Container(color: SemanticColors.positive(context))),
+            Expanded(
+                flex: 100 - incomeFlex,
+                child: Container(color: SemanticColors.negative(context))),
+          ],
+        ),
       ),
     );
   }
@@ -124,7 +170,8 @@ class _SponsorSection extends StatelessWidget {
           leading: const Icon(Icons.handshake),
           title: Text(deal.name),
           subtitle: Text('残り${deal.weeksRemaining}週'),
-          trailing: Text('+${deal.weeklyIncome}万円/週', style: const TextStyle(fontWeight: FontWeight.bold)),
+          trailing: Text('+${deal.weeklyIncome}万円/週',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
       );
     }
@@ -196,8 +243,10 @@ class _LoanSection extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.account_balance),
               title: Text('借入元本 ${loan.principal}万円'),
-              subtitle: Text('残り${loan.weeksRemaining}週 / 返済総額残り${loan.totalRemaining}万円'),
-              trailing: Text('-${loan.weeklyRepayment}万円/週', style: const TextStyle(color: Colors.redAccent)),
+              subtitle: Text(
+                  '残り${loan.weeksRemaining}週 / 返済総額残り${loan.totalRemaining}万円'),
+              trailing: Text('-${loan.weeklyRepayment}万円/週',
+                  style: const TextStyle(color: Colors.redAccent)),
             ),
           ),
         Card(
@@ -239,7 +288,8 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.gameState.maxLoanAmount.toString());
+    _controller =
+        TextEditingController(text: widget.gameState.maxLoanAmount.toString());
   }
 
   @override
@@ -267,19 +317,23 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
           children: [
             Text('融資を申し込む', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 4),
-            Text('借入可能額: $maxAmount万円', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text('借入可能額: $maxAmount万円',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 12),
             TextField(
               controller: _controller,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '借入額(万円)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: '借入額(万円)', border: OutlineInputBorder()),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
             for (final term in LoanEngine.terms)
               ListTile(
-                leading: Icon(term.weeks <= 12 ? Icons.speed : Icons.hourglass_bottom),
-                title: Text('${term.label}（${term.weeks}週・利率${term.interestRatePercent.toStringAsFixed(0)}%）'),
+                leading: Icon(
+                    term.weeks <= 12 ? Icons.speed : Icons.hourglass_bottom),
+                title: Text(
+                    '${term.label}（${term.weeks}週・利率${term.interestRatePercent.toStringAsFixed(0)}%）'),
                 subtitle: Text(
                   amount <= 0
                       ? '借入額を入力してください'
@@ -287,7 +341,8 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
                           '返済総額${LoanEngine.totalRepaymentFor(amount, term)}万円',
                 ),
                 enabled: amount > 0,
-                onTap: amount <= 0 ? null : () => _confirm(context, amount, term),
+                onTap:
+                    amount <= 0 ? null : () => _confirm(context, amount, term),
               ),
           ],
         ),
