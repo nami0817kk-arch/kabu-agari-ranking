@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/club_infrastructure.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 
 class ClubScreen extends StatelessWidget {
@@ -11,6 +12,13 @@ class ClubScreen extends StatelessWidget {
     final gameState = context.watch<GameState>();
     final save = gameState.save!;
     final infra = save.infrastructure;
+    final totalLevels = [
+      ...StaffRole.values.map(infra.staffLevel),
+      ...FacilityType.values.map(infra.facilityLevel)
+    ].fold<int>(0, (s, l) => s + l);
+    final maxTotalLevels =
+        (StaffRole.values.length + FacilityType.values.length) *
+            ClubInfrastructure.maxLevel;
 
     return Scaffold(
       appBar: AppBar(title: const Text('クラブ施設・スタッフ')),
@@ -23,10 +31,28 @@ class ClubScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('資金: ${save.budget}万円', style: Theme.of(context).textTheme.titleMedium),
+                  Text('資金: ${save.budget}万円',
+                      style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   Text('スタッフ週俸合計: ${infra.totalStaffWeeklyWage}万円',
                       style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: totalLevels / maxTotalLevels,
+                            minHeight: 6,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('充実度 $totalLevels/$maxTotalLevels',
+                          style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -41,7 +67,8 @@ class ClubScreen extends StatelessWidget {
               level: infra.staffLevel(role),
               cost: gameState.staffUpgradeCostFor(role),
               costLabel: '雇用費',
-              extraLabel: '週俸 ${ClubInfrastructure.staffWeeklyWage(infra.staffLevel(role))}万円',
+              extraLabel:
+                  '週俸 ${ClubInfrastructure.staffWeeklyWage(infra.staffLevel(role))}万円',
               canAfford: save.budget >= gameState.staffUpgradeCostFor(role),
               onUpgrade: () => gameState.upgradeStaff(role),
             ),
@@ -117,16 +144,25 @@ class _UpgradeCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 4),
-            Text(description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(description,
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
             if (extraLabel != null) ...[
               const SizedBox(height: 2),
-              Text(extraLabel!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              Text(extraLabel!,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: isMax || !canAfford ? null : () => onUpgrade(),
+                onPressed: isMax || !canAfford
+                    ? null
+                    : () async {
+                        final ok = await onUpgrade();
+                        ok
+                            ? FeedbackService.success()
+                            : FeedbackService.error();
+                      },
                 child: Text(isMax ? '最大レベル' : '$costLabel $cost万円でアップグレード'),
               ),
             ),
