@@ -63,8 +63,8 @@ class PlayerDetailScreen extends StatelessWidget {
             Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
-                title: Text(category.label),
-                initiallyExpanded: false,
+                title: Text('${category.label}（${category.keys.length}項目）'),
+                initiallyExpanded: true,
                 children: [
                   for (final key in category.keys)
                     Padding(
