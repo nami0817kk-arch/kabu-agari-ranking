@@ -74,6 +74,18 @@ class PlayerDetailScreen extends StatelessWidget {
                   backgroundColor: Colors.blueAccent,
                   labelStyle: TextStyle(color: Colors.white),
                 ),
+              if (p.isLoanedOut)
+                Chip(
+                  label: Text('${p.loanedOutToClubName}へローン中'),
+                  backgroundColor: Colors.deepPurple,
+                  labelStyle: const TextStyle(color: Colors.white),
+                ),
+              if (p.isTransferListed)
+                const Chip(
+                  label: Text('移籍リスト登録中'),
+                  backgroundColor: Colors.orange,
+                  labelStyle: TextStyle(color: Colors.white),
+                ),
             ],
           ),
           if (p.isInjured)
@@ -146,6 +158,14 @@ class PlayerDetailScreen extends StatelessWidget {
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
             )
+          else if (p.isLoanedOut)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                '他クラブへローン放出中は契約更新・放出の対象外です。期間終了時に自動的に復帰します。',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            )
           else ...[
             FilledButton(
               onPressed: gameState.save!.budget < renewalCost ? null : () => _renew(context),
@@ -156,6 +176,18 @@ class PlayerDetailScreen extends StatelessWidget {
               onPressed: team.players.length <= minSquadSize ? null : () => _confirmSell(context, sellPrice),
               child: Text('放出する（$sellPrice万円）'),
             ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.sell_outlined),
+              onPressed: () => gameState.setTransferListed(playerId, !p.isTransferListed),
+              label: Text(p.isTransferListed ? '移籍リストから外す' : '移籍リストに登録する'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.flight_takeoff),
+              onPressed: team.players.length <= minSquadSize ? null : () => _showLoanOutDialog(context),
+              label: const Text('他クラブへローン放出する'),
+            ),
           ],
           const SizedBox(height: 8),
           OutlinedButton.icon(
@@ -163,7 +195,7 @@ class PlayerDetailScreen extends StatelessWidget {
             onPressed: () => _reassure(context),
             label: const Text('話し合う（不満度を和らげる）'),
           ),
-          if (!p.isLoan) ...[
+          if (!p.isLoan && !p.isLoanedOut) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.gavel),
@@ -239,6 +271,49 @@ class PlayerDetailScreen extends StatelessWidget {
         ],
       ),
     ).then((_) => controller.dispose());
+  }
+
+  void _showLoanOutDialog(BuildContext context) {
+    final gameState = context.read<GameState>();
+    int weeks = 8;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('ローン放出期間'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('$weeks週間、他クラブへ貸し出します。期間中の週俸は放出先が負担します。'),
+              Slider(
+                value: weeks.toDouble(),
+                min: GameState.loanOutMinWeeks.toDouble(),
+                max: GameState.loanOutMaxWeeks.toDouble(),
+                divisions: GameState.loanOutMaxWeeks - GameState.loanOutMinWeeks,
+                label: '$weeks週',
+                onChanged: (v) => setState(() => weeks = v.round()),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            FilledButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final ok = await gameState.loanOutPlayer(playerId, weeks);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(ok ? 'ローン放出しました' : 'ローン放出できませんでした')),
+                  );
+                }
+              },
+              child: const Text('放出する'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmSell(BuildContext context, int sellPrice) {

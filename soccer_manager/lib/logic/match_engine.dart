@@ -26,23 +26,43 @@ class MatchEngine {
       final lineup = t.startingXI
           .map((id) => byId[id])
           .whereType<Player>()
-          .where((p) => !p.isInjured && !p.isOnInternationalDuty)
+          .where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut)
           .toList();
       if (lineup.length >= 7) return lineup;
     }
-    final available = t.players.where((p) => !p.isInjured && !p.isOnInternationalDuty).toList()
+    final available =
+        t.players.where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut).toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
     return available.take(11).toList();
   }
+
+  /// デューティ(攻撃的/バランス/守備的)による攻撃貢献度の補正。
+  static double _dutyAttackMultiplier(PlayerDuty duty) => switch (duty) {
+        PlayerDuty.attack => 1.15,
+        PlayerDuty.support => 1.0,
+        PlayerDuty.defend => 0.85,
+      };
+
+  /// デューティによる守備貢献度の補正(攻撃的デューティは守備が手薄になる)。
+  static double _dutyDefenseMultiplier(PlayerDuty duty) => switch (duty) {
+        PlayerDuty.defend => 1.15,
+        PlayerDuty.support => 1.0,
+        PlayerDuty.attack => 0.85,
+      };
 
   static double _attackPower(Team t, List<Player> lineup) {
     final relevant = lineup
         .where((p) => p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid)
         .toList();
     if (relevant.isEmpty) return 40;
-    final total = relevant.fold<double>(0, (s, p) => s + p.attack * _condition(p));
+    final total = relevant.fold<double>(
+      0,
+      (s, p) => s + p.attack * _condition(p) * _dutyAttackMultiplier(p.duty),
+    );
     final lineFactor = 1 + (t.lineHeight - 50) / 400;
-    return (total / relevant.length) * t.formation.attackBias * lineFactor;
+    final widthFactor = 1 + (t.width - 50) / 500;
+    final tempoFactor = 1 + (t.tempo - 50) / 500;
+    return (total / relevant.length) * t.formation.attackBias * lineFactor * widthFactor * tempoFactor;
   }
 
   static double _defensePower(Team t, List<Player> lineup) {
@@ -50,10 +70,14 @@ class MatchEngine {
         .where((p) => p.position.group == PositionGroup.def || p.position.group == PositionGroup.gk)
         .toList();
     if (relevant.isEmpty) return 40;
-    final total = relevant.fold<double>(0, (s, p) => s + p.defense * _condition(p));
+    final total = relevant.fold<double>(
+      0,
+      (s, p) => s + p.defense * _condition(p) * _dutyDefenseMultiplier(p.duty),
+    );
     final pressFactor = 1 + (t.pressing - 50) / 400;
     final lineRiskFactor = 1 + (50 - t.lineHeight) / 500;
-    return (total / relevant.length) * t.formation.defenseBias * pressFactor * lineRiskFactor;
+    final widthRiskFactor = 1 - (t.width - 50) / 800;
+    return (total / relevant.length) * t.formation.defenseBias * pressFactor * lineRiskFactor * widthRiskFactor;
   }
 
   static Player? _pickScorer(List<Player> lineup) {
@@ -73,8 +97,9 @@ class MatchEngine {
 
   static void _applyFatigue(Team t, List<Player> lineup) {
     final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
+    final tempoFatigueFactor = 1 + (t.tempo - 50) / 300;
     for (final p in lineup) {
-      final gain = (12 + _rng.nextInt(8)) * pressFatigueFactor;
+      final gain = (12 + _rng.nextInt(8)) * pressFatigueFactor * tempoFatigueFactor;
       p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
     }
   }

@@ -21,6 +21,12 @@ class Team {
   /// 守備ラインの高さ（0-100）。高いほど攻撃的だが裏を突かれやすい。
   int lineHeight;
 
+  /// 攻撃の幅（0-100）。高いほどサイドを広く使い攻撃力が上がるが、中央の守備が薄くなる。
+  int width;
+
+  /// プレーのテンポ（0-100）。高いほど攻撃的だが疲労が溜まりやすい。
+  int tempo;
+
   Team({
     required this.id,
     required this.name,
@@ -31,6 +37,8 @@ class Team {
     this.defaultTrainingFocus = TrainingFocus.rest,
     this.pressing = 50,
     this.lineHeight = 50,
+    this.width = 50,
+    this.tempo = 50,
   }) : startingXI = startingXI ?? [];
 
   int get overallRating {
@@ -48,6 +56,8 @@ class Team {
         'defaultTrainingFocus': defaultTrainingFocus.name,
         'pressing': pressing,
         'lineHeight': lineHeight,
+        'width': width,
+        'tempo': tempo,
         'players': players.map((p) => p.toJson()).toList(),
       };
 
@@ -62,6 +72,8 @@ class Team {
             : TrainingFocus.values.byName(json['defaultTrainingFocus'] as String),
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
+        width: json['width'] as int? ?? 50,
+        tempo: json['tempo'] as int? ?? 50,
         players: (json['players'] as List)
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),

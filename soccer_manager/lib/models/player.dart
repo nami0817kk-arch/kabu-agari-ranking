@@ -102,6 +102,17 @@ extension PositionLabel on Position {
   }
 }
 
+/// 選手の戦術上のデューティ(役割の重心)。攻撃/守備の貢献度に補正がかかる。
+enum PlayerDuty { defend, support, attack }
+
+extension PlayerDutyInfo on PlayerDuty {
+  String get label => switch (this) {
+        PlayerDuty.defend => '守備的',
+        PlayerDuty.support => 'バランス',
+        PlayerDuty.attack => '攻撃的',
+      };
+}
+
 /// 選手の性格。不満度(happiness)の変動しやすさや移籍希望の出やすさに影響する。
 enum PlayerPersonality { professional, balanced, ambitious, temperamental, loyal }
 
@@ -263,6 +274,17 @@ class Player {
   /// 招集中はスタメン・自動編成の対象外になる。
   int internationalDutyWeeksRemaining;
 
+  /// 戦術上のデューティ(守備的/バランス/攻撃的)。試合エンジンの攻守貢献度に補正がかかる。
+  PlayerDuty duty;
+
+  /// 移籍リストに登録されているか。登録中は他クラブからのオファーが来やすくなる。
+  bool isTransferListed;
+
+  /// 他クラブへローン放出中かどうかの残り週数(0なら放出されていない)。
+  /// 放出中はスタメン・自動編成の対象外で、週俸は放出先クラブが負担する。
+  int loanedOutWeeksRemaining;
+  String? loanedOutToClubName;
+
   Player({
     required this.id,
     required this.name,
@@ -283,6 +305,10 @@ class Player {
     this.loanWeeksRemaining = 0,
     this.releaseClause,
     this.internationalDutyWeeksRemaining = 0,
+    this.duty = PlayerDuty.support,
+    this.isTransferListed = false,
+    this.loanedOutWeeksRemaining = 0,
+    this.loanedOutToClubName,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
@@ -354,6 +380,9 @@ class Player {
 
   bool get isOnInternationalDuty => internationalDutyWeeksRemaining > 0;
 
+  /// 他クラブへローン放出中で、自クラブの試合には出場できない状態かどうか。
+  bool get isLoanedOut => loanedOutWeeksRemaining > 0;
+
   /// 想定移籍金（万円）。年齢・現在能力・伸びしろから概算する。
   int get marketValue {
     final ovr = (overall - 40).clamp(0, 60);
@@ -393,6 +422,10 @@ class Player {
         'loanWeeksRemaining': loanWeeksRemaining,
         'releaseClause': releaseClause,
         'internationalDutyWeeksRemaining': internationalDutyWeeksRemaining,
+        'duty': duty.name,
+        'isTransferListed': isTransferListed,
+        'loanedOutWeeksRemaining': loanedOutWeeksRemaining,
+        'loanedOutToClubName': loanedOutToClubName,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -428,6 +461,10 @@ class Player {
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
       releaseClause: json['releaseClause'] as int?,
       internationalDutyWeeksRemaining: json['internationalDutyWeeksRemaining'] as int? ?? 0,
+      duty: json['duty'] == null ? PlayerDuty.support : PlayerDuty.values.byName(json['duty'] as String),
+      isTransferListed: json['isTransferListed'] as bool? ?? false,
+      loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
+      loanedOutToClubName: json['loanedOutToClubName'] as String?,
     );
   }
 

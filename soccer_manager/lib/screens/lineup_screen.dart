@@ -78,10 +78,43 @@ class LineupScreen extends StatelessWidget {
                     SizedBox(width: 32, child: Text('${team.lineHeight}')),
                   ],
                 ),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('攻撃の幅')),
+                    Expanded(
+                      child: Slider(
+                        value: team.width.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.width}',
+                        onChanged: (v) => context.read<GameState>().setWidth(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.width}')),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('テンポ')),
+                    Expanded(
+                      child: Slider(
+                        value: team.tempo.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.tempo}',
+                        onChanged: (v) => context.read<GameState>().setTempo(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.tempo}')),
+                  ],
+                ),
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。',
+                    'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。\n'
+                    '幅を広げると攻撃力が増すが中央の守備が薄くなる。テンポを上げると攻撃的だが疲労が増えやすい。',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
@@ -221,7 +254,7 @@ class _PitchView extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Text('${slotPosition.fullLabel}(${slotPosition.label})に配置', style: Theme.of(ctx).textTheme.titleMedium),
             ),
-            if (current != null)
+            if (current != null) ...[
               ListTile(
                 leading: const Icon(Icons.remove_circle_outline, color: Colors.redAccent),
                 title: const Text('この枠を空ける'),
@@ -230,6 +263,25 @@ class _PitchView extends StatelessWidget {
                   gameState.toggleStartingPlayer(current.id);
                 },
               ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final duty in PlayerDuty.values)
+                      ChoiceChip(
+                        label: Text(duty.label),
+                        selected: current.duty == duty,
+                        onSelected: (_) {
+                          Navigator.pop(ctx);
+                          gameState.setPlayerDuty(current.id, duty);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(),
+            ],
             for (final p in candidates)
               ListTile(
                 leading: PlayerFaceAvatar(playerId: p.id, position: p.position),

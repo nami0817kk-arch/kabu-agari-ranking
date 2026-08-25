@@ -9,6 +9,8 @@ import 'package:soccer_manager/logic/lineup_utils.dart';
 import 'package:soccer_manager/logic/loan_engine.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
+import 'package:soccer_manager/logic/promotion_engine.dart';
+import 'package:soccer_manager/logic/scout_report_engine.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
@@ -970,5 +972,159 @@ void main() {
     expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: rivalId, awayTeamId: userId)), isTrue);
     expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: userId, awayTeamId: otherId)), isFalse);
     expect(gameState.isRivalFixture(Fixture(matchday: 1, homeTeamId: otherId, awayTeamId: rivalId)), isFalse);
+  });
+
+  test('PromotionEngine.resolve swaps the bottom of tier1 with the top of tier2', () {
+    List<Team> makeTeams(String prefix, int count) => List.generate(
+          count,
+          (i) => PlayerGenerator.generateSquad(id: '$prefix$i', name: '$prefix Team $i', strengthTier: 60),
+        );
+
+    final tier1Teams = makeTeams('t1', 8);
+    final tier2Teams = makeTeams('t2', 8);
+    for (final t in [...tier1Teams, ...tier2Teams]) {
+      LineupUtils.autoFill(t);
+    }
+    // tier1PlayedOrderは実際の最終順位(良い順)を模した並び。
+    final tier1PlayedOrder = List<Team>.from(tier1Teams);
+
+    final result = PromotionEngine.resolve(
+      tier1Teams: tier1Teams,
+      tier2Teams: tier2Teams,
+      tier1PlayedOrder: tier1PlayedOrder,
+    );
+
+    expect(result.tier1.length, 8);
+    expect(result.tier2.length, 8);
+
+    final survivorsTop = tier1PlayedOrder.take(5).map((t) => t.id).toSet();
+    final relegatedIds = tier1PlayedOrder.skip(5).map((t) => t.id).toSet();
+    final newTier1Ids = result.tier1.map((t) => t.id).toSet();
+    final newTier2Ids = result.tier2.map((t) => t.id).toSet();
+
+    // 上位5チームは残留し、下位3チームは降格する。
+    expect(newTier1Ids.containsAll(survivorsTop), isTrue);
+    expect(newTier2Ids.containsAll(relegatedIds), isTrue);
+    // 昇格した3チームはすべてtier2の元メンバーから来ている。
+    expect(newTier1Ids.difference(survivorsTop).every((id) => tier2Teams.any((t) => t.id == id)), isTrue);
+    // チームが増減せず、全チームがどちらかのディビジョンに存在する。
+    final allOriginalIds = {...tier1Teams.map((t) => t.id), ...tier2Teams.map((t) => t.id)};
+    expect(newTier1Ids.union(newTier2Ids), allOriginalIds);
+    expect(result.relegatedTeamNames.length, 3);
+    expect(result.promotedTeamNames.length, 3);
+  });
+
+  test('GameState.startNextSeason relegates the user to the second division when they finish last', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      final userIsAway = f.awayTeamId == userId;
+      if (userIsHome || userIsAway) {
+        f.result = MatchResult(
+          matchday: f.matchday,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: userIsHome ? 0 : 3,
+          awayGoals: userIsHome ? 3 : 0,
+          events: [],
+        );
+      } else {
+        f.result = MatchResult(
+          matchday: f.matchday,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: 1,
+          awayGoals: 1,
+          events: [],
+        );
+      }
+    }
+
+    await gameState.startNextSeason();
+
+    expect(gameState.currentDivisionTier, 2);
+    expect(gameState.lastDivisionChangeMessage, contains('降格'));
+    expect(() => gameState.userTeam, returnsNormally);
+    expect(gameState.save!.league.teams.length, teamsPerLeague);
+    expect(gameState.save!.secondDivisionTeams.length, teamsPerLeague);
+  });
+
+  test('ScoutReportEngine.generateFor produces a report with a key player and recommendation', () {
+    final opponent = PlayerGenerator.generateSquad(id: 'opp', name: '対戦相手FC', strengthTier: 70);
+    final userTeam = PlayerGenerator.generateSquad(id: 'user', name: 'テストFC', strengthTier: 60);
+    LineupUtils.autoFill(opponent);
+    LineupUtils.autoFill(userTeam);
+
+    final report = ScoutReportEngine.generateFor(opponent: opponent, userTeam: userTeam);
+
+    expect(report.opponentName, '対戦相手FC');
+    expect(report.keyPlayerName, isNotNull);
+    expect(report.recommendation, isNotEmpty);
+  });
+
+  test('GameState.loanOutPlayer sends a player out on loan, excluding them from the wage bill and lineup', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final target = team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    final wageBefore = ContractEngine.weeklyWageBill(team);
+
+    final ok = await gameState.loanOutPlayer(target.id, 8);
+
+    expect(ok, isTrue);
+    expect(target.isLoanedOut, isTrue);
+    expect(target.loanedOutWeeksRemaining, 8);
+    expect(team.startingXI.contains(target.id), isFalse);
+    expect(ContractEngine.weeklyWageBill(team), wageBefore - target.wage);
+  });
+
+  test('GameState.playNextMatchday returns a loaned-out player to the squad once the term ends', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+    await gameState.loanOutPlayer(target.id, GameState.loanOutMinWeeks);
+
+    for (int i = 0; i < GameState.loanOutMinWeeks; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    expect(target.isLoanedOut, isFalse);
+    expect(gameState.lastLoanReturns, contains(target.name));
+  });
+
+  test('GameState.setTransferListed toggles the listed flag', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+
+    await gameState.setTransferListed(target.id, true);
+    expect(target.isTransferListed, isTrue);
+
+    await gameState.setTransferListed(target.id, false);
+    expect(target.isTransferListed, isFalse);
+  });
+
+  test('GameState.setPlayerDuty updates the duty and MatchEngine.simulate still runs under extreme tactics', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    for (final id in team.startingXI) {
+      gameState.setPlayerDuty(id, PlayerDuty.attack);
+    }
+    team.width = 100;
+    team.tempo = 100;
+    expect(team.players.firstWhere((p) => p.id == team.startingXI.first).duty, PlayerDuty.attack);
+
+    final away = PlayerGenerator.generateSquad(id: 'awayX', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(away);
+    final result = MatchEngine.simulate(home: team, away: away, matchday: 1);
+
+    expect(result.homeGoals, greaterThanOrEqualTo(0));
+    expect(result.awayGoals, greaterThanOrEqualTo(0));
   });
 }

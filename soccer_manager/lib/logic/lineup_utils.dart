@@ -9,7 +9,8 @@ class LineupUtils {
   /// 残りの中で総合力が最も高い選手で埋める。
   static void autoFill(Team team) {
     final formation = team.formation;
-    final available = team.players.where((p) => !p.isInjured && !p.isOnInternationalDuty).toList();
+    final available =
+        team.players.where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut).toList();
     final used = <Player>{};
 
     List<Player> candidatesFor(Position slot) {

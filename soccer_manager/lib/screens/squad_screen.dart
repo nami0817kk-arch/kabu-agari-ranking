@@ -48,6 +48,14 @@ class SquadScreen extends StatelessWidget {
                     const SizedBox(width: 6),
                     const Icon(Icons.flag, size: 16, color: Colors.blueAccent),
                   ],
+                  if (p.isLoanedOut) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.flight_takeoff, size: 16, color: Colors.deepPurple),
+                  ],
+                  if (p.isTransferListed) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.sell_outlined, size: 16, color: Colors.orange),
+                  ],
                 ],
               ),
               subtitle: Text(
@@ -55,8 +63,12 @@ class SquadScreen extends StatelessWidget {
                     ? '負傷中（あと${p.injuryWeeks}週）'
                     : p.isOnInternationalDuty
                         ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
-                        : '${p.age}歳 / 総合 ${p.overall}',
-                style: (p.isInjured || p.isOnInternationalDuty) ? const TextStyle(color: Colors.redAccent) : null,
+                        : p.isLoanedOut
+                            ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
+                            : '${p.age}歳 / 総合 ${p.overall}',
+                style: (p.isInjured || p.isOnInternationalDuty || p.isLoanedOut)
+                    ? const TextStyle(color: Colors.redAccent)
+                    : null,
               ),
               trailing: p.fatigue > 70
                   ? const Icon(Icons.battery_alert, color: Colors.orange)

@@ -2,7 +2,9 @@ import '../models/player.dart';
 import '../models/team.dart';
 
 class ContractEngine {
-  static int weeklyWageBill(Team team) => team.players.fold<int>(0, (s, p) => s + p.wage);
+  /// 週俸総額。他クラブへローン放出中の選手は放出先が週俸を負担するため含めない。
+  static int weeklyWageBill(Team team) =>
+      team.players.where((p) => !p.isLoanedOut).fold<int>(0, (s, p) => s + p.wage);
 
   /// 契約(またはローン期間)を1週分消化させ、契約切れ・ローン満了となった
   /// 選手をチームから除外する。除外された選手のリストを返す（UI通知用）。

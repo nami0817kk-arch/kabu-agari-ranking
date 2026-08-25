@@ -9,6 +9,7 @@ import 'club_screen.dart';
 import 'cup_screen.dart';
 import 'finance_screen.dart';
 import 'live_match_screen.dart';
+import 'scout_report_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
@@ -53,7 +54,8 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${save.leagueName} シーズン${league.season}', style: Theme.of(context).textTheme.titleMedium),
+                      Text('${gameState.leagueDisplayName} シーズン${league.season}',
+                          style: Theme.of(context).textTheme.titleMedium),
                       Chip(label: Text(userTeam.formation.label)),
                     ],
                   ),
@@ -187,7 +189,7 @@ class HomeScreen extends StatelessWidget {
                 title: const Text('シーズン終了！'),
                 subtitle: Text('最終順位: $userRank位'),
                 trailing: FilledButton(
-                  onPressed: () => context.read<GameState>().startNextSeason(),
+                  onPressed: () => _startNextSeason(context),
                   child: const Text('次のシーズンへ'),
                 ),
               ),
@@ -218,9 +220,18 @@ class HomeScreen extends StatelessWidget {
                   ],
                 ),
                 subtitle: Text(_fixtureLabel(league, next)),
-                trailing: FilledButton(
-                  onPressed: () => _playMatch(context),
-                  child: const Text('試合を行う'),
+                trailing: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FilledButton(
+                      onPressed: () => _playMatch(context),
+                      child: const Text('試合を行う'),
+                    ),
+                    TextButton(
+                      onPressed: () => _showScoutReport(context, next),
+                      child: const Text('偵察レポート', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -302,6 +313,17 @@ class HomeScreen extends StatelessWidget {
     return '$home vs $away';
   }
 
+  void _showScoutReport(BuildContext context, Fixture fixture) {
+    final gameState = context.read<GameState>();
+    final userTeam = gameState.userTeam;
+    final league = gameState.save!.league;
+    final opponentId = fixture.homeTeamId == userTeam.id ? fixture.awayTeamId : fixture.homeTeamId;
+    final opponent = league.teams.firstWhere((t) => t.id == opponentId);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ScoutReportScreen(opponent: opponent, userTeam: userTeam)),
+    );
+  }
+
   Future<void> _playMatch(BuildContext context) async {
     final gameState = context.read<GameState>();
     final firstHalf = await gameState.playNextMatchday();
@@ -328,6 +350,13 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastInternationalCallUps = [];
     }
+    final loanReturns = gameState.lastLoanReturns;
+    if (loanReturns.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('ローン放出から復帰: ${loanReturns.join('、')}')),
+      );
+      gameState.lastLoanReturns = [];
+    }
 
     if (firstHalf != null) {
       await Navigator.of(context).push(
@@ -343,6 +372,18 @@ class HomeScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('親善試合結果: ${result.homeGoals} - ${result.awayGoals}')),
       );
+    }
+  }
+
+  Future<void> _startNextSeason(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    await gameState.startNextSeason();
+    final message = gameState.lastDivisionChangeMessage;
+    if (context.mounted && message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 5)),
+      );
+      gameState.lastDivisionChangeMessage = null;
     }
   }
 }

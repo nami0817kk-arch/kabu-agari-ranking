@@ -80,6 +80,13 @@ class SaveGame {
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? pendingPressConference;
 
+  /// 現在ユーザーが所属していない方のディビジョンのチーム一覧。週次では進行させず、
+  /// シーズン終了時にまとめてシミュレートして昇格・降格を決定する。
+  List<Team> secondDivisionTeams;
+
+  /// ユーザークラブが現在所属するディビジョン(1部/2部)。
+  int currentDivisionTier;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -106,6 +113,8 @@ class SaveGame {
     this.rivalTeamId,
     this.rivalTeamName,
     this.pendingPressConference,
+    List<Team>? secondDivisionTeams,
+    this.currentDivisionTier = 1,
   })  : youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -116,7 +125,8 @@ class SaveGame {
         friendlies = friendlies ?? [],
         incomingOffers = incomingOffers ?? [],
         bankLoans = bankLoans ?? [],
-        seasonAwards = seasonAwards ?? [];
+        seasonAwards = seasonAwards ?? [],
+        secondDivisionTeams = secondDivisionTeams ?? [];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -144,6 +154,8 @@ class SaveGame {
         'rivalTeamId': rivalTeamId,
         'rivalTeamName': rivalTeamName,
         'pendingPressConference': pendingPressConference?.toJson(),
+        'secondDivisionTeams': secondDivisionTeams.map((t) => t.toJson()).toList(),
+        'currentDivisionTier': currentDivisionTier,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -203,5 +215,10 @@ class SaveGame {
         pendingPressConference: json['pendingPressConference'] == null
             ? null
             : PressQuestion.fromJson(json['pendingPressConference'] as Map<String, dynamic>),
+        secondDivisionTeams: (json['secondDivisionTeams'] as List?)
+                ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        currentDivisionTier: json['currentDivisionTier'] as int? ?? 1,
       );
 }
