@@ -6,6 +6,7 @@ import '../models/club_infrastructure.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
 import '../models/installment.dart';
+import '../models/league_theme.dart';
 import '../models/player.dart';
 import '../models/save_game.dart';
 import '../models/sponsor.dart';
@@ -28,6 +29,9 @@ import '../data/name_pool.dart';
 
 const int maxSquadSize = 26;
 const int minSquadSize = 12;
+
+/// 1リーグあたりの参加クラブ数(自クラブ含む)。実際の主要リーグに近い規模とする。
+const int teamsPerLeague = 20;
 
 class GameState extends ChangeNotifier {
   static const _prefsKey = 'soccer_manager_save_v1';
@@ -72,18 +76,19 @@ class GameState extends ChangeNotifier {
     }
   }
 
-  Future<void> startNewGame(String clubName) async {
+  Future<void> startNewGame(String clubName, {LeagueTheme theme = LeagueTheme.england}) async {
     final userTeam = PlayerGenerator.generateSquad(
       id: 'user',
       name: clubName,
       strengthTier: 60,
       isUserTeam: true,
     );
-    final cpuNames = NamePool.clubNames(7);
+    const cpuCount = teamsPerLeague - 1;
+    final cpuNames = NamePool.themedClubNames(theme, cpuCount);
     final cpuTeams = <Team>[];
     final rng = Random();
-    for (int i = 0; i < 7; i++) {
-      final tier = 45 + rng.nextInt(30);
+    for (int i = 0; i < cpuCount; i++) {
+      final tier = 40 + rng.nextInt(35);
       cpuTeams.add(PlayerGenerator.generateSquad(id: 'cpu$i', name: cpuNames[i], strengthTier: tier));
     }
     final teams = [userTeam, ...cpuTeams];
@@ -96,6 +101,7 @@ class GameState extends ChangeNotifier {
       clubName: clubName,
       userTeamId: 'user',
       league: league,
+      leagueName: theme.label,
       boardTargetRank: BoardEngine.estimateTargetRank(league, 'user'),
       cups: [
         CupEngine.createKnockout(

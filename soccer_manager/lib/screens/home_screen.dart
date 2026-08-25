@@ -50,7 +50,7 @@ class HomeScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('シーズン ${league.season}', style: Theme.of(context).textTheme.titleMedium),
+                      Text('${save.leagueName} シーズン${league.season}', style: Theme.of(context).textTheme.titleMedium),
                       Chip(label: Text(userTeam.formation.label)),
                     ],
                   ),

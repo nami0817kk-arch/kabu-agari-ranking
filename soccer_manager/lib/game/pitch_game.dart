@@ -8,11 +8,13 @@ class PitchGame extends FlameGame {
   final MatchResult result;
   final void Function(MatchEvent event) onEvent;
   final VoidCallback onFinished;
+  final void Function(int minute)? onMinuteTick;
 
   PitchGame({
     required this.result,
     required this.onEvent,
     required this.onFinished,
+    this.onMinuteTick,
   });
 
   static const double matchDurationSeconds = 12;
@@ -20,6 +22,7 @@ class PitchGame extends FlameGame {
   late CircleComponent _ball;
   double _elapsed = 0;
   int _eventIndex = 0;
+  int _lastMinute = 0;
   bool _finished = false;
 
   @override
@@ -54,6 +57,11 @@ class PitchGame extends FlameGame {
     if (_finished) return;
     _elapsed += dt;
     final progressMinute = (_elapsed / matchDurationSeconds * 90).clamp(0, 90);
+    final minuteFloor = progressMinute.floor();
+    if (minuteFloor > _lastMinute) {
+      _lastMinute = minuteFloor;
+      onMinuteTick?.call(_lastMinute);
+    }
 
     final x = size.x / 2 + sin(_elapsed * 1.3) * (size.x / 2 - 16);
     final y = size.y / 2 + cos(_elapsed * 0.9) * (size.y / 2 - 16);
@@ -70,6 +78,7 @@ class PitchGame extends FlameGame {
         onEvent(result.events[_eventIndex]);
         _eventIndex++;
       }
+      onMinuteTick?.call(90);
       onFinished();
     }
   }

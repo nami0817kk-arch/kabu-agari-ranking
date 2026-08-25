@@ -11,6 +11,9 @@ class SaveGame {
   String userTeamId;
   League league;
 
+  /// 所属リーグの表示名(例: 「アルビオン・リーグ」)。
+  String leagueName;
+
   /// クラブ資金（万円）
   int budget;
 
@@ -48,6 +51,7 @@ class SaveGame {
     required this.clubName,
     required this.userTeamId,
     required this.league,
+    this.leagueName = 'リーグ',
     this.budget = 3000,
     this.boardTargetRank = 4,
     this.confidence = 60,
@@ -70,6 +74,7 @@ class SaveGame {
         'clubName': clubName,
         'userTeamId': userTeamId,
         'league': league.toJson(),
+        'leagueName': leagueName,
         'budget': budget,
         'boardTargetRank': boardTargetRank,
         'confidence': confidence,
@@ -87,6 +92,7 @@ class SaveGame {
         clubName: json['clubName'] as String,
         userTeamId: json['userTeamId'] as String,
         league: League.fromJson(json['league'] as Map<String, dynamic>),
+        leagueName: json['leagueName'] as String? ?? 'リーグ',
         budget: json['budget'] as int? ?? 3000,
         boardTargetRank: json['boardTargetRank'] as int? ?? 4,
         confidence: json['confidence'] as int? ?? 60,

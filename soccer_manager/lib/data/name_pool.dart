@@ -1,4 +1,5 @@
 import 'dart:math';
+import '../models/league_theme.dart';
 
 class NamePool {
   static final Random _rng = Random();
@@ -22,6 +23,33 @@ class NamePool {
 
   static const _clubSuffixes = ['FC', 'SC', 'ユナイテッド', 'アスレチック', 'シティ'];
 
+  /// リーグの国風テーマごとのクラブ名素材(単語・接尾辞)。
+  static const Map<LeagueTheme, List<String>> _themedWords = {
+    LeagueTheme.england: [
+      '紅獅子', '王冠', '霧の丘', '河畔', '古城', '聖森', '鉄橋', '北風',
+    ],
+    LeagueTheme.spain: [
+      '太陽', '黄金', '南風', '闘牛', '橄欖', '紺碧', '城塞', '薔薇',
+    ],
+    LeagueTheme.germany: [
+      '鉄鋼', '黒森', '北方', '工業', '鷲峰', '灰色', '大河', '鋼鉄',
+    ],
+    LeagueTheme.italy: [
+      '古都', '水都', '紫紺', '山脈', '太陽海岸', '大理石', '鷹', '黒獅子',
+    ],
+    LeagueTheme.france: [
+      '青薔薇', '灯台', '南仏', '栄光', '鳶色', '鐘楼', '葡萄畑', '風車',
+    ],
+  };
+
+  static const Map<LeagueTheme, List<String>> _themedSuffixes = {
+    LeagueTheme.england: ['ユナイテッド', 'シティ', 'アスレチック', 'ローヴァーズ', 'ウォンダラーズ', 'タウン'],
+    LeagueTheme.spain: ['レアル', 'アトレティコ', 'デポルティボ', 'CF', 'ウニオン'],
+    LeagueTheme.germany: ['SV', 'FC', 'ボルシア', 'ウニオン', 'アドラー'],
+    LeagueTheme.italy: ['インテル', 'AC', 'カルチョ', 'レアーレ', 'スポルティーバ'],
+    LeagueTheme.france: ['オランピック', 'AS', 'FC', 'レーシング', 'スタッド'],
+  };
+
   static String randomPlayerName() {
     final s = _surnames[_rng.nextInt(_surnames.length)];
     final g = _givenNames[_rng.nextInt(_givenNames.length)];
@@ -34,6 +62,22 @@ class NamePool {
       final w = _clubWords[_rng.nextInt(_clubWords.length)];
       final suf = _clubSuffixes[_rng.nextInt(_clubSuffixes.length)];
       combos.add('$w$suf');
+    }
+    return combos.toList();
+  }
+
+  /// 指定したリーグテーマの雰囲気に合わせたクラブ名を[count]件、重複なく生成する。
+  static List<String> themedClubNames(LeagueTheme theme, int count) {
+    final words = _themedWords[theme]!;
+    final suffixes = _themedSuffixes[theme]!;
+    final combos = <String>{};
+    var guard = 0;
+    final maxAttempts = count * 50;
+    while (combos.length < count && guard < maxAttempts) {
+      final w = words[_rng.nextInt(words.length)];
+      final suf = suffixes[_rng.nextInt(suffixes.length)];
+      combos.add('$w$suf');
+      guard++;
     }
     return combos.toList();
   }

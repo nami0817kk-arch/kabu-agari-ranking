@@ -8,32 +8,37 @@ class CupEngine {
   static final Random _rng = Random();
 
   /// チームIDのリストからノックアウト方式のカップを作成する。
-  /// 参加数が2の累乗でない場合は不戦勝(BYE)で埋める。
+  /// 参加数が2の累乗でない場合は不戦勝(BYE)で埋める。BYE同士が対戦して
+  /// 永久に決着しない事態を避けるため、各BYEは必ず実チーム1つと組ませる
+  /// (2の累乗への切り上げである以上、BYE数は必ず組数の半分未満に収まる)。
   static Cup createKnockout({required CupType type, required String name, required List<String> teamIds}) {
     final shuffled = [...teamIds]..shuffle(_rng);
     int size = 1;
     while (size < shuffled.length) {
       size *= 2;
     }
-    while (shuffled.length < size) {
-      shuffled.add(byeTeamId);
-    }
+    final byeCount = size - shuffled.length;
 
     final firstRound = <CupMatch>[];
-    for (int i = 0; i < shuffled.length; i += 2) {
-      final match = CupMatch(round: 1, homeTeamId: shuffled[i], awayTeamId: shuffled[i + 1]);
-      if (match.isBye) {
-        match.result = MatchResult(
-          matchday: 0,
-          homeTeamId: match.homeTeamId,
-          awayTeamId: match.awayTeamId,
-          homeGoals: match.awayTeamId == byeTeamId ? 1 : 0,
-          awayGoals: match.homeTeamId == byeTeamId ? 1 : 0,
-          events: [],
-        );
-      }
+    var idx = 0;
+    for (int i = 0; i < byeCount; i++) {
+      final match = CupMatch(round: 1, homeTeamId: shuffled[idx], awayTeamId: byeTeamId);
+      match.result = MatchResult(
+        matchday: 0,
+        homeTeamId: match.homeTeamId,
+        awayTeamId: byeTeamId,
+        homeGoals: 1,
+        awayGoals: 0,
+        events: [],
+      );
       firstRound.add(match);
+      idx++;
     }
+    while (idx < shuffled.length) {
+      firstRound.add(CupMatch(round: 1, homeTeamId: shuffled[idx], awayTeamId: shuffled[idx + 1]));
+      idx += 2;
+    }
+
     final cup = Cup(type: type, name: name, rounds: [firstRound]);
     _advanceRoundIfComplete(cup);
     return cup;

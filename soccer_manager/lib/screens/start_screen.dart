@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/league_theme.dart';
 import '../state/game_state.dart';
 import 'main_shell.dart';
 
@@ -12,6 +13,7 @@ class StartScreen extends StatefulWidget {
 
 class _StartScreenState extends State<StartScreen> {
   final _controller = TextEditingController();
+  LeagueTheme _theme = LeagueTheme.england;
 
   @override
   void dispose() {
@@ -72,6 +74,25 @@ class _StartScreenState extends State<StartScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('所属リーグ', style: Theme.of(context).textTheme.titleSmall),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: LeagueTheme.values
+                        .map(
+                          (theme) => ChoiceChip(
+                            label: Text('${theme.label}（${theme.flavorLabel}）'),
+                            selected: _theme == theme,
+                            onSelected: (_) => setState(() => _theme = theme),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
@@ -92,7 +113,7 @@ class _StartScreenState extends State<StartScreen> {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
     final gameState = context.read<GameState>();
-    await gameState.startNewGame(name);
+    await gameState.startNewGame(name, theme: _theme);
     if (context.mounted) {
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
     }

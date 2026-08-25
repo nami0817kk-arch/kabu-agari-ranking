@@ -61,11 +61,141 @@ class _StandingsTab extends StatelessWidget {
   }
 }
 
-class _ScheduleTab extends StatelessWidget {
+class _ScheduleTab extends StatefulWidget {
   final League league;
   final String userTeamId;
 
   const _ScheduleTab({required this.league, required this.userTeamId});
+
+  @override
+  State<_ScheduleTab> createState() => _ScheduleTabState();
+}
+
+class _ScheduleTabState extends State<_ScheduleTab> {
+  bool _showFullSchedule = false;
+  late int _selectedMatchday;
+  final _chipScrollController = ScrollController();
+
+  int get _totalMatchdays =>
+      widget.league.fixtures.map((f) => f.matchday).reduce((a, b) => a > b ? a : b);
+
+  int? get _nextMatchday => widget.league.nextUnplayedFixture?.matchday;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedMatchday = _nextMatchday ?? _totalMatchdays;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_chipScrollController.hasClients) return;
+      final offset = ((_selectedMatchday - 1) * 76.0).clamp(0.0, _chipScrollController.position.maxScrollExtent);
+      _chipScrollController.jumpTo(offset);
+    });
+  }
+
+  @override
+  void dispose() {
+    _chipScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final league = widget.league;
+    final userTeamId = widget.userTeamId;
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('自分の日程')),
+              ButtonSegment(value: true, label: Text('全日程')),
+            ],
+            selected: {_showFullSchedule},
+            onSelectionChanged: (s) => setState(() => _showFullSchedule = s.first),
+          ),
+        ),
+        if (_showFullSchedule) ...[
+          SizedBox(
+            height: 44,
+            child: ListView.builder(
+              controller: _chipScrollController,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: _totalMatchdays,
+              itemBuilder: (context, i) {
+                final md = i + 1;
+                final isNext = md == _nextMatchday;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(isNext ? '第$md節 •' : '第$md節'),
+                    selected: _selectedMatchday == md,
+                    onSelected: (_) => setState(() => _selectedMatchday = md),
+                  ),
+                );
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _MatchdayList(league: league, matchday: _selectedMatchday, userTeamId: userTeamId),
+          ),
+        ] else
+          Expanded(child: _UserFixtureList(league: league, userTeamId: userTeamId)),
+      ],
+    );
+  }
+}
+
+class _MatchdayList extends StatelessWidget {
+  final League league;
+  final int matchday;
+  final String userTeamId;
+
+  const _MatchdayList({required this.league, required this.matchday, required this.userTeamId});
+
+  @override
+  Widget build(BuildContext context) {
+    final fixtures = league.fixtures.where((f) => f.matchday == matchday).toList();
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      itemCount: fixtures.length,
+      itemBuilder: (context, i) {
+        final f = fixtures[i];
+        final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
+        final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
+        final isUserMatch = f.homeTeamId == userTeamId || f.awayTeamId == userTeamId;
+        final result = f.result;
+        return Container(
+          color: isUserMatch ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
+          child: ListTile(
+            title: Row(
+              children: [
+                Expanded(child: Text(home.name, textAlign: TextAlign.right, overflow: TextOverflow.ellipsis)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    result == null ? 'vs' : '${result.homeGoals} - ${result.awayGoals}',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Expanded(child: Text(away.name, overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UserFixtureList extends StatelessWidget {
+  final League league;
+  final String userTeamId;
+
+  const _UserFixtureList({required this.league, required this.userTeamId});
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +203,7 @@ class _ScheduleTab extends StatelessWidget {
         .where((f) => f.homeTeamId == userTeamId || f.awayTeamId == userTeamId)
         .toList()
       ..sort((a, b) => a.matchday.compareTo(b.matchday));
+    final nextMatchday = league.nextUnplayedFixture?.matchday;
 
     return ListView.builder(
       itemCount: userFixtures.length,
@@ -81,15 +212,19 @@ class _ScheduleTab extends StatelessWidget {
         final home = league.teams.firstWhere((t) => t.id == f.homeTeamId).name;
         final away = league.teams.firstWhere((t) => t.id == f.awayTeamId).name;
         final result = f.result;
-        return ListTile(
-          leading: SizedBox(width: 48, child: Text('第${f.matchday}節')),
-          title: Text('$home vs $away'),
-          trailing: result == null
-              ? const Text('未消化')
-              : Text(
-                  '${result.homeGoals} - ${result.awayGoals}',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+        final isNext = f.matchday == nextMatchday;
+        return Container(
+          color: isNext ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3) : null,
+          child: ListTile(
+            leading: SizedBox(width: 56, child: Text('第${f.matchday}節')),
+            title: Text('$home vs $away'),
+            trailing: result == null
+                ? Text(isNext ? '次節' : '未消化', style: isNext ? const TextStyle(fontWeight: FontWeight.bold) : null)
+                : Text(
+                    '${result.homeGoals} - ${result.awayGoals}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+          ),
         );
       },
     );

@@ -11,10 +11,12 @@ import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
+import 'package:soccer_manager/data/name_pool.dart';
 import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/club_infrastructure.dart';
 import 'package:soccer_manager/models/cup.dart';
 import 'package:soccer_manager/models/formation.dart';
+import 'package:soccer_manager/models/league_theme.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/team.dart';
@@ -485,5 +487,48 @@ void main() {
 
     expect(expired.any((p) => p.id == loanPlayer.id), isTrue);
     expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
+  });
+
+  test('NamePool.themedClubNames generates enough unique names for a full league', () {
+    for (final theme in LeagueTheme.values) {
+      final names = NamePool.themedClubNames(theme, teamsPerLeague - 1);
+      expect(names.toSet().length, teamsPerLeague - 1);
+    }
+  });
+
+  test('CupEngine.createKnockout never leaves a bye-vs-bye match unresolved for a non-power-of-two field', () {
+    // 20チーム(2の累乗ではない)は32枠に切り上げられ、12個のBYEが生じる。
+    final teamIds = List.generate(teamsPerLeague, (i) => 't$i');
+    final teams = teamIds
+        .map((id) => PlayerGenerator.generateSquad(id: id, name: id, strengthTier: 60))
+        .toList();
+    for (final t in teams) {
+      LineupUtils.autoFill(t);
+    }
+    final cup = CupEngine.createKnockout(type: CupType.domestic, name: '国内カップ', teamIds: teamIds);
+
+    // 全てのBYEを含む試合が単独で解決済み(勝者が決まっている)ことを確認する。
+    for (final m in cup.rounds.first) {
+      if (m.isBye) {
+        expect(m.winnerId, isNotNull);
+      }
+    }
+
+    // 決勝まで全試合を消化できる(BYE同士の対戦で永久に止まらない)ことを確認する。
+    var guard = 0;
+    while (cup.nextUnplayedMatch != null && guard < 100) {
+      CupEngine.playNextMatch(cup, teams);
+      guard++;
+    }
+    expect(cup.isComplete, isTrue);
+    expect(cup.championId, isNotNull);
+  });
+
+  test('GameState.startNewGame creates a full-size league with the selected theme name', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC', theme: LeagueTheme.spain);
+
+    expect(gameState.save!.league.teams.length, teamsPerLeague);
+    expect(gameState.save!.leagueName, LeagueTheme.spain.label);
   });
 }
