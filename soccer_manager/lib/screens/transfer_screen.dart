@@ -3,15 +3,25 @@ import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/position_colors.dart';
+import '../widgets/position_filter_bar.dart';
 
-class TransferScreen extends StatelessWidget {
+class TransferScreen extends StatefulWidget {
   const TransferScreen({super.key});
+
+  @override
+  State<TransferScreen> createState() => _TransferScreenState();
+}
+
+class _TransferScreenState extends State<TransferScreen> {
+  PositionGroup? _filter;
 
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final save = gameState.save!;
     final squadFull = gameState.userTeam.players.length >= maxSquadSize;
+    final players = gameState.transferMarket.where((p) => _filter == null || p.position.group == _filter).toList()
+      ..sort((a, b) => b.overall.compareTo(a.overall));
 
     return Scaffold(
       appBar: AppBar(title: const Text('移籍市場')),
@@ -32,26 +42,36 @@ class TransferScreen extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text('スカッドが上限のため、獲得するには誰かを放出してください。', style: TextStyle(color: Colors.orange)),
             ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: gameState.transferMarket.length,
-              itemBuilder: (context, i) {
-                final p = gameState.transferMarket[i];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    leading: PositionAvatar(position: p.position),
-                    title: Text(p.name),
-                    subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万'),
-                    trailing: FilledButton(
-                      onPressed: squadFull ? null : () => _showAcquireSheet(context, p),
-                      child: const Text('獲得する'),
-                    ),
-                  ),
-                );
-              },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: PositionFilterBar(
+              value: _filter,
+              onChanged: (v) => setState(() => _filter = v),
             ),
+          ),
+          Expanded(
+            child: players.isEmpty
+                ? const Center(child: Text('該当する選手はいません'))
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: players.length,
+                    itemBuilder: (context, i) {
+                      final p = players[i];
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: PositionAvatar(position: p.position),
+                          title: Text(p.name),
+                          subtitle:
+                              Text('${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万'),
+                          trailing: FilledButton(
+                            onPressed: squadFull ? null : () => _showAcquireSheet(context, p),
+                            child: const Text('獲得する'),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

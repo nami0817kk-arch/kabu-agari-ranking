@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/loan_engine.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
 
@@ -13,7 +14,8 @@ class FinanceScreen extends StatelessWidget {
     final team = gameState.userTeam;
     final income = gameState.weeklyIncomeFor(team.id);
     final wageBill = gameState.weeklyWageBill;
-    final net = income - wageBill;
+    final loanRepayment = gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
+    final net = income - wageBill - loanRepayment;
 
     final sortedByExpiry = team.players.where((p) => !p.isLoan).toList()
       ..sort((a, b) => a.contractWeeksRemaining.compareTo(b.contractWeeksRemaining));
@@ -34,6 +36,7 @@ class FinanceScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text('週間収入: +$income万円（観客動員・スポンサー収入込み）'),
                   Text('週間人件費: -$wageBill万円（スタッフ週俸込み）'),
+                  if (loanRepayment > 0) Text('週間融資返済: -$loanRepayment万円'),
                   Text(
                     '週間収支: ${net >= 0 ? '+' : ''}$net万円',
                     style: TextStyle(
@@ -45,6 +48,10 @@ class FinanceScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          Text('資金調達（銀行融資）', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _LoanSection(gameState: gameState),
           const SizedBox(height: 16),
           Text('スポンサー契約', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -165,6 +172,135 @@ class _SponsorSection extends StatelessWidget {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('スポンサー契約を結んだ')),
+      );
+    }
+  }
+}
+
+class _LoanSection extends StatelessWidget {
+  final GameState gameState;
+
+  const _LoanSection({required this.gameState});
+
+  @override
+  Widget build(BuildContext context) {
+    final loans = gameState.bankLoans;
+    final maxAmount = gameState.maxLoanAmount;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final loan in loans)
+          Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListTile(
+              leading: const Icon(Icons.account_balance),
+              title: Text('借入元本 ${loan.principal}万円'),
+              subtitle: Text('残り${loan.weeksRemaining}週 / 返済総額残り${loan.totalRemaining}万円'),
+              trailing: Text('-${loan.weeklyRepayment}万円/週', style: const TextStyle(color: Colors.redAccent)),
+            ),
+          ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.savings_outlined),
+            title: Text('借入可能額: $maxAmount万円'),
+            subtitle: const Text('スタジアムの規模・監督としての評価が高いほど上限が上がる'),
+            trailing: FilledButton(
+              onPressed: maxAmount <= 0 ? null : () => _showLoanSheet(context),
+              child: const Text('融資を申し込む'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showLoanSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _LoanRequestSheet(gameState: gameState),
+    );
+  }
+}
+
+class _LoanRequestSheet extends StatefulWidget {
+  final GameState gameState;
+
+  const _LoanRequestSheet({required this.gameState});
+
+  @override
+  State<_LoanRequestSheet> createState() => _LoanRequestSheetState();
+}
+
+class _LoanRequestSheetState extends State<_LoanRequestSheet> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.gameState.maxLoanAmount.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxAmount = widget.gameState.maxLoanAmount;
+    final amount = int.tryParse(_controller.text)?.clamp(0, maxAmount) ?? 0;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('融資を申し込む', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('借入可能額: $maxAmount万円', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '借入額(万円)', border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            for (final term in LoanEngine.terms)
+              ListTile(
+                leading: Icon(term.weeks <= 12 ? Icons.speed : Icons.hourglass_bottom),
+                title: Text('${term.label}（${term.weeks}週・利率${term.interestRatePercent.toStringAsFixed(0)}%）'),
+                subtitle: Text(
+                  amount <= 0
+                      ? '借入額を入力してください'
+                      : '週${LoanEngine.weeklyRepaymentFor(amount, term)}万円 × ${term.weeks}週 = '
+                          '返済総額${LoanEngine.totalRepaymentFor(amount, term)}万円',
+                ),
+                enabled: amount > 0,
+                onTap: amount <= 0 ? null : () => _confirm(context, amount, term),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirm(BuildContext context, int amount, LoanTerm term) async {
+    Navigator.pop(context);
+    final ok = await widget.gameState.takeLoan(amount, term);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? '$amount万円を借り入れました' : '融資を申し込めませんでした')),
       );
     }
   }

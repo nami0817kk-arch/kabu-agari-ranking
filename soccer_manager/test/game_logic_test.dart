@@ -5,6 +5,7 @@ import 'package:soccer_manager/logic/contract_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
 import 'package:soccer_manager/logic/happiness_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
+import 'package:soccer_manager/logic/loan_engine.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
@@ -185,19 +186,37 @@ void main() {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = ScoutingEngine.scoutCost;
+    final candidateId = gameState.scoutCandidates.first.id;
+    final poolSizeBefore = gameState.scoutCandidates.length;
 
-    final ok = await gameState.scoutProspect();
+    final ok = await gameState.scoutProspect(candidateId);
 
     expect(ok, isTrue);
     expect(gameState.save!.youthProspects.length, 1);
+    expect(gameState.save!.youthProspects.first.id, candidateId);
     expect(gameState.save!.budget, 0);
+    // 選んだ候補は補充され、閲覧できる候補数は変わらない。
+    expect(gameState.scoutCandidates.length, poolSizeBefore);
+    expect(gameState.scoutCandidates.any((p) => p.id == candidateId), isFalse);
+  });
+
+  test('GameState.scoutCandidates offers more candidates as scout staff level rises', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final baseCount = gameState.scoutCandidates.length;
+    gameState.save!.budget = 100000;
+
+    await gameState.upgradeStaff(StaffRole.scout);
+
+    expect(gameState.scoutCandidateCount, baseCount + 1);
   });
 
   test('GameState.promoteYouthProspect moves the prospect into the squad', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     gameState.save!.budget = ScoutingEngine.scoutCost;
-    await gameState.scoutProspect();
+    final candidateId = gameState.scoutCandidates.first.id;
+    await gameState.scoutProspect(candidateId);
     final prospect = gameState.save!.youthProspects.first;
     final beforeCount = gameState.userTeam.players.length;
 
@@ -778,5 +797,74 @@ void main() {
     expect(ok, isTrue);
     expect(gameState.save!.youthProspects.any((p) => p.id == candidate.id), isTrue);
     expect(gameState.pendingYouthIntake.any((p) => p.id == candidate.id), isFalse);
+  });
+
+  test('LoanEngine.weeklyRepaymentFor charges more in total for the longer, higher-interest term', () {
+    const principal = 1000;
+    final shortTerm = LoanEngine.terms.firstWhere((t) => t.weeks == 12);
+    final longTerm = LoanEngine.terms.firstWhere((t) => t.weeks == 26);
+
+    final shortTotal = LoanEngine.totalRepaymentFor(principal, shortTerm);
+    final longTotal = LoanEngine.totalRepaymentFor(principal, longTerm);
+
+    expect(shortTotal, greaterThan(principal));
+    expect(longTotal, greaterThan(shortTotal));
+    expect(
+      LoanEngine.weeklyRepaymentFor(principal, longTerm),
+      lessThan(LoanEngine.weeklyRepaymentFor(principal, shortTerm)),
+    );
+  });
+
+  test('GameState.takeLoan adds funds to the budget and refuses amounts above the borrowing limit', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = 0;
+    final term = LoanEngine.terms.first;
+    final maxAmount = gameState.maxLoanAmount;
+
+    final tooMuch = await gameState.takeLoan(maxAmount + 1000, term);
+    expect(tooMuch, isFalse);
+    expect(gameState.bankLoans, isEmpty);
+
+    final ok = await gameState.takeLoan(maxAmount, term);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, maxAmount);
+    expect(gameState.bankLoans.length, 1);
+    expect(gameState.bankLoans.first.weeksRemaining, term.weeks);
+  });
+
+  test('GameState.maxLoanAmount shrinks by the outstanding debt of existing loans', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final term = LoanEngine.terms.first;
+    final beforeMax = gameState.maxLoanAmount;
+
+    await gameState.takeLoan((beforeMax * 0.5).round(), term);
+
+    expect(gameState.maxLoanAmount, lessThan(beforeMax));
+  });
+
+  test('GameState.playNextMatchday counts down the loan and clears it once the term ends', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final term = LoanEngine.terms.firstWhere((t) => t.weeks == 12);
+    await gameState.takeLoan(500, term);
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    expect(gameState.bankLoans.first.weeksRemaining, term.weeks - 1);
+
+    for (int i = 1; i < term.weeks; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    expect(gameState.bankLoans, isEmpty);
   });
 }

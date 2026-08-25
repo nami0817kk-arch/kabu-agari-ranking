@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/bank_loan.dart';
 import '../models/club_infrastructure.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
@@ -18,6 +19,7 @@ import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
 import '../logic/cup_engine.dart';
 import '../logic/happiness_engine.dart';
+import '../logic/loan_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/lineup_utils.dart';
@@ -41,6 +43,9 @@ class GameState extends ChangeNotifier {
   bool initialized = false;
   List<Player> transferMarket = [];
 
+  /// スカウトが見つけてきた、獲得可能な候補選手一覧(閲覧専用・未確定)。
+  List<Player> scoutCandidates = [];
+
   /// 直近のplayNextMatchdayで契約切れとなった選手名（1回表示したら呼び出し側でクリアする想定）。
   List<String> lastContractExpirations = [];
 
@@ -63,6 +68,7 @@ class GameState extends ChangeNotifier {
     }
     if (_save != null) {
       transferMarket = TransferMarket.generate();
+      _refreshScoutCandidates();
     }
     initialized = true;
     notifyListeners();
@@ -115,6 +121,7 @@ class GameState extends ChangeNotifier {
       friendlies: _generateFriendlies(teams, 'user'),
     );
     transferMarket = TransferMarket.generate();
+    _refreshScoutCandidates();
     lastContractExpirations = [];
     notifyListeners();
     await _persist();
@@ -133,6 +140,7 @@ class GameState extends ChangeNotifier {
   Future<void> deleteSave() async {
     _save = null;
     transferMarket = [];
+    scoutCandidates = [];
     lastContractExpirations = [];
     notifyListeners();
     await _persist();
@@ -395,15 +403,45 @@ class GameState extends ChangeNotifier {
   int get maxYouthProspects =>
       ScoutingEngine.maxProspectsFor(_save!.infrastructure.facilityLevel(FacilityType.youthFacility));
 
-  Future<bool> scoutProspect() async {
+  /// スカウト網が一度に見つけてくる候補選手の人数(スカウトのレベルが高いほど広がる)。
+  int get scoutCandidateCount =>
+      ScoutingEngine.scoutCandidateCountFor(_save!.infrastructure.staffLevel(StaffRole.scout));
+
+  void _refreshScoutCandidates() {
+    if (_save == null) {
+      scoutCandidates = [];
+      return;
+    }
+    final scoutLevel = _save!.infrastructure.staffLevel(StaffRole.scout);
+    final count = ScoutingEngine.scoutCandidateCountFor(scoutLevel);
+    scoutCandidates = List.generate(
+      count,
+      (_) => ScoutingEngine.generateScoutedProspect(scoutLevel: scoutLevel),
+    );
+  }
+
+  /// スカウト網を無償で更新し、候補選手の顔ぶれを一新する。
+  Future<void> refreshScoutCandidates() async {
+    if (_save == null) return;
+    _refreshScoutCandidates();
+    notifyListeners();
+  }
+
+  /// 候補選手一覧から1人選んでスカウト費用を払い、ユース昇格候補として迎える。
+  Future<bool> scoutProspect(String candidateId) async {
     if (_save == null) return false;
+    final idx = scoutCandidates.indexWhere((p) => p.id == candidateId);
+    if (idx < 0) return false;
     final infra = _save!.infrastructure;
     final cost = ScoutingEngine.scoutCostFor(infra.staffLevel(StaffRole.scout));
     final maxP = ScoutingEngine.maxProspectsFor(infra.facilityLevel(FacilityType.youthFacility));
     if (_save!.budget < cost) return false;
     if (_save!.youthProspects.length >= maxP) return false;
     _save!.budget -= cost;
-    _save!.youthProspects.add(ScoutingEngine.generateScoutedProspect(scoutLevel: infra.staffLevel(StaffRole.scout)));
+    final signed = scoutCandidates.removeAt(idx);
+    _save!.youthProspects.add(signed);
+    final scoutLevel = infra.staffLevel(StaffRole.scout);
+    scoutCandidates.add(ScoutingEngine.generateScoutedProspect(scoutLevel: scoutLevel));
     notifyListeners();
     await _persist();
     return true;
@@ -647,6 +685,40 @@ class GameState extends ChangeNotifier {
 
   int get weeklyWageBill => ContractEngine.weeklyWageBill(userTeam) + _save!.infrastructure.totalStaffWeeklyWage;
 
+  /// 銀行から借り入れている融資一覧。
+  List<BankLoan> get bankLoans => _save?.bankLoans ?? [];
+
+  /// 融資の残り返済総額(元本+利息のうち未払い分)。
+  int get outstandingLoanDebt => bankLoans.fold<int>(0, (s, l) => s + l.totalRemaining);
+
+  /// 現在追加で借り入れ可能な上限額。スタジアムの規模と監督としての評価が高いほど拡大する。
+  int get maxLoanAmount => LoanEngine.maxBorrowable(
+        stadiumLevel: _save!.infrastructure.facilityLevel(FacilityType.stadium),
+        reputation: _save!.managerReputation,
+        outstandingDebt: outstandingLoanDebt,
+      );
+
+  int _loanSeq = 0;
+
+  /// 銀行融資を申し込む。頭金なしで即座に資金を得られる代わりに、指定した返済プランで
+  /// 毎週の返済が発生する。
+  Future<bool> takeLoan(int amount, LoanTerm term) async {
+    if (_save == null || amount <= 0) return false;
+    if (amount > maxLoanAmount) return false;
+    final weekly = LoanEngine.weeklyRepaymentFor(amount, term);
+    _save!.bankLoans.add(BankLoan(
+      id: 'loan${_loanSeq++}',
+      principal: amount,
+      weeklyRepayment: weekly,
+      termWeeks: term.weeks,
+      weeksRemaining: term.weeks,
+    ));
+    _save!.budget += amount;
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
   /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
   double get _userInjuryFactor =>
       (1 - (_save!.infrastructure.staffLevel(StaffRole.physio) - 1) * 0.15).clamp(0.4, 1.0);
@@ -719,6 +791,15 @@ class GameState extends ChangeNotifier {
       }
     }
 
+    // 融資の週次返済。
+    for (final loan in List<BankLoan>.from(_save!.bankLoans)) {
+      _save!.budget -= loan.weeklyRepayment;
+      loan.weeksRemaining -= 1;
+      if (loan.weeksRemaining <= 0) {
+        _save!.bankLoans.remove(loan);
+      }
+    }
+
     // 移籍オファーの週次処理(期限切れ削除・新規発生・リリース条項の自動成立)。
     lastReleaseClauseSales = _advanceIncomingOffers();
 
@@ -740,6 +821,7 @@ class GameState extends ChangeNotifier {
     _save!.budget += weeklyIncomeFor(_save!.userTeamId);
     _save!.budget -= weeklyWageBill;
     transferMarket = TransferMarket.generate();
+    _refreshScoutCandidates();
 
     if (userFixture != null && userFirstHalf != null) {
       _liveFixture = userFixture;
@@ -893,6 +975,7 @@ class GameState extends ChangeNotifier {
     _save!.league = League(teams: league.teams, fixtures: newFixtures, season: league.season + 1);
     _save!.boardTargetRank = BoardEngine.estimateTargetRank(_save!.league, _save!.userTeamId);
     transferMarket = TransferMarket.generate();
+    _refreshScoutCandidates();
 
     _save!.lastSeasonRank = finalRank;
     final newCups = <Cup>[

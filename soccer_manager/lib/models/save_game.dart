@@ -1,3 +1,4 @@
+import 'bank_loan.dart';
 import 'club_infrastructure.dart';
 import 'cup.dart';
 import 'incoming_offer.dart';
@@ -64,6 +65,9 @@ class SaveGame {
   /// 他クラブから届いている、自クラブ選手への移籍オファー。
   List<IncomingOffer> incomingOffers;
 
+  /// 銀行から借り入れている融資。
+  List<BankLoan> bankLoans;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -85,6 +89,7 @@ class SaveGame {
     List<Installment>? pendingInstallments,
     List<Fixture>? friendlies,
     List<IncomingOffer>? incomingOffers,
+    List<BankLoan>? bankLoans,
   })  : youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -93,7 +98,8 @@ class SaveGame {
         pendingSponsorOffers = pendingSponsorOffers ?? [],
         pendingInstallments = pendingInstallments ?? [],
         friendlies = friendlies ?? [],
-        incomingOffers = incomingOffers ?? [];
+        incomingOffers = incomingOffers ?? [],
+        bankLoans = bankLoans ?? [];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -116,6 +122,7 @@ class SaveGame {
         'pendingInstallments': pendingInstallments.map((i) => i.toJson()).toList(),
         'friendlies': friendlies.map((f) => f.toJson()).toList(),
         'incomingOffers': incomingOffers.map((o) => o.toJson()).toList(),
+        'bankLoans': bankLoans.map((l) => l.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -160,6 +167,10 @@ class SaveGame {
             [],
         incomingOffers: (json['incomingOffers'] as List?)
                 ?.map((e) => IncomingOffer.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        bankLoans: (json['bankLoans'] as List?)
+                ?.map((e) => BankLoan.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );

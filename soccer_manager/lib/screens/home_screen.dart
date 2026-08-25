@@ -265,7 +265,8 @@ class HomeScreen extends StatelessWidget {
   }
 
   int _netWeekly(GameState gameState) {
-    return gameState.weeklyIncomeFor(gameState.userTeam.id) - gameState.weeklyWageBill;
+    final loanRepayment = gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
+    return gameState.weeklyIncomeFor(gameState.userTeam.id) - gameState.weeklyWageBill - loanRepayment;
   }
 
   String _fixtureLabel(League league, Fixture f) {
