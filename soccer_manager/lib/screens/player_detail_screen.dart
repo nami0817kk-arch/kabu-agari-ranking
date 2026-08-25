@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/stat_bar.dart';
@@ -230,6 +231,7 @@ class PlayerDetailScreen extends StatelessWidget {
   Future<void> _renew(BuildContext context) async {
     final gameState = context.read<GameState>();
     final ok = await gameState.renewContract(playerId);
+    ok ? FeedbackService.success() : FeedbackService.error();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '契約を更新しました' : '契約を更新できませんでした')),

@@ -47,6 +47,10 @@ class GameState extends ChangeNotifier {
 
   SaveGame? _save;
   bool initialized = false;
+
+  /// シーズン開幕・シーズン終了処理など、重い同期計算を行っている間true。
+  /// UI側でローディング表示を出すために使う。
+  bool isBusy = false;
   List<Player> transferMarket = [];
 
   /// スカウトが見つけてきた、獲得可能な候補選手一覧(閲覧専用・未確定)。
@@ -90,6 +94,10 @@ class GameState extends ChangeNotifier {
   }
 
   Future<void> startNewGame(String clubName, {LeagueTheme theme = LeagueTheme.england}) async {
+    isBusy = true;
+    notifyListeners();
+    // ローディング表示を1フレーム描画させてから、重いクラブ生成処理に入る。
+    await Future<void>.delayed(Duration.zero);
     final userTeam = PlayerGenerator.generateSquad(
       id: 'user',
       name: clubName,
@@ -144,6 +152,7 @@ class GameState extends ChangeNotifier {
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     lastContractExpirations = [];
+    isBusy = false;
     notifyListeners();
     await _persist();
   }
@@ -165,6 +174,28 @@ class GameState extends ChangeNotifier {
     lastContractExpirations = [];
     notifyListeners();
     await _persist();
+  }
+
+  /// バックアップ用にセーブデータ全体をJSON文字列として書き出す。
+  String? exportSaveJson() {
+    if (_save == null) return null;
+    return jsonEncode(_save!.toJson());
+  }
+
+  /// エクスポートされたJSON文字列からセーブデータを復元する。形式が不正な場合はfalseを返す。
+  Future<bool> importSaveJson(String json) async {
+    final SaveGame restored;
+    try {
+      restored = SaveGame.fromJson(jsonDecode(json) as Map<String, dynamic>);
+    } catch (_) {
+      return false;
+    }
+    _save = restored;
+    transferMarket = TransferMarket.generate();
+    _refreshScoutCandidates();
+    notifyListeners();
+    await _persist();
+    return true;
   }
 
   /// チーム既定のトレーニング方針を設定する（個別方針未設定の選手に適用される）。
@@ -1182,6 +1213,11 @@ class GameState extends ChangeNotifier {
 
   Future<void> startNextSeason() async {
     if (_save == null) return;
+    isBusy = true;
+    notifyListeners();
+    // ローディング表示を1フレーム描画させてから、裏ディビジョンの1シーズン分の
+    // シミュレーションなど重い処理に入る。
+    await Future<void>.delayed(Duration.zero);
     final league = _save!.league;
     final standings = league.sortedStandings;
     final finalRank = standings.indexWhere((r) => r.teamId == _save!.userTeamId) + 1;
@@ -1298,6 +1334,7 @@ class GameState extends ChangeNotifier {
     _save!.cups = newCups;
     _save!.friendlies = _generateFriendlies(newActiveTeams, _save!.userTeamId);
 
+    isBusy = false;
     notifyListeners();
     await _persist();
   }

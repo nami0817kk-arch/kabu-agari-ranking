@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
+import '../services/feedback_service.dart';
+import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import 'awards_screen.dart';
 import 'club_screen.dart';
@@ -10,6 +12,7 @@ import 'cup_screen.dart';
 import 'finance_screen.dart';
 import 'live_match_screen.dart';
 import 'manager_career_screen.dart';
+import 'settings_screen.dart';
 import 'scout_report_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
@@ -41,288 +44,329 @@ class HomeScreen extends StatelessWidget {
     final seasonComplete = league.isSeasonComplete;
     final net = _netWeekly(gameState);
 
-    return Scaffold(
-      appBar: AppBar(title: Text(save.clubName)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('${gameState.leagueDisplayName} シーズン${league.season}',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      Chip(label: Text(userTeam.formation.label)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text('目標: ${save.boardTargetRank}位以内', style: TextStyle(color: scheme.onSurfaceVariant)),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 2.1,
-            children: [
-              _StatTile(
-                icon: Icons.emoji_events,
-                label: '順位',
-                value: '$userRank / ${standings.length}',
-                color: Colors.amber.shade800,
-              ),
-              _StatTile(
-                icon: Icons.account_balance_wallet,
-                label: '資金',
-                value: '${save.budget}万円',
-                sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
-                color: net >= 0 ? Colors.green.shade700 : Colors.red.shade700,
-              ),
-              _StatTile(
-                icon: Icons.bar_chart,
-                label: '平均総合力',
-                value: '${userTeam.overallRating}',
-                color: Colors.blue.shade700,
-              ),
-              _StatTile(
-                icon: Icons.shield,
-                label: '監督への信頼度',
-                value: '${save.confidence}',
-                progress: save.confidence / 100,
-                color: save.confidence <= 25 ? Colors.redAccent : Colors.teal.shade700,
-              ),
-              _StatTile(
-                icon: Icons.star,
-                label: '監督としての評価',
-                value: '${gameState.managerReputation}',
-                progress: gameState.managerReputation / 100,
-                color: Colors.deepPurple,
-              ),
-              _StatTile(
-                icon: Icons.groups,
-                label: '観客動員',
-                value: '${gameState.lastMatchAttendance ?? gameState.expectedAttendance}人',
-                sub: '収容人数 ${gameState.stadiumCapacity}人',
-                color: Colors.brown.shade600,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (gameState.pendingPressConference != null) _PressConferenceCard(gameState: gameState),
-          if (gameState.pendingJobOfferTeam != null) _JobOfferCard(gameState: gameState),
-          if (gameState.pendingYouthIntake.isNotEmpty)
-            Card(
-              color: scheme.secondaryContainer,
-              child: ListTile(
-                leading: const Icon(Icons.emoji_people),
-                title: const Text('ユースインテーク'),
-                subtitle: Text('${gameState.pendingYouthIntake.length}名の新人候補が加入を待っています'),
-                trailing: FilledButton(
-                  onPressed: () => Navigator.of(context)
-                      .push(MaterialPageRoute(builder: (_) => const YouthIntakeScreen())),
-                  child: const Text('選抜する'),
-                ),
-              ),
-            ),
-          if (gameState.incomingOffers.isNotEmpty)
+    return BusyOverlay(
+      visible: gameState.isBusy,
+      label: 'シーズンを更新しています…',
+      child: Scaffold(
+        appBar: AppBar(title: Text(save.clubName)),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('移籍オファー', style: Theme.of(context).textTheme.titleSmall),
-                    for (final o in gameState.incomingOffers)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          children: [
-                            Expanded(child: Text('${o.buyerClubName}が${o.playerName}に${o.amount}万円')),
-                            TextButton(
-                              onPressed: () => gameState.declineIncomingOffer(o.id),
-                              child: const Text('拒否'),
-                            ),
-                            FilledButton(
-                              onPressed: () => gameState.acceptIncomingOffer(o.id),
-                              child: const Text('承諾'),
-                            ),
-                          ],
-                        ),
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                            '${gameState.leagueDisplayName} シーズン${league.season}',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        Chip(label: Text(userTeam.formation.label)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('目標: ${save.boardTargetRank}位以内',
+                        style: TextStyle(color: scheme.onSurfaceVariant)),
                   ],
                 ),
               ),
             ),
-          if (!seasonComplete && save.friendlies.any((f) => f.result == null))
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('親善試合', style: Theme.of(context).textTheme.titleSmall),
-                    for (int i = 0; i < save.friendlies.length; i++)
-                      if (save.friendlies[i].result == null)
+            const SizedBox(height: 4),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.1,
+              children: [
+                _StatTile(
+                  icon: Icons.emoji_events,
+                  label: '順位',
+                  value: '$userRank / ${standings.length}',
+                  color: Colors.amber.shade800,
+                ),
+                _StatTile(
+                  icon: Icons.account_balance_wallet,
+                  label: '資金',
+                  value: '${save.budget}万円',
+                  sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
+                  color: net >= 0 ? Colors.green.shade700 : Colors.red.shade700,
+                ),
+                _StatTile(
+                  icon: Icons.bar_chart,
+                  label: '平均総合力',
+                  value: '${userTeam.overallRating}',
+                  color: Colors.blue.shade700,
+                ),
+                _StatTile(
+                  icon: Icons.shield,
+                  label: '監督への信頼度',
+                  value: '${save.confidence}',
+                  progress: save.confidence / 100,
+                  color: save.confidence <= 25
+                      ? Colors.redAccent
+                      : Colors.teal.shade700,
+                ),
+                _StatTile(
+                  icon: Icons.star,
+                  label: '監督としての評価',
+                  value: '${gameState.managerReputation}',
+                  progress: gameState.managerReputation / 100,
+                  color: Colors.deepPurple,
+                ),
+                _StatTile(
+                  icon: Icons.groups,
+                  label: '観客動員',
+                  value:
+                      '${gameState.lastMatchAttendance ?? gameState.expectedAttendance}人',
+                  sub: '収容人数 ${gameState.stadiumCapacity}人',
+                  color: Colors.brown.shade600,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (gameState.pendingPressConference != null)
+              _PressConferenceCard(gameState: gameState),
+            if (gameState.pendingJobOfferTeam != null)
+              _JobOfferCard(gameState: gameState),
+            if (gameState.pendingYouthIntake.isNotEmpty)
+              Card(
+                color: scheme.secondaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.emoji_people),
+                  title: const Text('ユースインテーク'),
+                  subtitle: Text(
+                      '${gameState.pendingYouthIntake.length}名の新人候補が加入を待っています'),
+                  trailing: FilledButton(
+                    onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const YouthIntakeScreen())),
+                    child: const Text('選抜する'),
+                  ),
+                ),
+              ),
+            if (gameState.incomingOffers.isNotEmpty)
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('移籍オファー',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      for (final o in gameState.incomingOffers)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: Row(
                             children: [
-                              Expanded(child: Text(_fixtureLabel(league, save.friendlies[i]))),
-                              OutlinedButton(
-                                onPressed: () => _playFriendly(context, i),
-                                child: const Text('開催'),
+                              Expanded(
+                                  child: Text(
+                                      '${o.buyerClubName}が${o.playerName}に${o.amount}万円')),
+                              TextButton(
+                                onPressed: () =>
+                                    gameState.declineIncomingOffer(o.id),
+                                child: const Text('拒否'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    gameState.acceptIncomingOffer(o.id),
+                                child: const Text('承諾'),
                               ),
                             ],
                           ),
                         ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          if (seasonComplete)
-            Card(
-              color: scheme.primaryContainer,
-              child: ListTile(
-                leading: const Icon(Icons.flag),
-                title: const Text('シーズン終了！'),
-                subtitle: Text('最終順位: $userRank位'),
-                trailing: FilledButton(
-                  onPressed: () => _startNextSeason(context),
-                  child: const Text('次のシーズンへ'),
+            if (!seasonComplete && save.friendlies.any((f) => f.result == null))
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('親善試合',
+                          style: Theme.of(context).textTheme.titleSmall),
+                      for (int i = 0; i < save.friendlies.length; i++)
+                        if (save.friendlies[i].result == null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                    child: Text(_fixtureLabel(
+                                        league, save.friendlies[i]))),
+                                OutlinedButton(
+                                  onPressed: () => _playFriendly(context, i),
+                                  child: const Text('開催'),
+                                ),
+                              ],
+                            ),
+                          ),
+                    ],
+                  ),
                 ),
               ),
-            )
-          else if (next != null)
-            Card(
-              child: ListTile(
-                leading: ClubEmblem(
-                  teamId: next.homeTeamId == userTeam.id ? next.awayTeamId : next.homeTeamId,
-                  teamName: league.teams
-                      .firstWhere((t) => t.id == (next.homeTeamId == userTeam.id ? next.awayTeamId : next.homeTeamId))
-                      .name,
-                  size: 40,
+            if (seasonComplete)
+              Card(
+                color: scheme.primaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.flag),
+                  title: const Text('シーズン終了！'),
+                  subtitle: Text('最終順位: $userRank位'),
+                  trailing: FilledButton(
+                    onPressed: () => _startNextSeason(context),
+                    child: const Text('次のシーズンへ'),
+                  ),
                 ),
-                title: Row(
-                  children: [
-                    Text('第${next.matchday}節'),
-                    if (gameState.isRivalFixture(next)) ...[
-                      const SizedBox(width: 6),
-                      const Chip(
-                        label: Text('ダービー', style: TextStyle(fontSize: 11)),
-                        backgroundColor: Colors.redAccent,
-                        labelStyle: TextStyle(color: Colors.white),
-                        visualDensity: VisualDensity.compact,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              )
+            else if (next != null)
+              Card(
+                child: ListTile(
+                  leading: ClubEmblem(
+                    teamId: next.homeTeamId == userTeam.id
+                        ? next.awayTeamId
+                        : next.homeTeamId,
+                    teamName: league.teams
+                        .firstWhere((t) =>
+                            t.id ==
+                            (next.homeTeamId == userTeam.id
+                                ? next.awayTeamId
+                                : next.homeTeamId))
+                        .name,
+                    size: 40,
+                  ),
+                  title: Row(
+                    children: [
+                      Text('第${next.matchday}節'),
+                      if (gameState.isRivalFixture(next)) ...[
+                        const SizedBox(width: 6),
+                        const Chip(
+                          label: Text('ダービー', style: TextStyle(fontSize: 11)),
+                          backgroundColor: Colors.redAccent,
+                          labelStyle: TextStyle(color: Colors.white),
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ],
+                    ],
+                  ),
+                  subtitle: Text(_fixtureLabel(league, next)),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FilledButton(
+                        onPressed: () => _playMatch(context),
+                        child: const Text('試合を行う'),
+                      ),
+                      TextButton(
+                        onPressed: () => _showScoutReport(context, next),
+                        child: const Text('偵察レポート',
+                            style: TextStyle(fontSize: 12)),
                       ),
                     ],
-                  ],
-                ),
-                subtitle: Text(_fixtureLabel(league, next)),
-                trailing: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FilledButton(
-                      onPressed: () => _playMatch(context),
-                      child: const Text('試合を行う'),
-                    ),
-                    TextButton(
-                      onPressed: () => _showScoutReport(context, next),
-                      child: const Text('偵察レポート', style: TextStyle(fontSize: 12)),
-                    ),
-                  ],
+                  ),
                 ),
               ),
+            const SizedBox(height: 16),
+            Text('クラブ運営', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.5,
+              children: [
+                _ActionTile(
+                  icon: Icons.fitness_center,
+                  label: 'トレーニング',
+                  color: Colors.deepOrange.shade400,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TrainingScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.swap_horiz,
+                  label: '移籍市場',
+                  color: Colors.indigo.shade400,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TransferScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.emoji_people,
+                  label: 'ユース・スカウト',
+                  color: Colors.teal.shade400,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const YouthScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.account_balance,
+                  label: 'クラブ経営',
+                  color: Colors.brown.shade400,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const FinanceScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.apartment,
+                  label: '施設・スタッフ',
+                  color: Colors.blueGrey.shade400,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ClubScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.emoji_events,
+                  label: 'カップ戦',
+                  color: Colors.purple.shade400,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CupScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.military_tech,
+                  label: '個人タイトル',
+                  color: Colors.amber.shade700,
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AwardsScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.workspace_premium,
+                  label: '監督キャリア',
+                  color: Colors.indigo.shade700,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const ManagerCareerScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.settings,
+                  label: '設定',
+                  color: Colors.blueGrey.shade700,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SettingsScreen())),
+                ),
+              ],
             ),
-          const SizedBox(height: 16),
-          Text('クラブ運営', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.5,
-            children: [
-              _ActionTile(
-                icon: Icons.fitness_center,
-                label: 'トレーニング',
-                color: Colors.deepOrange.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TrainingScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.swap_horiz,
-                label: '移籍市場',
-                color: Colors.indigo.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.emoji_people,
-                label: 'ユース・スカウト',
-                color: Colors.teal.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const YouthScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.account_balance,
-                label: 'クラブ経営',
-                color: Colors.brown.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FinanceScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.apartment,
-                label: '施設・スタッフ',
-                color: Colors.blueGrey.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ClubScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.emoji_events,
-                label: 'カップ戦',
-                color: Colors.purple.shade400,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CupScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.military_tech,
-                label: '個人タイトル',
-                color: Colors.amber.shade700,
-                onTap: () =>
-                    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AwardsScreen())),
-              ),
-              _ActionTile(
-                icon: Icons.workspace_premium,
-                label: '監督キャリア',
-                color: Colors.indigo.shade700,
-                onTap: () => Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => const ManagerCareerScreen())),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   int _netWeekly(GameState gameState) {
-    final loanRepayment = gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
+    final loanRepayment =
+        gameState.bankLoans.fold<int>(0, (s, l) => s + l.weeklyRepayment);
     final team = gameState.userTeam;
-    final appearanceFees =
-        team.players.where((p) => team.startingXI.contains(p.id)).fold<int>(0, (s, p) => s + p.appearanceFee);
-    return gameState.weeklyIncomeFor(team.id) - gameState.weeklyWageBill - loanRepayment - appearanceFees;
+    final appearanceFees = team.players
+        .where((p) => team.startingXI.contains(p.id))
+        .fold<int>(0, (s, p) => s + p.appearanceFee);
+    return gameState.weeklyIncomeFor(team.id) -
+        gameState.weeklyWageBill -
+        loanRepayment -
+        appearanceFees;
   }
 
   String _fixtureLabel(League league, Fixture f) {
@@ -335,14 +379,19 @@ class HomeScreen extends StatelessWidget {
     final gameState = context.read<GameState>();
     final userTeam = gameState.userTeam;
     final league = gameState.save!.league;
-    final opponentId = fixture.homeTeamId == userTeam.id ? fixture.awayTeamId : fixture.homeTeamId;
+    final opponentId = fixture.homeTeamId == userTeam.id
+        ? fixture.awayTeamId
+        : fixture.homeTeamId;
     final opponent = league.teams.firstWhere((t) => t.id == opponentId);
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ScoutReportScreen(opponent: opponent, userTeam: userTeam)),
+      MaterialPageRoute(
+          builder: (_) =>
+              ScoutReportScreen(opponent: opponent, userTeam: userTeam)),
     );
   }
 
   Future<void> _playMatch(BuildContext context) async {
+    FeedbackService.tap();
     final gameState = context.read<GameState>();
     final firstHalf = await gameState.playNextMatchday();
     if (!context.mounted) return;
@@ -395,7 +444,8 @@ class HomeScreen extends StatelessWidget {
     final result = await gameState.playFriendly(index);
     if (context.mounted && result != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('親善試合結果: ${result.homeGoals} - ${result.awayGoals}')),
+        SnackBar(
+            content: Text('親善試合結果: ${result.homeGoals} - ${result.awayGoals}')),
       );
     }
   }
@@ -445,7 +495,8 @@ class _PressConferenceCard extends StatelessWidget {
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: () => gameState.answerPressConference(i),
-                    child: Text(question.options[i].label, textAlign: TextAlign.center),
+                    child: Text(question.options[i].label,
+                        textAlign: TextAlign.center),
                   ),
                 ),
               ),
@@ -478,9 +529,13 @@ class _JobOfferCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(onPressed: () => gameState.declineJobOffer(), child: const Text('断る')),
+                TextButton(
+                    onPressed: () => gameState.declineJobOffer(),
+                    child: const Text('断る')),
                 const SizedBox(width: 8),
-                FilledButton(onPressed: () => gameState.acceptJobOffer(), child: const Text('就任する')),
+                FilledButton(
+                    onPressed: () => gameState.acceptJobOffer(),
+                    child: const Text('就任する')),
               ],
             ),
           ],
@@ -535,7 +590,10 @@ class _StatTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           if (sub != null)
             Text(sub!, style: TextStyle(fontSize: 11, color: color)),
@@ -543,7 +601,8 @@ class _StatTile extends StatelessWidget {
             const SizedBox(height: 4),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(value: progress, minHeight: 6, color: color),
+              child: LinearProgressIndicator(
+                  value: progress, minHeight: 6, color: color),
             ),
           ],
         ],
@@ -558,7 +617,11 @@ class _ActionTile extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _ActionTile({required this.icon, required this.label, required this.color, required this.onTap});
+  const _ActionTile(
+      {required this.icon,
+      required this.label,
+      required this.color,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -572,10 +635,13 @@ class _ActionTile extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              CircleAvatar(backgroundColor: color, child: Icon(icon, color: Colors.white, size: 20)),
+              CircleAvatar(
+                  backgroundColor: color,
+                  child: Icon(icon, color: Colors.white, size: 20)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(label,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
               ),
             ],
           ),

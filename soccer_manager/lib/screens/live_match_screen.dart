@@ -5,6 +5,7 @@ import '../game/pitch_game.dart';
 import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/match_widgets.dart';
 import '../widgets/player_face_avatar.dart';
@@ -26,20 +27,30 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
   int _currentMinute = 0;
   MatchResult? _finalResult;
   late PitchGame _game;
+  late final String _userTeamId;
 
   @override
   void initState() {
     super.initState();
-    final firstHalf = context.read<GameState>().liveFirstHalf!;
+    final gameState = context.read<GameState>();
+    _userTeamId = gameState.userTeam.id;
+    final firstHalf = gameState.liveFirstHalf!;
     _game = PitchGame(
       events: firstHalf.events,
       startMinute: 1,
       endMinute: 45,
       durationSeconds: 6,
-      onEvent: (e) => setState(() => _revealed.add(e)),
+      onEvent: _handleEvent,
       onFinished: () => setState(() => _phase = _Phase.halfTime),
       onMinuteTick: (m) => setState(() => _currentMinute = m),
     );
+  }
+
+  void _handleEvent(MatchEvent e) {
+    setState(() => _revealed.add(e));
+    if (e.type == MatchEventType.goal) {
+      FeedbackService.goal(isUserGoal: e.teamId == _userTeamId);
+    }
   }
 
   @override
@@ -148,11 +159,21 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
         startMinute: 46,
         endMinute: 90,
         durationSeconds: 6,
-        onEvent: (e) => setState(() => _revealed.add(e)),
-        onFinished: () => setState(() => _phase = _Phase.finished),
+        onEvent: _handleEvent,
+        onFinished: _handleFullTime,
         onMinuteTick: (m) => setState(() => _currentMinute = m),
       );
     });
+  }
+
+  void _handleFullTime() {
+    setState(() => _phase = _Phase.finished);
+    final result = _finalResult;
+    if (result == null) return;
+    final userIsHome = result.homeTeamId == _userTeamId;
+    final userGoals = userIsHome ? result.homeGoals : result.awayGoals;
+    final oppGoals = userIsHome ? result.awayGoals : result.homeGoals;
+    FeedbackService.matchResult(won: userGoals > oppGoals, drew: userGoals == oppGoals);
   }
 }
 

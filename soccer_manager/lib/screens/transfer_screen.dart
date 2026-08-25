@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/player.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
@@ -135,6 +136,7 @@ class _TransferScreenState extends State<TransferScreen> {
 
   Future<void> _acquire(BuildContext context, Future<bool> Function() action, String name) async {
     final ok = await action();
+    ok ? FeedbackService.success() : FeedbackService.error();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '$nameを獲得しました' : '獲得できませんでした')),

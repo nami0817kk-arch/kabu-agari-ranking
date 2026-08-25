@@ -1306,4 +1306,41 @@ void main() {
     expect(gameState.save!.clubHistory.length, 2);
     expect(gameState.save!.clubHistory.last, newTeamName);
   });
+
+  test('GameState.exportSaveJson/importSaveJson round-trips the save data', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = 12345;
+
+    final json = gameState.exportSaveJson();
+    expect(json, isNotNull);
+
+    final fresh = GameState();
+    final ok = await fresh.importSaveJson(json!);
+
+    expect(ok, isTrue);
+    expect(fresh.save!.clubName, 'テストFC');
+    expect(fresh.save!.budget, 12345);
+  });
+
+  test('GameState.importSaveJson rejects malformed JSON without crashing', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final ok = await gameState.importSaveJson('not valid json');
+
+    expect(ok, isFalse);
+    expect(gameState.save!.clubName, 'テストFC');
+  });
+
+  test('GameState.isBusy toggles off after startNewGame and startNextSeason complete', () async {
+    final gameState = GameState();
+    expect(gameState.isBusy, isFalse);
+
+    await gameState.startNewGame('テストFC');
+    expect(gameState.isBusy, isFalse);
+
+    await gameState.startNextSeason();
+    expect(gameState.isBusy, isFalse);
+  });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/feedback_service.dart';
 import 'fixtures_screen.dart';
 import 'home_screen.dart';
 import 'lineup_screen.dart';
@@ -28,7 +29,10 @@ class _MainShellState extends State<MainShell> {
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          FeedbackService.tap();
+          setState(() => _index = i);
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'ホーム'),
           NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'スカッド'),

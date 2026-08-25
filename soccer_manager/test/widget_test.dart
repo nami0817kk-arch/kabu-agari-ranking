@@ -12,6 +12,8 @@ void main() {
   testWidgets('start screen shows club creation form', (WidgetTester tester) async {
     await tester.pumpWidget(const SoccerManagerApp());
     await tester.pumpAndSettle();
+    await tester.tap(find.text('スキップ'));
+    await tester.pumpAndSettle();
 
     expect(find.text('サッカー経営マネージャー'), findsOneWidget);
     expect(find.text('クラブ創設'), findsOneWidget);
@@ -19,6 +21,8 @@ void main() {
 
   testWidgets('creating a club navigates to the home dashboard', (WidgetTester tester) async {
     await tester.pumpWidget(const SoccerManagerApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('スキップ'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'テストFC');
