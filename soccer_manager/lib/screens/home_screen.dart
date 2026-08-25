@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/formation.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
 import 'fixtures_screen.dart';
+import 'lineup_screen.dart';
 import 'match_screen.dart';
 import 'squad_screen.dart';
+import 'start_screen.dart';
 import 'training_screen.dart';
+import 'transfer_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,6 +20,10 @@ class HomeScreen extends StatelessWidget {
     final save = gameState.save;
     if (save == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    if (gameState.isDismissed) {
+      return _DismissalScreen(clubName: save.clubName);
     }
 
     final league = save.league;
@@ -38,8 +46,28 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   Text('シーズン ${league.season}', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  Text('順位: $userRank / ${standings.length}位'),
-                  Text('平均総合力: ${userTeam.overallRating}'),
+                  Text('順位: $userRank / ${standings.length}位（目標: ${save.boardTargetRank}位以内）'),
+                  Text('資金: ${save.budget}万円'),
+                  Text('平均総合力: ${userTeam.overallRating}　フォーメーション: ${userTeam.formation.label}'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('監督への信頼度'),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: save.confidence / 100,
+                            minHeight: 8,
+                            color: save.confidence <= 25 ? Colors.redAccent : null,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text('${save.confidence}'),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -76,6 +104,18 @@ class HomeScreen extends StatelessWidget {
             onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SquadScreen())),
           ),
           _MenuTile(
+            icon: Icons.checklist,
+            label: 'スタメン編成',
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LineupScreen())),
+          ),
+          _MenuTile(
+            icon: Icons.swap_horiz,
+            label: '移籍市場',
+            onTap: () =>
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TransferScreen())),
+          ),
+          _MenuTile(
             icon: Icons.fitness_center,
             label: 'トレーニング',
             onTap: () =>
@@ -107,6 +147,52 @@ class HomeScreen extends StatelessWidget {
         MaterialPageRoute(builder: (_) => MatchScreen(result: result, league: league)),
       );
     }
+  }
+}
+
+class _DismissalScreen extends StatelessWidget {
+  final String clubName;
+
+  const _DismissalScreen({required this.clubName});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.gavel, size: 64, color: Colors.redAccent),
+                const SizedBox(height: 16),
+                Text(
+                  '$clubName の監督を解任されました',
+                  style: Theme.of(context).textTheme.titleLarge,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text('理事会からの信頼を失いました。', textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () async {
+                    await context.read<GameState>().deleteSave();
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const StartScreen()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  child: const Text('新しいクラブで再出発する'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

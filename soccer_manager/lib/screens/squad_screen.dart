@@ -24,10 +24,17 @@ class SquadScreen extends StatelessWidget {
         itemCount: players.length,
         itemBuilder: (context, i) {
           final p = players[i];
+          final isStarting = gameState.userTeam.startingXI.contains(p.id);
           return ListTile(
-            leading: CircleAvatar(child: Text(p.position.label)),
+            leading: CircleAvatar(
+              backgroundColor: isStarting ? Theme.of(context).colorScheme.primaryContainer : null,
+              child: Text(p.position.label),
+            ),
             title: Text(p.name),
-            subtitle: Text('${p.age}歳 / 総合 ${p.overall}'),
+            subtitle: Text(
+              p.isInjured ? '負傷中（あと${p.injuryWeeks}週）' : '${p.age}歳 / 総合 ${p.overall}',
+              style: p.isInjured ? const TextStyle(color: Colors.redAccent) : null,
+            ),
             trailing: p.fatigue > 70
                 ? const Icon(Icons.battery_alert, color: Colors.orange)
                 : Text('${p.overall}', style: Theme.of(context).textTheme.titleMedium),
