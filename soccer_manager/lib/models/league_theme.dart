@@ -33,4 +33,20 @@ extension LeagueThemeInfo on LeagueTheme {
         return 'フランス風';
     }
   }
+
+  /// この国風テーマにおける国内カップ戦の名称(リーグ名の語幹に由来する)。
+  String get domesticCupName {
+    switch (this) {
+      case LeagueTheme.england:
+        return 'アルビオン杯';
+      case LeagueTheme.spain:
+        return 'イベリア杯';
+      case LeagueTheme.germany:
+        return 'ゲルマニア杯';
+      case LeagueTheme.italy:
+        return 'アペニン杯';
+      case LeagueTheme.france:
+        return 'ガリア杯';
+    }
+  }
 }

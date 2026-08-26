@@ -757,6 +757,15 @@ void main() {
   });
 
   test(
+      'GameState.startNewGame names the domestic cup after the chosen '
+      'league theme', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC', theme: LeagueTheme.spain);
+
+    expect(gameState.domesticCup!.name, LeagueTheme.spain.domesticCupName);
+  });
+
+  test(
       'ContinentalCupEngine.create splits teams into 4-team groups with a '
       'full round robin', () {
     final ids = List.generate(8, (i) => 't$i');

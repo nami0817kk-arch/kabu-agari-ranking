@@ -285,7 +285,7 @@ class GameState extends ChangeNotifier {
       cups: [
         CupEngine.createKnockout(
           type: CupType.domestic,
-          name: '国内カップ',
+          name: theme.domesticCupName,
           teamIds: teams.map((t) => t.id).toList(),
         ),
       ],
@@ -1214,6 +1214,12 @@ class GameState extends ChangeNotifier {
       ? '${_save!.leagueName}2部'
       : _save?.leagueName ?? 'リーグ';
 
+  /// 保存されているリーグ名から国風テーマを逆引きする(テーマ自体は
+  /// SaveGameに保持していないため、開幕時に確定した表示名から復元する)。
+  LeagueTheme get currentLeagueTheme =>
+      LeagueTheme.values.firstWhere((t) => t.label == _save?.leagueName,
+          orElse: () => LeagueTheme.england);
+
   /// シーズンごとに確定した個人タイトル(得点王・年間MVP)の履歴。新しい順。
   List<SeasonAward> get seasonAwards =>
       (_save?.seasonAwards ?? const <SeasonAward>[]).reversed.toList();
@@ -1809,11 +1815,23 @@ class GameState extends ChangeNotifier {
     return result;
   }
 
+  /// 大陸カップに参加する海外クラブ名を生成する。5つの国風テーマから
+  /// バランスよく取り混ぜることで、実際の大陸カップのように様々な国風の
+  /// クラブが顔をそろえるようにする(自国リーグと同じ命名規則を流用しつつ、
+  /// テーマを散らして「他国のクラブ」らしさを出す)。
   List<Team> _generateContinentalTeams() {
     final rng = Random();
-    final names = NamePool.clubNames(7).map((n) => '$n（欧州）').toList();
+    const totalTeams = 7;
+    final themes = List<LeagueTheme>.from(LeagueTheme.values)..shuffle(rng);
+    final names = <String>[];
+    var remaining = totalTeams;
+    for (int i = 0; i < themes.length && remaining > 0; i++) {
+      final take = (remaining / (themes.length - i)).ceil();
+      names.addAll(NamePool.themedClubNames(themes[i], take));
+      remaining -= take;
+    }
     final teams = <Team>[];
-    for (int i = 0; i < 7; i++) {
+    for (int i = 0; i < totalTeams; i++) {
       final t = PlayerGenerator.generateSquad(
         id: 'continental$i',
         name: names[i],
@@ -2046,7 +2064,7 @@ class GameState extends ChangeNotifier {
     _save!.cups = [
       CupEngine.createKnockout(
         type: CupType.domestic,
-        name: '国内カップ',
+        name: currentLeagueTheme.domesticCupName,
         teamIds: newActiveTeams.map((t) => t.id).toList(),
       ),
     ];
@@ -2054,7 +2072,7 @@ class GameState extends ChangeNotifier {
       final continentalTeams = _generateContinentalTeams();
       _save!.continentalTeams = continentalTeams;
       _save!.continentalCup = ContinentalCupEngine.create(
-        name: '大陸カップ',
+        name: '大陸チャンピオンズカップ',
         teamIds: [_save!.userTeamId, ...continentalTeams.map((t) => t.id)],
       );
     } else {
