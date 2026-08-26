@@ -4,6 +4,7 @@ import '../models/attributes.dart';
 import '../models/player.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/stat_bar.dart';
 
@@ -38,7 +39,11 @@ class PlayerDetailScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              PlayerFaceAvatar(playerId: p.id, position: p.position, size: 56, highlighted: true),
+              PlayerFaceAvatar(
+                  playerId: p.id,
+                  position: p.position,
+                  size: 56,
+                  highlighted: true),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -62,9 +67,15 @@ class PlayerDetailScreen extends StatelessWidget {
             runSpacing: 4,
             children: [
               if (isStarting)
-                Chip(label: const Text('スタメン'), backgroundColor: Theme.of(context).colorScheme.primaryContainer),
+                Chip(
+                    label: const Text('スタメン'),
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer),
               if (p.isLoan)
-                const Chip(label: Text('ローン加入中'), backgroundColor: Colors.indigo, labelStyle: TextStyle(color: Colors.white)),
+                const Chip(
+                    label: Text('ローン加入中'),
+                    backgroundColor: Colors.indigo,
+                    labelStyle: TextStyle(color: Colors.white)),
               if (p.wantsTransfer)
                 const Chip(
                   label: Text('移籍を希望している'),
@@ -97,7 +108,8 @@ class PlayerDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 '負傷中（あと${p.injuryWeeks}週は出場不可）',
-                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),
             ),
           if (p.isOnInternationalDuty)
@@ -105,11 +117,13 @@ class PlayerDetailScreen extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 '代表召集中（あと${p.internationalDutyWeeksRemaining}週は出場不可）',
-                style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                    color: Colors.blueAccent, fontWeight: FontWeight.bold),
               ),
             ),
           const SizedBox(height: 16),
-          Text('総合力: ${p.overall}', style: Theme.of(context).textTheme.titleLarge),
+          Text('総合力: ${p.overall}',
+              style: Theme.of(context).textTheme.titleLarge),
           Text('市場価値: ${p.marketValue}万円'),
           Text(
             p.isLoan
@@ -117,9 +131,11 @@ class PlayerDetailScreen extends StatelessWidget {
                 : '週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週',
           ),
           if (p.releaseClause != null)
-            Text('リリース条項: ${p.releaseClause}万円', style: const TextStyle(color: Colors.deepPurple)),
+            Text('リリース条項: ${p.releaseClause}万円',
+                style: const TextStyle(color: Colors.deepPurple)),
           const SizedBox(height: 4),
-          Text(p.personality.description, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(p.personality.description,
+              style: const TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 16),
           StatBar(label: '攻撃', value: p.attack),
           StatBar(label: '守備', value: p.defense),
@@ -127,20 +143,25 @@ class PlayerDetailScreen extends StatelessWidget {
           StatBar(label: 'スタミナ', value: p.stamina),
           const Divider(height: 32),
           StatBar(label: '潜在能力', value: p.potential, color: Colors.purple),
-          StatBar(label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
-          StatBar(label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
+          StatBar(
+              label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
+          StatBar(
+              label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
           StatBar(
             label: '不満度(高いほど満足)',
             value: p.happiness,
             max: 100,
-            color: p.happiness < 30 ? Colors.redAccent : Colors.green,
+            color: p.happiness < 30
+                ? SemanticColors.negative(context)
+                : SemanticColors.positive(context),
           ),
           const Divider(height: 32),
           Text('詳細能力値', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           for (final category in categories)
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data:
+                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 title: Text('${category.label}（${category.keys.length}項目）'),
                 initiallyExpanded: true,
@@ -148,7 +169,9 @@ class PlayerDetailScreen extends StatelessWidget {
                   for (final key in category.keys)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: StatBar(label: AttributeKeys.labelOf(key), value: p.attributeValue(key)),
+                      child: StatBar(
+                          label: AttributeKeys.labelOf(key),
+                          value: p.attributeValue(key)),
                     ),
                 ],
               ),
@@ -171,10 +194,13 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             )
           else ...[
-            Text('現在の出場手当: ${p.appearanceFee}万円/試合', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text('現在の出場手当: ${p.appearanceFee}万円/試合',
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: gameState.save!.budget < totalRenewalCost ? null : () => _renew(context),
+              onPressed: gameState.save!.budget < totalRenewalCost
+                  ? null
+                  : () => _renew(context),
               child: Text(
                 '契約更新する（基本$renewalCost万円 + サインボーナス$signingBonus万円 / +40週 / '
                 '新出場手当$newAppearanceFee万円）',
@@ -183,19 +209,26 @@ class PlayerDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: team.players.length <= minSquadSize ? null : () => _confirmSell(context, sellPrice),
+              onPressed: team.players.length <= minSquadSize
+                  ? null
+                  : () => _confirmSell(context, sellPrice),
               child: Text('放出する（$sellPrice万円）'),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.sell_outlined),
-              onPressed: () => gameState.setTransferListed(playerId, !p.isTransferListed),
+              onPressed: () {
+                FeedbackService.tap();
+                gameState.setTransferListed(playerId, !p.isTransferListed);
+              },
               label: Text(p.isTransferListed ? '移籍リストから外す' : '移籍リストに登録する'),
             ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.flight_takeoff),
-              onPressed: team.players.length <= minSquadSize ? null : () => _showLoanOutDialog(context),
+              onPressed: team.players.length <= minSquadSize
+                  ? null
+                  : () => _showLoanOutDialog(context),
               label: const Text('他クラブへローン放出する'),
             ),
           ],
@@ -209,8 +242,10 @@ class PlayerDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.gavel),
-              onPressed: () => _editReleaseClause(context, p.releaseClause, p.marketValue),
-              label: Text(p.releaseClause == null ? 'リリース条項を設定する' : 'リリース条項を変更する'),
+              onPressed: () =>
+                  _editReleaseClause(context, p.releaseClause, p.marketValue),
+              label:
+                  Text(p.releaseClause == null ? 'リリース条項を設定する' : 'リリース条項を変更する'),
             ),
           ],
         ],
@@ -221,6 +256,7 @@ class PlayerDetailScreen extends StatelessWidget {
   Future<void> _reassure(BuildContext context) async {
     final gameState = context.read<GameState>();
     final ok = await gameState.reassurePlayer(playerId);
+    ok ? FeedbackService.success() : FeedbackService.tap();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '選手を安心させた' : '既に満足しており、話し合う必要はなさそうだ')),
@@ -240,7 +276,8 @@ class PlayerDetailScreen extends StatelessWidget {
   }
 
   void _editReleaseClause(BuildContext context, int? current, int marketValue) {
-    final controller = TextEditingController(text: (current ?? marketValue).toString());
+    final controller =
+        TextEditingController(text: (current ?? marketValue).toString());
     final gameState = context.read<GameState>();
     showDialog<void>(
       context: context,
@@ -255,7 +292,8 @@ class PlayerDetailScreen extends StatelessWidget {
             TextField(
               controller: controller,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '解放金額(万円)', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: '解放金額(万円)', border: OutlineInputBorder()),
             ),
           ],
         ),
@@ -268,7 +306,8 @@ class PlayerDetailScreen extends StatelessWidget {
               },
               child: const Text('解除する'),
             ),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
           FilledButton(
             onPressed: () {
               final amount = int.tryParse(controller.text);
@@ -301,18 +340,22 @@ class PlayerDetailScreen extends StatelessWidget {
                 value: weeks.toDouble(),
                 min: GameState.loanOutMinWeeks.toDouble(),
                 max: GameState.loanOutMaxWeeks.toDouble(),
-                divisions: GameState.loanOutMaxWeeks - GameState.loanOutMinWeeks,
+                divisions:
+                    GameState.loanOutMaxWeeks - GameState.loanOutMinWeeks,
                 label: '$weeks週',
                 onChanged: (v) => setState(() => weeks = v.round()),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('キャンセル')),
             FilledButton(
               onPressed: () async {
                 Navigator.pop(ctx);
                 final ok = await gameState.loanOutPlayer(playerId, weeks);
+                ok ? FeedbackService.success() : FeedbackService.error();
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(ok ? 'ローン放出しました' : 'ローン放出できませんでした')),
@@ -334,12 +377,14 @@ class PlayerDetailScreen extends StatelessWidget {
         title: const Text('この選手を放出しますか？'),
         content: Text('$sellPrice万円を獲得しますが、元には戻せません。'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
               final gameState = context.read<GameState>();
               final ok = await gameState.sellPlayer(playerId);
+              ok ? FeedbackService.success() : FeedbackService.error();
               if (context.mounted && ok) {
                 Navigator.pop(context);
               }
