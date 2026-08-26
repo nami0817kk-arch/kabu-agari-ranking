@@ -306,6 +306,59 @@ void main() {
     expect(player.suspendedMatches, 1);
   });
 
+  test(
+      'MatchEngine.computePlayerRatings rewards goals and penalizes red '
+      'cards, and MatchResult.manOfTheMatchId picks the top scorer', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home3', name: 'Home FC 3', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away3', name: 'Away FC 3', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    final scorer =
+        home.players.firstWhere((p) => home.startingXI.contains(p.id));
+    final cardedAwayPlayer =
+        away.players.firstWhere((p) => away.startingXI.contains(p.id));
+
+    final events = [
+      MatchEvent(
+          minute: 10,
+          teamId: home.id,
+          scorerName: scorer.name,
+          scorerId: scorer.id),
+      MatchEvent(
+        minute: 30,
+        teamId: away.id,
+        scorerName: cardedAwayPlayer.name,
+        scorerId: cardedAwayPlayer.id,
+        type: MatchEventType.redCard,
+      ),
+    ];
+
+    final ratings = MatchEngine.computePlayerRatings(
+      home: home,
+      away: away,
+      events: events,
+      homeGoals: 1,
+      awayGoals: 0,
+    );
+
+    expect(ratings[scorer.id], greaterThan(6.0));
+    expect(ratings[cardedAwayPlayer.id], lessThan(6.0));
+
+    final result = MatchResult(
+      matchday: 1,
+      homeTeamId: home.id,
+      awayTeamId: away.id,
+      homeGoals: 1,
+      awayGoals: 0,
+      events: events,
+      playerRatings: ratings,
+    );
+    expect(result.manOfTheMatchId, scorer.id);
+  });
+
   test('GameState.scoutProspect deducts budget and adds a youth prospect',
       () async {
     final gameState = GameState();

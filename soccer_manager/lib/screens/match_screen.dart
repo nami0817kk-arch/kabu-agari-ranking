@@ -100,6 +100,8 @@ class _MatchScreenState extends State<MatchScreen> {
           ),
           if (_finished)
             FullTimeBanner(userTeamId: _userTeamId, result: widget.result),
+          if (_finished)
+            ManOfTheMatchBanner(result: widget.result, teams: teams),
           const SizedBox(height: 8),
           AspectRatio(
             aspectRatio: 3 / 2,

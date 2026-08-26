@@ -62,6 +62,19 @@ class League {
 
   bool get isSeasonComplete => fixtures.every((f) => f.result != null);
 
+  /// 指定チームが直近にプレーした(結果が確定している)試合を返す。まだ1試合も
+  /// 消化していない場合はnull。
+  Fixture? lastPlayedFixtureFor(String teamId) {
+    final played = fixtures
+        .where((f) =>
+            f.result != null &&
+            (f.homeTeamId == teamId || f.awayTeamId == teamId))
+        .toList();
+    if (played.isEmpty) return null;
+    played.sort((a, b) => b.matchday.compareTo(a.matchday));
+    return played.first;
+  }
+
   List<Fixture> fixturesForMatchday(int md) =>
       fixtures.where((f) => f.matchday == md).toList();
 

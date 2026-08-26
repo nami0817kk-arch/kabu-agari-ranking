@@ -145,6 +145,8 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
             ),
             if (finished)
               FullTimeBanner(userTeamId: _userTeamId, result: _finalResult),
+            if (finished)
+              ManOfTheMatchBanner(result: _finalResult, teams: [home, away]),
             AspectRatio(
               aspectRatio: 3 / 2,
               child: Container(

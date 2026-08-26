@@ -226,6 +226,7 @@ class MatchEngine {
             minute: minute,
             teamId: attackingTeam.id,
             scorerName: shooter?.name,
+            scorerId: shooter?.id,
             type: MatchEventType.chance));
       }
     }
@@ -318,6 +319,57 @@ class MatchEngine {
     }
   }
 
+  /// 出場した選手の試合内採点(1.0〜10.0)を算出する。基準点6.0から、得点・
+  /// 決定機創出でプラス、警告・退場でマイナス、所属チームの勝敗で補正する。
+  static Map<String, double> computePlayerRatings({
+    required Team home,
+    required Team away,
+    required List<MatchEvent> events,
+    required int homeGoals,
+    required int awayGoals,
+  }) {
+    final homeLineup = lineupOf(home);
+    final awayLineup = lineupOf(away);
+    final ratings = <String, double>{};
+    for (final p in [...homeLineup, ...awayLineup]) {
+      ratings[p.id] = 6.0;
+    }
+
+    for (final e in events) {
+      final id = e.scorerId;
+      if (id == null || !ratings.containsKey(id)) continue;
+      switch (e.type) {
+        case MatchEventType.goal:
+          ratings[id] = ratings[id]! + 1.0;
+          break;
+        case MatchEventType.chance:
+          ratings[id] = ratings[id]! + 0.3;
+          break;
+        case MatchEventType.yellowCard:
+          ratings[id] = ratings[id]! - 0.5;
+          break;
+        case MatchEventType.redCard:
+          ratings[id] = ratings[id]! - 1.5;
+          break;
+      }
+    }
+
+    final resultBonus = homeGoals > awayGoals
+        ? 0.4
+        : homeGoals < awayGoals
+            ? -0.4
+            : 0.0;
+    for (final p in homeLineup) {
+      ratings[p.id] = ratings[p.id]! + resultBonus;
+    }
+    for (final p in awayLineup) {
+      ratings[p.id] = ratings[p.id]! - resultBonus;
+    }
+
+    return ratings
+        .map((id, r) => MapEntry(id, (r.clamp(1.0, 10.0) * 2).round() / 2));
+  }
+
   /// 前半・後半をまとめて一括シミュレートする(CPU同士の試合・カップ戦など、
   /// ハーフタイム操作が不要な場合に使う)。
   static MatchResult simulate({
@@ -331,21 +383,35 @@ class MatchEngine {
         simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
     final second =
         simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    final allEvents = [...first.events, ...second.events];
+    final homeGoals = first.homeGoals + second.homeGoals;
+    final awayGoals = first.awayGoals + second.awayGoals;
+    // 採点は今節の出場停止・負傷が反映される前(=今節の出場者がまだ
+    // lineupOfに残っている状態)で算出する必要があるため、
+    // applyPostMatchEffectsより先に計算する。
+    final ratings = computePlayerRatings(
+      home: home,
+      away: away,
+      events: allEvents,
+      homeGoals: homeGoals,
+      awayGoals: awayGoals,
+    );
     applyPostMatchEffects(
       home: home,
       away: away,
       homeInjuryFactor: homeInjuryFactor,
       awayInjuryFactor: awayInjuryFactor,
-      events: [...first.events, ...second.events],
+      events: allEvents,
     );
 
     return MatchResult(
       matchday: matchday,
       homeTeamId: home.id,
       awayTeamId: away.id,
-      homeGoals: first.homeGoals + second.homeGoals,
-      awayGoals: first.awayGoals + second.awayGoals,
-      events: [...first.events, ...second.events],
+      homeGoals: homeGoals,
+      awayGoals: awayGoals,
+      events: allEvents,
+      playerRatings: ratings,
     );
   }
 }

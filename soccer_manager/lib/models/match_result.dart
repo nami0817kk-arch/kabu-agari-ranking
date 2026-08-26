@@ -44,6 +44,9 @@ class MatchResult {
   final int awayGoals;
   final List<MatchEvent> events;
 
+  /// 出場した選手の試合内採点(1.0〜10.0)。選手ID→採点。
+  final Map<String, double> playerRatings;
+
   MatchResult({
     required this.matchday,
     required this.homeTeamId,
@@ -51,7 +54,16 @@ class MatchResult {
     required this.homeGoals,
     required this.awayGoals,
     required this.events,
-  });
+    Map<String, double>? playerRatings,
+  }) : playerRatings = playerRatings ?? {};
+
+  /// この試合の最優秀選手(採点が最も高い選手)のID。採点データがなければnull。
+  String? get manOfTheMatchId {
+    if (playerRatings.isEmpty) return null;
+    return playerRatings.entries
+        .reduce((a, b) => b.value > a.value ? b : a)
+        .key;
+  }
 
   Map<String, dynamic> toJson() => {
         'matchday': matchday,
@@ -60,6 +72,7 @@ class MatchResult {
         'homeGoals': homeGoals,
         'awayGoals': awayGoals,
         'events': events.map((e) => e.toJson()).toList(),
+        'playerRatings': playerRatings,
       };
 
   factory MatchResult.fromJson(Map<String, dynamic> json) => MatchResult(
@@ -71,5 +84,9 @@ class MatchResult {
         events: (json['events'] as List)
             .map((e) => MatchEvent.fromJson(e as Map<String, dynamic>))
             .toList(),
+        playerRatings: (json['playerRatings'] as Map?)?.map(
+              (k, v) => MapEntry(k as String, (v as num).toDouble()),
+            ) ??
+            {},
       );
 }

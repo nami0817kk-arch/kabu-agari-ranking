@@ -155,6 +155,10 @@ class _SquadScreenState extends State<SquadScreen> {
       query: _query,
       sort: _sort,
     );
+    final lastRatings = gameState.save!.league
+        .lastPlayedFixtureFor(team.id)
+        ?.result
+        ?.playerRatings;
 
     return Scaffold(
       appBar: AppBar(
@@ -311,7 +315,8 @@ class _SquadScreenState extends State<SquadScreen> {
                                         ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
                                         : p.isLoanedOut
                                             ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
-                                            : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}',
+                                            : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
+                                                '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}',
                             style: (p.isInjured ||
                                     p.isSuspended ||
                                     p.isOnInternationalDuty ||

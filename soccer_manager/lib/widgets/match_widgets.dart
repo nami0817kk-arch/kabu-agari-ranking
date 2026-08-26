@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/match_result.dart';
+import '../models/player.dart';
 import '../models/team.dart';
 import '../theme/semantic_colors.dart';
 import 'club_emblem.dart';
@@ -124,6 +125,62 @@ class FullTimeBanner extends StatelessWidget {
             Text(label,
                 style: const TextStyle(
                     color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 試合終了時に、その試合で最も採点の高かった選手をマン・オブ・ザ・マッチ
+/// として表示するバナー。
+class ManOfTheMatchBanner extends StatelessWidget {
+  final MatchResult? result;
+  final List<Team> teams;
+
+  const ManOfTheMatchBanner(
+      {super.key, required this.result, required this.teams});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = result;
+    if (r == null) return const SizedBox.shrink();
+    final motmId = r.manOfTheMatchId;
+    if (motmId == null) return const SizedBox.shrink();
+    Player? motm;
+    for (final t in teams) {
+      for (final p in t.players) {
+        if (p.id == motmId) {
+          motm = p;
+          break;
+        }
+      }
+      if (motm != null) break;
+    }
+    if (motm == null) return const SizedBox.shrink();
+    final rating = r.playerRatings[motmId];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: Colors.amber.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.military_tech, color: Colors.amber, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('マン・オブ・ザ・マッチ: ${motm.name}',
+                  overflow: TextOverflow.ellipsis),
+            ),
+            if (rating != null)
+              Text(rating.toStringAsFixed(1),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
       ),

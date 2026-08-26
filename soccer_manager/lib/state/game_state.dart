@@ -1179,21 +1179,34 @@ class GameState extends ChangeNotifier {
 
     final second = MatchEngine.simulateMinutes(
         home: home, away: away, startMinute: 46, endMinute: 90);
+    final allEvents = [..._liveFirstHalf!.events, ...second.events];
+    final homeGoals = _liveFirstHalf!.homeGoals + second.homeGoals;
+    final awayGoals = _liveFirstHalf!.awayGoals + second.awayGoals;
+    // 採点は今節の出場停止・負傷が反映される前に算出する必要があるため、
+    // applyPostMatchEffectsより先に計算する。
+    final ratings = MatchEngine.computePlayerRatings(
+      home: home,
+      away: away,
+      events: allEvents,
+      homeGoals: homeGoals,
+      awayGoals: awayGoals,
+    );
     MatchEngine.applyPostMatchEffects(
       home: home,
       away: away,
       homeInjuryFactor: _injuryFactorFor(home.id),
       awayInjuryFactor: _injuryFactorFor(away.id),
-      events: [..._liveFirstHalf!.events, ...second.events],
+      events: allEvents,
     );
 
     final merged = MatchResult(
       matchday: f.matchday,
       homeTeamId: f.homeTeamId,
       awayTeamId: f.awayTeamId,
-      homeGoals: _liveFirstHalf!.homeGoals + second.homeGoals,
-      awayGoals: _liveFirstHalf!.awayGoals + second.awayGoals,
-      events: [..._liveFirstHalf!.events, ...second.events],
+      homeGoals: homeGoals,
+      awayGoals: awayGoals,
+      events: allEvents,
+      playerRatings: ratings,
     );
     f.result = merged;
 
