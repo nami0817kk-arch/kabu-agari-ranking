@@ -159,11 +159,25 @@ class GameState extends ChangeNotifier {
       }
     }
     if (_save != null) {
+      _reseedPlayerIdCounter(_save!);
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     }
     initialized = true;
     notifyListeners();
+  }
+
+  /// セーブデータ内の全選手IDを集め、[PlayerGenerator]のIDカウンターへ反映する。
+  void _reseedPlayerIdCounter(SaveGame save) {
+    final ids = <String>[
+      for (final t in [...save.league.teams, ...save.secondDivisionTeams])
+        for (final p in t.players) p.id,
+      for (final p in save.youthProspects) p.id,
+      for (final p in save.pendingYouthIntake) p.id,
+      for (final p in save.freeAgents) p.id,
+      for (final p in save.retiredLegends) p.id,
+    ];
+    PlayerGenerator.ensureIdCounterAbove(ids);
   }
 
   Future<void> _persist() async {
@@ -217,6 +231,7 @@ class GameState extends ChangeNotifier {
       }
     }
     if (_save != null) {
+      _reseedPlayerIdCounter(_save!);
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     } else {
@@ -251,7 +266,6 @@ class GameState extends ChangeNotifier {
       id: 'user',
       name: clubName,
       strengthTier: 60,
-      isUserTeam: true,
     );
     const cpuCount = teamsPerLeague - 1;
     final allNames = NamePool.themedClubNames(theme, cpuCount + teamsPerLeague);
@@ -346,6 +360,7 @@ class GameState extends ChangeNotifier {
       return false;
     }
     _save = restored;
+    _reseedPlayerIdCounter(restored);
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     notifyListeners();
@@ -945,8 +960,9 @@ class GameState extends ChangeNotifier {
 
   Future<bool> chooseSponsor(int offerIndex) async {
     if (_save == null) return false;
-    if (offerIndex < 0 || offerIndex >= _save!.pendingSponsorOffers.length)
+    if (offerIndex < 0 || offerIndex >= _save!.pendingSponsorOffers.length) {
       return false;
+    }
     _save!.sponsorDeal = _save!.pendingSponsorOffers[offerIndex];
     _save!.pendingSponsorOffers = [];
     notifyListeners();
@@ -1421,7 +1437,9 @@ class GameState extends ChangeNotifier {
     final question = _save!.pendingPressConference;
     if (question == null ||
         optionIndex < 0 ||
-        optionIndex >= question.options.length) return;
+        optionIndex >= question.options.length) {
+      return;
+    }
     final option = question.options[optionIndex];
     _save!.confidence =
         (_save!.confidence + option.confidenceDelta).clamp(0, 100);
@@ -1623,8 +1641,12 @@ class GameState extends ChangeNotifier {
     final next = league.nextUnplayedFixture;
     if (next == null) return null;
 
-    // 週の経過による負傷回復。復帰直後は試合勘が鈍っているため
-    // マッチシャープネスを大きく下げる。
+    // 週の経過による負傷回復と自然な疲労回復(休養日)。
+    // 疲労回復は個別のトレーニング方針(休養特訓)とは別に、全チーム・
+    // 全選手へ毎週一律で適用する。CPUクラブは練習メニューを設定できず、
+    // これを怠ると試合の疲労蓄積だけが積み重なって疲労が上限に張り付き
+    // 続けてしまうため。復帰直後は試合勘が鈍っているためマッチシャープ
+    // ネスを大きく下げる。
     for (final t in league.teams) {
       for (final p in t.players) {
         if (p.injuryWeeks > 0) {
@@ -1634,6 +1656,7 @@ class GameState extends ChangeNotifier {
             p.injuryType = null;
           }
         }
+        p.fatigue = (p.fatigue - 14).clamp(0, 100);
       }
     }
 
@@ -1653,6 +1676,14 @@ class GameState extends ChangeNotifier {
         1;
     HappinessEngine.applyWeekly(userTeam,
         leagueRank: preMatchRank, boardTargetRank: _save!.boardTargetRank);
+    // CPUクラブにも同様に反映する(目標順位という概念がないため、自クラブの
+    // 順位をそのまま目標として扱い、出場機会・待遇の要素のみ効かせる)。
+    for (final t in league.teams) {
+      if (t.id == _save!.userTeamId) continue;
+      final rank =
+          league.sortedStandings.indexWhere((r) => r.teamId == t.id) + 1;
+      HappinessEngine.applyWeekly(t, leagueRank: rank, boardTargetRank: rank);
+    }
 
     // シーズン折り返し地点で、理事会が一度だけ中間レビューを行う。
     if (!_save!.boardReviewDoneThisSeason) {
@@ -1783,8 +1814,9 @@ class GameState extends ChangeNotifier {
 
   /// ハーフタイムでの交代・戦術変更を反映して後半を消化し、試合を確定する。
   Future<MatchResult?> playSecondHalf() async {
-    if (_save == null || _liveFixture == null || _liveFirstHalf == null)
+    if (_save == null || _liveFixture == null || _liveFirstHalf == null) {
       return null;
+    }
     final league = _save!.league;
     final f = _liveFixture!;
     final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
@@ -2101,6 +2133,12 @@ class GameState extends ChangeNotifier {
     for (final t in [...league.teams, ..._save!.secondDivisionTeams]) {
       for (final p in t.players) {
         p.age += 1;
+      }
+      // CPUクラブは自クラブ(userTeam、下でRetirementEngine.resolveRetirements
+      // を個別に呼ぶ)と違って移籍市場で世代交代しないため、ここで代わりに
+      // 引退+若手補充を行う。行わないと選手が永遠に加齢し続けてしまう。
+      if (t.id != _save!.userTeamId) {
+        RetirementEngine.resolveAndReplaceForCpu(t);
       }
     }
     final infra = _save!.infrastructure;

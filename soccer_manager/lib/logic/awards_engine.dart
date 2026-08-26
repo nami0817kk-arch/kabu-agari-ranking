@@ -44,14 +44,16 @@ class AwardsEngine {
       }
     }
 
-    // 年間MVP: レギュラー(スタメン)級の選手の中から、総合力に得点数を加味した
-    // スコアが最も高い選手を選ぶ簡易的なヒューリスティック。
+    // 年間MVP: 総合力に得点数を加味したスコアが最も高い選手を選ぶ簡易的な
+    // ヒューリスティック。t.startingXIは「現時点」のスタメン指定であり、
+    // シーズン終了時点でたまたま入れ替えていた選手が除外されてしまう
+    // (=シーズンを通じて活躍していた主力が、最終節前のローテーションだけで
+    // 対象外になる)ため、対象は全所属選手とする。
     String? mvpName;
     String? mvpTeamName;
     double bestScore = -1;
     for (final t in league.teams) {
       for (final p in t.players) {
-        if (!t.startingXI.contains(p.id)) continue;
         final score = p.overall.toDouble() + (goals[p.id] ?? 0) * 2;
         if (score > bestScore) {
           bestScore = score;

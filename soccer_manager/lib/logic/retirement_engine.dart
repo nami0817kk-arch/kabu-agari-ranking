@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../models/player.dart';
 import '../models/team.dart';
+import 'player_generator.dart';
 
 /// シーズン終了時の高齢選手の引退判定。
 class RetirementEngine {
@@ -27,6 +28,21 @@ class RetirementEngine {
     for (final p in retirees) {
       team.players.remove(p);
       team.startingXI.remove(p.id);
+    }
+    return retirees;
+  }
+
+  /// CPU/2部クラブの世代交代。ユーザークラブと違って移籍市場で自ら補強
+  /// しないため、引退した分をそのまま若手選手で穴埋めして、スカッドが
+  /// 何シーズンも高齢化し続けたり選手数が枯渇したりしないようにする。
+  static List<Player> resolveAndReplaceForCpu(Team team) {
+    final retirees = resolveRetirements(team);
+    for (final p in retirees) {
+      team.players.add(PlayerGenerator.generate(
+        position: p.position,
+        strengthTier: team.overallRating,
+        ageOverride: 18 + _rng.nextInt(4),
+      ));
     }
     return retirees;
   }

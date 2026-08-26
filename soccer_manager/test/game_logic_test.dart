@@ -2661,8 +2661,9 @@ void main() {
       () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
-    gameState.save!.pendingJobOfferTeamId =
-        gameState.save!.league.teams.firstWhere((t) => !t.isUserTeam).id;
+    gameState.save!.pendingJobOfferTeamId = gameState.save!.league.teams
+        .firstWhere((t) => t.id != gameState.save!.userTeamId)
+        .id;
     final newTeamName = gameState.save!.league.teams
         .firstWhere((t) => t.id == gameState.save!.pendingJobOfferTeamId)
         .name;
@@ -4213,5 +4214,168 @@ void main() {
     expect(report.keyPlayerId, isNotNull);
     expect(MatchEngine.lineupOf(away).map((p) => p.id),
         contains(report.keyPlayerId));
+  });
+
+  test(
+      'PlayerGenerator.ensureIdCounterAbove prevents newly generated players '
+      'from reusing an existing player ID', () {
+    PlayerGenerator.ensureIdCounterAbove(['pl500000']);
+    final p = PlayerGenerator.generate(position: Position.st, strengthTier: 60);
+    final match = RegExp(r'^pl(\d+)$').firstMatch(p.id);
+    expect(match, isNotNull);
+    expect(int.parse(match!.group(1)!), greaterThan(500000));
+  });
+
+  test(
+      'RetirementEngine.resolveAndReplaceForCpu keeps CPU squad size stable '
+      'by replacing retirees with fresh young players', () {
+    final team = Team(
+      id: 'cpu',
+      name: 'CPU FC',
+      players: List.generate(
+        20,
+        (i) => Player(
+            id: 'old$i',
+            name: 'old$i',
+            age: 40,
+            position: Position.st,
+            potential: 60),
+      ),
+    );
+    final originalSize = team.players.length;
+    final retirees = RetirementEngine.resolveAndReplaceForCpu(team);
+    expect(retirees, isNotEmpty);
+    expect(team.players.length, originalSize);
+    for (final r in retirees) {
+      expect(team.players.any((p) => p.id == r.id), isFalse);
+    }
+    final newYoungsters = team.players.where((p) => p.age < 25);
+    expect(newYoungsters.length, retirees.length);
+  });
+
+  test(
+      'weekly matchday tick keeps CPU fatigue from permanently pinning at '
+      'the cap, unlike before passive recovery existed', () async {
+    SharedPreferences.setMockInitialValues({});
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    for (int i = 0; i < 10; i++) {
+      await gameState.playNextMatchdayQuickSim();
+    }
+    final cpuTeams = gameState.save!.league.teams
+        .where((t) => t.id != gameState.save!.userTeamId);
+    final allFatigue = cpuTeams.expand((t) => t.players.map((p) => p.fatigue));
+    final avgFatigue = allFatigue.reduce((a, b) => a + b) / allFatigue.length;
+    expect(avgFatigue, lessThan(90));
+  });
+
+  test('captain discipline bonus only applies if the captain is in the lineup',
+      () {
+    Team buildTeam(bool captainStarts) {
+      final players = List.generate(
+        11,
+        (i) => Player(
+            id: 'p$i',
+            name: 'p$i',
+            age: 25,
+            position: i == 0 ? Position.gk : Position.mc,
+            potential: 60),
+      );
+      final bench = Player(
+          id: 'benched-captain',
+          name: 'benched-captain',
+          age: 25,
+          position: Position.mc,
+          potential: 60);
+      final team = Team(
+          id: captainStarts ? 'starts' : 'benched',
+          name: 'T',
+          players: [...players, bench]);
+      LineupUtils.autoFill(team);
+      team.captainId = captainStarts ? players.first.id : bench.id;
+      return team;
+    }
+
+    int totalCards(Team home) {
+      var total = 0;
+      const trials = 200;
+      final away = PlayerGenerator.generateSquad(
+          id: 'away', name: 'Away FC', strengthTier: 60);
+      LineupUtils.autoFill(away);
+      for (int i = 0; i < trials; i++) {
+        final result = MatchEngine.simulateMinutes(
+            home: home, away: away, startMinute: 1, endMinute: 90);
+        total += result.events
+            .where((e) =>
+                e.teamId == home.id &&
+                (e.type == MatchEventType.yellowCard ||
+                    e.type == MatchEventType.redCard))
+            .length;
+      }
+      return total;
+    }
+
+    final withCaptainOnBench = totalCards(buildTeam(false));
+    final withCaptainStarting = totalCards(buildTeam(true));
+    expect(withCaptainOnBench, greaterThan(withCaptainStarting));
+  });
+
+  test(
+      'AwardsEngine.computeAwards can still pick a player as MVP even if '
+      'they are not currently listed in startingXI', () {
+    final players = List.generate(
+      15,
+      (i) => Player(
+          id: 'p$i',
+          name: 'p$i',
+          age: 25,
+          position: Position.st,
+          potential: 60),
+    );
+    final star = players.first;
+    star.setAttributeValue(AttributeKeys.finishing, 99);
+    for (final k in AttributeKeys.all) {
+      star.setAttributeValue(k, 90);
+    }
+    final team = Team(id: 't', name: 'T', players: players);
+    // スタメンから外れていても(直前のローテーション等を想定)、シーズンの
+    // 実績で選出されるべき。
+    team.startingXI = players.skip(1).take(10).map((p) => p.id).toList();
+    final league = League(
+      teams: [team],
+      fixtures: [
+        Fixture(
+          matchday: 1,
+          homeTeamId: 't',
+          awayTeamId: 't',
+          result: MatchResult(
+            matchday: 1,
+            homeTeamId: 't',
+            awayTeamId: 't',
+            homeGoals: 3,
+            awayGoals: 0,
+            events: [
+              MatchEvent(
+                  minute: 10,
+                  teamId: 't',
+                  scorerName: star.name,
+                  scorerId: star.id,
+                  type: MatchEventType.goal),
+            ],
+          ),
+        ),
+      ],
+      season: 1,
+    );
+    final award = AwardsEngine.computeAwards(league, 1);
+    expect(award.mvpName, star.name);
+  });
+
+  test(
+      'NamePool.themedClubNames always returns exactly the requested count, '
+      'even beyond the base word x suffix combination pool', () {
+    final names = NamePool.themedClubNames(LeagueTheme.spain, 60);
+    expect(names.length, 60);
+    expect(names.toSet().length, 60);
   });
 }

@@ -7,6 +7,19 @@ import '../data/name_pool.dart';
 class PlayerGenerator {
   static final Random _rng = Random();
   static int _idCounter = 0;
+  static final RegExp _idPattern = RegExp(r'^pl(\d+)$');
+
+  /// ロード直後に呼び出し、既存セーブ内の選手IDと衝突しないよう
+  /// カウンターを引き上げる(プロセス再起動でカウンターが0に戻ると、
+  /// 新規生成した選手が既存選手と同じIDを持ってしまうため)。
+  static void ensureIdCounterAbove(Iterable<String> existingIds) {
+    for (final id in existingIds) {
+      final match = _idPattern.firstMatch(id);
+      if (match == null) continue;
+      final n = int.tryParse(match.group(1)!);
+      if (n != null && n >= _idCounter) _idCounter = n + 1;
+    }
+  }
 
   static const _gkStrong = {
     AttributeKeys.handling,
@@ -34,76 +47,142 @@ class PlayerGenerator {
 
   static const Map<Position, Set<String>> _strongByPosition = {
     Position.dc: {
-      AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.positioning,
-      AttributeKeys.strength, AttributeKeys.heading, AttributeKeys.aggression,
-      AttributeKeys.anticipation, AttributeKeys.bravery,
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.positioning,
+      AttributeKeys.strength,
+      AttributeKeys.heading,
+      AttributeKeys.aggression,
+      AttributeKeys.anticipation,
+      AttributeKeys.bravery,
     },
     Position.dr: {
-      AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.crossing,
-      AttributeKeys.pace, AttributeKeys.acceleration, AttributeKeys.stamina,
-      AttributeKeys.workRate, AttributeKeys.positioning,
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.crossing,
+      AttributeKeys.pace,
+      AttributeKeys.acceleration,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.positioning,
     },
     Position.dl: {
-      AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.crossing,
-      AttributeKeys.pace, AttributeKeys.acceleration, AttributeKeys.stamina,
-      AttributeKeys.workRate, AttributeKeys.positioning,
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.crossing,
+      AttributeKeys.pace,
+      AttributeKeys.acceleration,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.positioning,
     },
     Position.wbr: {
-      AttributeKeys.crossing, AttributeKeys.pace, AttributeKeys.acceleration,
-      AttributeKeys.stamina, AttributeKeys.workRate, AttributeKeys.dribbling,
+      AttributeKeys.crossing,
+      AttributeKeys.pace,
+      AttributeKeys.acceleration,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.dribbling,
       AttributeKeys.tackling,
     },
     Position.wbl: {
-      AttributeKeys.crossing, AttributeKeys.pace, AttributeKeys.acceleration,
-      AttributeKeys.stamina, AttributeKeys.workRate, AttributeKeys.dribbling,
+      AttributeKeys.crossing,
+      AttributeKeys.pace,
+      AttributeKeys.acceleration,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.dribbling,
       AttributeKeys.tackling,
     },
     Position.dm: {
-      AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.positioning,
-      AttributeKeys.passing, AttributeKeys.anticipation, AttributeKeys.workRate,
-      AttributeKeys.teamwork, AttributeKeys.decisions,
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.positioning,
+      AttributeKeys.passing,
+      AttributeKeys.anticipation,
+      AttributeKeys.workRate,
+      AttributeKeys.teamwork,
+      AttributeKeys.decisions,
     },
     Position.mr: {
-      AttributeKeys.passing, AttributeKeys.crossing, AttributeKeys.dribbling,
-      AttributeKeys.pace, AttributeKeys.stamina, AttributeKeys.workRate,
-      AttributeKeys.technique, AttributeKeys.firstTouch,
+      AttributeKeys.passing,
+      AttributeKeys.crossing,
+      AttributeKeys.dribbling,
+      AttributeKeys.pace,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.technique,
+      AttributeKeys.firstTouch,
     },
     Position.ml: {
-      AttributeKeys.passing, AttributeKeys.crossing, AttributeKeys.dribbling,
-      AttributeKeys.pace, AttributeKeys.stamina, AttributeKeys.workRate,
-      AttributeKeys.technique, AttributeKeys.firstTouch,
+      AttributeKeys.passing,
+      AttributeKeys.crossing,
+      AttributeKeys.dribbling,
+      AttributeKeys.pace,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.technique,
+      AttributeKeys.firstTouch,
     },
     Position.mc: {
-      AttributeKeys.passing, AttributeKeys.vision, AttributeKeys.firstTouch,
-      AttributeKeys.technique, AttributeKeys.decisions, AttributeKeys.stamina,
-      AttributeKeys.workRate, AttributeKeys.teamwork,
+      AttributeKeys.passing,
+      AttributeKeys.vision,
+      AttributeKeys.firstTouch,
+      AttributeKeys.technique,
+      AttributeKeys.decisions,
+      AttributeKeys.stamina,
+      AttributeKeys.workRate,
+      AttributeKeys.teamwork,
     },
     Position.amr: {
-      AttributeKeys.dribbling, AttributeKeys.pace, AttributeKeys.crossing,
-      AttributeKeys.finishing, AttributeKeys.flair, AttributeKeys.offTheBall,
-      AttributeKeys.technique, AttributeKeys.acceleration,
+      AttributeKeys.dribbling,
+      AttributeKeys.pace,
+      AttributeKeys.crossing,
+      AttributeKeys.finishing,
+      AttributeKeys.flair,
+      AttributeKeys.offTheBall,
+      AttributeKeys.technique,
+      AttributeKeys.acceleration,
     },
     Position.aml: {
-      AttributeKeys.dribbling, AttributeKeys.pace, AttributeKeys.crossing,
-      AttributeKeys.finishing, AttributeKeys.flair, AttributeKeys.offTheBall,
-      AttributeKeys.technique, AttributeKeys.acceleration,
+      AttributeKeys.dribbling,
+      AttributeKeys.pace,
+      AttributeKeys.crossing,
+      AttributeKeys.finishing,
+      AttributeKeys.flair,
+      AttributeKeys.offTheBall,
+      AttributeKeys.technique,
+      AttributeKeys.acceleration,
     },
     Position.amc: {
-      AttributeKeys.passing, AttributeKeys.vision, AttributeKeys.technique,
-      AttributeKeys.decisions, AttributeKeys.flair, AttributeKeys.finishing,
-      AttributeKeys.offTheBall, AttributeKeys.composure,
+      AttributeKeys.passing,
+      AttributeKeys.vision,
+      AttributeKeys.technique,
+      AttributeKeys.decisions,
+      AttributeKeys.flair,
+      AttributeKeys.finishing,
+      AttributeKeys.offTheBall,
+      AttributeKeys.composure,
     },
     Position.st: {
-      AttributeKeys.finishing, AttributeKeys.longShots, AttributeKeys.offTheBall,
-      AttributeKeys.composure, AttributeKeys.pace, AttributeKeys.acceleration,
-      AttributeKeys.flair, AttributeKeys.heading,
+      AttributeKeys.finishing,
+      AttributeKeys.longShots,
+      AttributeKeys.offTheBall,
+      AttributeKeys.composure,
+      AttributeKeys.pace,
+      AttributeKeys.acceleration,
+      AttributeKeys.flair,
+      AttributeKeys.heading,
     },
   };
 
   static const Map<Position, Set<String>> _weakByPosition = {
     Position.dc: {
-      AttributeKeys.dribbling, AttributeKeys.finishing, AttributeKeys.longShots,
-      AttributeKeys.crossing, AttributeKeys.flair,
+      AttributeKeys.dribbling,
+      AttributeKeys.finishing,
+      AttributeKeys.longShots,
+      AttributeKeys.crossing,
+      AttributeKeys.flair,
     },
     Position.dr: {AttributeKeys.finishing, AttributeKeys.heading},
     Position.dl: {AttributeKeys.finishing, AttributeKeys.heading},
@@ -113,10 +192,26 @@ class PlayerGenerator {
     Position.mr: {AttributeKeys.tackling, AttributeKeys.heading},
     Position.ml: {AttributeKeys.tackling, AttributeKeys.heading},
     Position.mc: {AttributeKeys.finishing, AttributeKeys.pace},
-    Position.amr: {AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.strength},
-    Position.aml: {AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.strength},
-    Position.amc: {AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.strength},
-    Position.st: {AttributeKeys.tackling, AttributeKeys.marking, AttributeKeys.passing},
+    Position.amr: {
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.strength
+    },
+    Position.aml: {
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.strength
+    },
+    Position.amc: {
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.strength
+    },
+    Position.st: {
+      AttributeKeys.tackling,
+      AttributeKeys.marking,
+      AttributeKeys.passing
+    },
   };
 
   static const Map<Position, List<Position>> _secondaryCandidates = {
@@ -197,7 +292,8 @@ class PlayerGenerator {
       potential: potential,
       fatigue: _rng.nextInt(15),
       morale: 65 + _rng.nextInt(25),
-      personality: PlayerPersonality.values[_rng.nextInt(PlayerPersonality.values.length)],
+      personality: PlayerPersonality
+          .values[_rng.nextInt(PlayerPersonality.values.length)],
       happiness: 55 + _rng.nextInt(30),
     );
     player.wage = (player.marketValue / 40).round().clamp(5, 500);
@@ -227,7 +323,6 @@ class PlayerGenerator {
     required String id,
     required String name,
     required int strengthTier,
-    bool isUserTeam = false,
   }) {
     final players = <Player>[];
     _squadComposition.forEach((position, count) {
@@ -235,6 +330,6 @@ class PlayerGenerator {
         players.add(generate(position: position, strengthTier: strengthTier));
       }
     });
-    return Team(id: id, name: name, players: players, isUserTeam: isUserTeam);
+    return Team(id: id, name: name, players: players);
   }
 }
