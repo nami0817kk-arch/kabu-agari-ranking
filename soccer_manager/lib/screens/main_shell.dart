@@ -48,32 +48,43 @@ class _MainShellState extends State<MainShell> {
       );
     }
 
-    return Scaffold(
-      body: IndexedStack(index: _index, children: _tabs),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) {
-          FeedbackService.tap();
-          setState(() => _index = i);
-        },
-        destinations: [
-          NavigationDestination(
-              icon: homeIcon(false),
-              selectedIcon: homeIcon(true),
-              label: 'ホーム'),
-          const NavigationDestination(
-              icon: Icon(Icons.groups_outlined),
-              selectedIcon: Icon(Icons.groups),
-              label: 'スカッド'),
-          const NavigationDestination(
-              icon: Icon(Icons.checklist_outlined),
-              selectedIcon: Icon(Icons.checklist),
-              label: '戦術'),
-          const NavigationDestination(
-              icon: Icon(Icons.leaderboard_outlined),
-              selectedIcon: Icon(Icons.leaderboard),
-              label: '順位表'),
-        ],
+    return PopScope(
+      // ボトムナビゲーションのタブ切り替えはルートを積まないため、ホーム以外の
+      // タブを表示中に戻る操作をすると、そのままタイトル画面まで戻ってしまう。
+      // ホーム以外のタブではまずホームタブへ戻し、ホームタブの状態で戻る操作を
+      // した場合のみ実際にこの画面を閉じる(=タイトルへ戻る)。
+      canPop: _index == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        setState(() => _index = 0);
+      },
+      child: Scaffold(
+        body: IndexedStack(index: _index, children: _tabs),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (i) {
+            FeedbackService.tap();
+            setState(() => _index = i);
+          },
+          destinations: [
+            NavigationDestination(
+                icon: homeIcon(false),
+                selectedIcon: homeIcon(true),
+                label: 'ホーム'),
+            const NavigationDestination(
+                icon: Icon(Icons.groups_outlined),
+                selectedIcon: Icon(Icons.groups),
+                label: 'スカッド'),
+            const NavigationDestination(
+                icon: Icon(Icons.checklist_outlined),
+                selectedIcon: Icon(Icons.checklist),
+                label: '戦術'),
+            const NavigationDestination(
+                icon: Icon(Icons.leaderboard_outlined),
+                selectedIcon: Icon(Icons.leaderboard),
+                label: '順位表'),
+          ],
+        ),
       ),
     );
   }
