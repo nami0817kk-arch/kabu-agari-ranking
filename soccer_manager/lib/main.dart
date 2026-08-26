@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'services/feedback_service.dart';
 import 'state/game_state.dart';
@@ -9,6 +10,11 @@ import 'screens/start_screen.dart';
 void main() {
   runApp(const SoccerManagerApp());
 }
+
+/// クラブの重役室を思わせる、紺(ネイビー)と金(ゴールド)を基調にした配色。
+const _navy = Color(0xFF14213D);
+const _navyDeep = Color(0xFF0B1526);
+const _gold = Color(0xFFC9A24B);
 
 class SoccerManagerApp extends StatelessWidget {
   const SoccerManagerApp({super.key});
@@ -34,30 +40,67 @@ class SoccerManagerApp extends StatelessWidget {
     );
   }
 
+  /// 見出し類だけ明朝体にして格式のある雰囲気を出し、本文は引き続き読みやすい
+  /// ゴシック体のままにする。
+  TextTheme _withSerifHeadlines(TextTheme t) {
+    TextStyle? serif(TextStyle? s) =>
+        s == null ? null : GoogleFonts.shipporiMincho(textStyle: s);
+    return t.copyWith(
+      displayLarge: serif(t.displayLarge),
+      displayMedium: serif(t.displayMedium),
+      displaySmall: serif(t.displaySmall),
+      headlineLarge: serif(t.headlineLarge),
+      headlineMedium: serif(t.headlineMedium),
+      headlineSmall: serif(t.headlineSmall),
+      titleLarge: serif(t.titleLarge),
+      titleMedium: serif(t.titleMedium),
+    );
+  }
+
   ThemeData _buildTheme(Brightness brightness, {required bool boldText}) {
+    final isDark = brightness == Brightness.dark;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _navy,
+      brightness: brightness,
+      primary: _navy,
+      secondary: _gold,
+      tertiary: _gold,
+      surface: isDark ? _navyDeep : const Color(0xFFFBFAF6),
+    );
     final base = ThemeData(
-      colorSchemeSeed: const Color(0xFF1B5E3C),
+      colorScheme: scheme,
       useMaterial3: true,
       brightness: brightness,
     );
+    var textTheme = _withSerifHeadlines(base.textTheme);
+    if (boldText) textTheme = _bolden(textTheme);
     return base.copyWith(
-      textTheme: boldText ? _bolden(base.textTheme) : base.textTheme,
+      textTheme: textTheme,
       cardTheme: CardThemeData(
-        elevation: 0,
+        elevation: isDark ? 0 : 1,
+        shadowColor: _gold.withValues(alpha: 0.18),
         color: base.colorScheme.surfaceContainerHigh,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: _gold.withValues(alpha: 0.18)),
+        ),
         margin: const EdgeInsets.only(bottom: 12),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: base.colorScheme.surface,
         foregroundColor: base.colorScheme.onSurface,
+        titleTextStyle: GoogleFonts.shipporiMincho(
+          textStyle: base.textTheme.titleLarge,
+          fontWeight: FontWeight.w600,
+        ),
         elevation: 0,
         scrolledUnderElevation: 1,
         centerTitle: false,
+        surfaceTintColor: _gold,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: base.colorScheme.surfaceContainer,
-        indicatorColor: base.colorScheme.primaryContainer,
+        indicatorColor: _gold.withValues(alpha: 0.24),
       ),
       inputDecorationTheme: InputDecorationTheme(
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
