@@ -40,8 +40,10 @@ class SoccerManagerApp extends StatelessWidget {
     );
   }
 
-  /// 見出し類だけ明朝体にして格式のある雰囲気を出し、本文は引き続き読みやすい
-  /// ゴシック体のままにする。
+  /// 大見出しなど「たまにしか出てこない大きな文字」だけ明朝体にする。
+  /// titleMedium/titleSmallはListTileの標準スタイルとして選手名などの
+  /// 一覧行にも使われるため対象外(可読性優先で本文用ゴシック体のまま)。
+  /// headlineMediumは試合スコアの数字表示に使われるため同様に対象外。
   TextTheme _withSerifHeadlines(TextTheme t) {
     TextStyle? serif(TextStyle? s) =>
         s == null ? null : GoogleFonts.shipporiMincho(textStyle: s);
@@ -50,21 +52,26 @@ class SoccerManagerApp extends StatelessWidget {
       displayMedium: serif(t.displayMedium),
       displaySmall: serif(t.displaySmall),
       headlineLarge: serif(t.headlineLarge),
-      headlineMedium: serif(t.headlineMedium),
       headlineSmall: serif(t.headlineSmall),
       titleLarge: serif(t.titleLarge),
-      titleMedium: serif(t.titleMedium),
     );
   }
 
   ThemeData _buildTheme(Brightness brightness, {required bool boldText}) {
     final isDark = brightness == Brightness.dark;
+    // primary/secondary/tertiaryを紺・金に固定するため、それぞれの
+    // on〇〇色も明暗どちらでも十分なコントラストが出るよう明示的に固定する
+    // (自動導出に任せると、ダークモードでprimaryとonPrimaryがどちらも
+    // 暗色になり読めなくなる不具合があったため)。
     final scheme = ColorScheme.fromSeed(
       seedColor: _navy,
       brightness: brightness,
       primary: _navy,
+      onPrimary: Colors.white,
       secondary: _gold,
+      onSecondary: _navyDeep,
       tertiary: _gold,
+      onTertiary: _navyDeep,
       surface: isDark ? _navyDeep : const Color(0xFFFBFAF6),
     );
     final base = ThemeData(
