@@ -15,6 +15,7 @@ import 'live_match_screen.dart';
 import 'manager_career_screen.dart';
 import 'settings_screen.dart';
 import 'scout_report_screen.dart';
+import 'season_history_screen.dart';
 import 'start_screen.dart';
 import 'training_screen.dart';
 import 'transfer_screen.dart';
@@ -362,6 +363,13 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.deepPurple.shade400,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const YoungTalentScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.history,
+                  label: 'シーズン成績',
+                  color: Colors.teal.shade700,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const SeasonHistoryScreen())),
                 ),
               ],
             ),

@@ -1775,6 +1775,36 @@ void main() {
   });
 
   test(
+      'GameState.startNextSeason archives a SeasonRecord with the final standing',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      f.result = MatchResult(
+        matchday: f.matchday,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        homeGoals: userIsHome ? 3 : 0,
+        awayGoals: userIsHome ? 0 : 3,
+        events: [],
+      );
+    }
+
+    expect(gameState.seasonHistory, isEmpty);
+    await gameState.startNextSeason();
+
+    expect(gameState.seasonHistory.length, 1);
+    final record = gameState.seasonHistory.first;
+    expect(record.season, 1);
+    expect(record.finalRank, 1);
+    expect(record.wonLeague, isTrue);
+    expect(record.won, greaterThan(0));
+    expect(record.points, record.won * 3 + record.draw);
+  });
+
+  test(
       'GameState.acceptJobOffer appends the new club to the manager\'s club history',
       () async {
     final gameState = GameState();

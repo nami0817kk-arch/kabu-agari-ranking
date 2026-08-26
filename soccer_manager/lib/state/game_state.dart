@@ -13,6 +13,7 @@ import '../models/player.dart';
 import '../models/press_question.dart';
 import '../models/save_game.dart';
 import '../models/season_award.dart';
+import '../models/season_record.dart';
 import '../models/sponsor.dart';
 import '../models/team.dart';
 import '../models/league.dart';
@@ -994,6 +995,9 @@ class GameState extends ChangeNotifier {
   List<SeasonAward> get seasonAwards =>
       (_save?.seasonAwards ?? const <SeasonAward>[]).reversed.toList();
 
+  List<SeasonRecord> get seasonHistory =>
+      (_save?.seasonHistory ?? const <SeasonRecord>[]).reversed.toList();
+
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? get pendingPressConference => _save?.pendingPressConference;
 
@@ -1564,6 +1568,30 @@ class GameState extends ChangeNotifier {
     lastRetirements = retirees.map((p) => p.name).toList();
 
     _save!.lastSeasonRank = finalRank;
+
+    final cupsWonThisSeason = _save!.cups
+        .where((c) => c.championId == _save!.userTeamId)
+        .map((c) => c.name)
+        .toList();
+    _save!.seasonHistory.add(SeasonRecord(
+      season: league.season,
+      clubName: _save!.clubName,
+      leagueName: _save!.leagueName,
+      divisionTier: wasTier1 ? 1 : 2,
+      finalRank: finalRank,
+      teamCount: league.teams.length,
+      played: userRow.played,
+      won: userRow.won,
+      draw: userRow.draw,
+      lost: userRow.lost,
+      goalsFor: userRow.goalsFor,
+      goalsAgainst: userRow.goalsAgainst,
+      wonLeague: finalRank == 1,
+      promoted: !wasTier1 && newTier == 1,
+      relegated: wasTier1 && newTier == 2,
+      cupsWon: cupsWonThisSeason,
+    ));
+
     final newCups = <Cup>[
       CupEngine.createKnockout(
         type: CupType.domestic,

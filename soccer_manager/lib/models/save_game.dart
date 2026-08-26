@@ -7,6 +7,7 @@ import 'league.dart';
 import 'player.dart';
 import 'press_question.dart';
 import 'season_award.dart';
+import 'season_record.dart';
 import 'sponsor.dart';
 import 'team.dart';
 
@@ -107,6 +108,9 @@ class SaveGame {
   /// 高齢による正式な引退のため再契約はできない。
   List<Player> retiredLegends;
 
+  /// シーズンごとの成績アーカイブ(最終順位・勝敗・昇降格・カップ優勝歴)。
+  List<SeasonRecord> seasonHistory;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -143,10 +147,12 @@ class SaveGame {
     List<String>? clubHistory,
     List<Player>? freeAgents,
     List<Player>? retiredLegends,
+    List<SeasonRecord>? seasonHistory,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
         retiredLegends = retiredLegends ?? [],
+        seasonHistory = seasonHistory ?? [],
         youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -200,6 +206,7 @@ class SaveGame {
         'clubHistory': clubHistory,
         'freeAgents': freeAgents.map((p) => p.toJson()).toList(),
         'retiredLegends': retiredLegends.map((p) => p.toJson()).toList(),
+        'seasonHistory': seasonHistory.map((r) => r.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -286,6 +293,10 @@ class SaveGame {
             [],
         retiredLegends: (json['retiredLegends'] as List?)
                 ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        seasonHistory: (json['seasonHistory'] as List?)
+                ?.map((e) => SeasonRecord.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );
