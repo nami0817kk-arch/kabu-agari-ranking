@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/formation.dart';
+import '../models/incoming_offer.dart';
 import '../models/league.dart';
 import '../state/game_state.dart';
 import '../services/feedback_service.dart';
@@ -23,6 +24,19 @@ import 'transfer_screen.dart';
 import 'young_talent_screen.dart';
 import 'youth_intake_screen.dart';
 import 'youth_screen.dart';
+
+/// 移籍オファーを選手ごとにグループ化し、各グループ内は金額の高い順に並べる
+/// (複数クラブが競合している場合、最高額が先頭に来る)。
+List<List<IncomingOffer>> _groupOffersByPlayer(GameState gameState) {
+  final byPlayer = <String, List<IncomingOffer>>{};
+  for (final o in gameState.incomingOffers) {
+    byPlayer.putIfAbsent(o.playerId, () => []).add(o);
+  }
+  for (final group in byPlayer.values) {
+    group.sort((a, b) => b.amount.compareTo(a.amount));
+  }
+  return byPlayer.values.toList();
+}
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -164,30 +178,55 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       Text('移籍オファー',
                           style: Theme.of(context).textTheme.titleSmall),
-                      for (final o in gameState.incomingOffers)
+                      for (final entry in _groupOffersByPlayer(gameState))
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
+                              if (entry.length > 1)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 2),
                                   child: Text(
-                                      '${o.buyerClubName}が${o.playerName}に${o.amount}万円')),
-                              TextButton(
-                                onPressed: () {
-                                  FeedbackService.tap();
-                                  gameState.declineIncomingOffer(o.id);
-                                },
-                                child: const Text('拒否'),
-                              ),
-                              FilledButton(
-                                onPressed: !gameState.isTransferWindowOpen
-                                    ? null
-                                    : () {
-                                        FeedbackService.success();
-                                        gameState.acceptIncomingOffer(o.id);
+                                    '${entry.first.playerName}に競合オファー',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.orange.shade800),
+                                  ),
+                                ),
+                              for (int i = 0; i < entry.length; i++)
+                                Row(
+                                  children: [
+                                    if (entry.length > 1 && i == 0)
+                                      const Padding(
+                                        padding: EdgeInsets.only(right: 4),
+                                        child: Icon(Icons.star,
+                                            size: 14, color: Colors.amber),
+                                      ),
+                                    Expanded(
+                                        child: Text(
+                                            '${entry[i].buyerClubName}が${entry[i].playerName}に${entry[i].amount}万円')),
+                                    TextButton(
+                                      onPressed: () {
+                                        FeedbackService.tap();
+                                        gameState
+                                            .declineIncomingOffer(entry[i].id);
                                       },
-                                child: const Text('承諾'),
-                              ),
+                                      child: const Text('拒否'),
+                                    ),
+                                    FilledButton(
+                                      onPressed: !gameState.isTransferWindowOpen
+                                          ? null
+                                          : () {
+                                              FeedbackService.success();
+                                              gameState.acceptIncomingOffer(
+                                                  entry[i].id);
+                                            },
+                                      child: const Text('承諾'),
+                                    ),
+                                  ],
+                                ),
                             ],
                           ),
                         ),

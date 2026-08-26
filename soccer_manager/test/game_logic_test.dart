@@ -975,6 +975,60 @@ void main() {
   });
 
   test(
+      'GameState.acceptIncomingOffer discards rival competing offers for the same player',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.userTeam.players.first;
+    gameState.save!.budget = 0;
+    gameState.save!.incomingOffers.addAll([
+      IncomingOffer(
+        id: 'o1',
+        playerId: target.id,
+        playerName: target.name,
+        buyerClubName: 'クラブA',
+        amount: 500,
+      ),
+      IncomingOffer(
+        id: 'o2',
+        playerId: target.id,
+        playerName: target.name,
+        buyerClubName: 'クラブB',
+        amount: 650,
+      ),
+    ]);
+
+    final ok = await gameState.acceptIncomingOffer('o2');
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, 650);
+    expect(gameState.incomingOffers, isEmpty);
+  });
+
+  test(
+      'GameState.playNextMatchday never lets more than 2 clubs compete for the same player',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    for (final p in gameState.userTeam.players) {
+      p.contractWeeksRemaining = 999;
+    }
+
+    for (int i = 0; i < 20; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+      if (gameState.save!.league.isSeasonComplete) break;
+      final counts = <String, int>{};
+      for (final o in gameState.incomingOffers) {
+        counts[o.playerId] = (counts[o.playerId] ?? 0) + 1;
+      }
+      expect(counts.values.every((c) => c <= 2), isTrue);
+    }
+  });
+
+  test(
       'GameState.acceptIncomingOffer backfills the starting XI when a starter is sold',
       () async {
     final gameState = GameState();

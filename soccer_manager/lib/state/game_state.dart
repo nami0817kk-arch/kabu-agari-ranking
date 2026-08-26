@@ -874,7 +874,8 @@ class GameState extends ChangeNotifier {
       return false;
     }
     if (team.players.length <= minSquadSize) return false;
-    _save!.incomingOffers.removeAt(idx);
+    // 同じ選手への他クラブからの対抗オファーは、選手が既に売却されるため無効になる。
+    _save!.incomingOffers.removeWhere((o) => o.playerId == offer.playerId);
     team.players.removeWhere((p) => p.id == offer.playerId);
     final wasStarter = team.startingXI.remove(offer.playerId);
     if (wasStarter) {
@@ -909,6 +910,43 @@ class GameState extends ChangeNotifier {
     }
 
     final team = userTeam;
+    if (isTransferWindowOpen && _save!.incomingOffers.length < 3) {
+      // 既に1クラブからオファーが来ている選手に、別クラブから対抗の競合
+      // オファーが届くことがある(入札合戦。同一選手へのオファーは最大2件まで)。
+      final offersByPlayer = <String, List<IncomingOffer>>{};
+      for (final o in _save!.incomingOffers) {
+        offersByPlayer.putIfAbsent(o.playerId, () => []).add(o);
+      }
+      final biddablePlayerIds = offersByPlayer.entries
+          .where((e) => e.value.length == 1 && !e.value.first.viaReleaseClause)
+          .map((e) => e.key)
+          .where((id) => team.players.any((p) => p.id == id))
+          .toList();
+      if (biddablePlayerIds.isNotEmpty && _offerRng.nextDouble() < 0.20) {
+        final targetId =
+            biddablePlayerIds[_offerRng.nextInt(biddablePlayerIds.length)];
+        final target = team.players.firstWhere((p) => p.id == targetId);
+        final existing = offersByPlayer[targetId]!.first;
+        final rivalCandidates = _save!.league.teams
+            .where((t) =>
+                t.id != _save!.userTeamId && t.name != existing.buyerClubName)
+            .toList();
+        if (rivalCandidates.isNotEmpty) {
+          final rival =
+              rivalCandidates[_offerRng.nextInt(rivalCandidates.length)];
+          final outbid =
+              (existing.amount * (1.1 + _offerRng.nextDouble() * 0.2)).round();
+          _save!.incomingOffers.add(IncomingOffer(
+            id: 'offer${_incomingOfferSeq++}',
+            playerId: target.id,
+            playerName: target.name,
+            buyerClubName: rival.name,
+            amount: outbid,
+          ));
+          return autoSold;
+        }
+      }
+    }
     if (isTransferWindowOpen &&
         team.players.length > minSquadSize + 2 &&
         _save!.incomingOffers.length < 3) {
