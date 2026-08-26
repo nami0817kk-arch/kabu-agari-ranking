@@ -8,6 +8,7 @@ import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
 import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'glossary_screen.dart';
 import 'player_compare_screen.dart';
 import 'player_detail_screen.dart';
 
@@ -175,6 +176,12 @@ class _SquadScreenState extends State<SquadScreen> {
               icon: const Icon(Icons.info_outline),
               tooltip: 'アイコンの意味',
               onPressed: () => _showIconLegend(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.help_outline),
+              tooltip: '用語集',
+              onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GlossaryScreen())),
             ),
             PopupMenuButton<SquadSortOption>(
               icon: const Icon(Icons.sort),

@@ -4,6 +4,7 @@ import '../screens/best_eleven_screen.dart';
 import '../screens/club_screen.dart';
 import '../screens/cup_screen.dart';
 import '../screens/finance_screen.dart';
+import '../screens/glossary_screen.dart';
 import '../screens/hall_of_fame_screen.dart';
 import '../screens/manager_career_screen.dart';
 import '../screens/season_history_screen.dart';
@@ -108,5 +109,11 @@ final List<QuickAccessDestination> quickAccessDestinations = [
     label: '殿堂',
     color: Colors.brown.shade700,
     builder: (_) => const HallOfFameScreen(),
+  ),
+  QuickAccessDestination(
+    icon: Icons.menu_book,
+    label: '用語集',
+    color: Colors.cyan.shade700,
+    builder: (_) => const GlossaryScreen(),
   ),
 ];

@@ -43,6 +43,8 @@ import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/transfer_screen.dart';
 import 'package:soccer_manager/screens/young_talent_screen.dart';
 import 'package:soccer_manager/screens/youth_screen.dart';
+import 'package:soccer_manager/screens/glossary_screen.dart';
+import 'package:soccer_manager/data/glossary_entries.dart';
 import 'package:soccer_manager/state/game_state.dart';
 import 'package:soccer_manager/widgets/formation_layout.dart';
 
@@ -3563,5 +3565,41 @@ void main() {
 
     final searched = YouthScreen.filterAndSort(all, query: 'young');
     expect(searched.map((p) => p.id), ['young']);
+  });
+
+  test(
+      'glossaryEntries has a non-empty, unique explanation for every '
+      'attribute key and no blank descriptions anywhere', () {
+    final byTerm = <String, List<GlossaryEntry>>{};
+    for (final e in glossaryEntries) {
+      expect(e.description, isNotEmpty, reason: '${e.term} has no description');
+      byTerm.putIfAbsent(e.term, () => []).add(e);
+    }
+    for (final key in AttributeKeys.all) {
+      final label = AttributeKeys.labelOf(key);
+      expect(byTerm.containsKey(label), isTrue,
+          reason: 'missing glossary entry for $label ($key)');
+    }
+    expect(byTerm.values.every((v) => v.length == 1), isTrue,
+        reason: 'duplicate glossary terms found');
+  });
+
+  test('GlossaryScreen.filter filters by category and search query', () {
+    final attributeCount = glossaryEntries
+        .where((e) => e.category == GlossaryCategory.attribute)
+        .length;
+    expect(attributeCount, AttributeKeys.all.length);
+
+    final byCategory = GlossaryScreen.filter(glossaryEntries,
+        category: GlossaryCategory.tactics);
+    expect(byCategory, isNotEmpty);
+    expect(byCategory.every((e) => e.category == GlossaryCategory.tactics),
+        isTrue);
+
+    final searched = GlossaryScreen.filter(glossaryEntries, query: 'マッチシャープネス');
+    expect(searched.map((e) => e.term), contains('マッチシャープネス'));
+
+    final none = GlossaryScreen.filter(glossaryEntries, query: '存在しない用語123');
+    expect(none, isEmpty);
   });
 }

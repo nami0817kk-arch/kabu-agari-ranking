@@ -4,9 +4,11 @@ import '../logic/contract_engine.dart';
 import '../models/attributes.dart';
 import '../models/contract_negotiation.dart';
 import '../models/player.dart';
+import '../data/glossary_entries.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import 'glossary_screen.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/stat_bar.dart';
 
@@ -38,7 +40,19 @@ class PlayerDetailScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(p.name)),
+      appBar: AppBar(
+        title: Text(p.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: '能力値の意味を見る',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const GlossaryScreen(
+                  initialCategory: GlossaryCategory.attribute),
+            )),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
