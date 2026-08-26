@@ -99,6 +99,10 @@ class SaveGame {
   /// これまで指揮したクラブ名の履歴(就任順)。
   List<String> clubHistory;
 
+  /// 契約満了で放出された選手や、市場に出回っているベテランなど、
+  /// 移籍金なし(週俸のみ)で獲得できるフリーエージェントのプール。
+  List<Player> freeAgents;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -133,8 +137,10 @@ class SaveGame {
     this.careerSeasons = 0,
     List<String>? trophyHistory,
     List<String>? clubHistory,
+    List<Player>? freeAgents,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
+        freeAgents = freeAgents ?? [],
         youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -159,14 +165,17 @@ class SaveGame {
         'managerReputation': managerReputation,
         'pendingJobOfferTeamId': pendingJobOfferTeamId,
         'youthProspects': youthProspects.map((p) => p.toJson()).toList(),
-        'pendingYouthIntake': pendingYouthIntake.map((p) => p.toJson()).toList(),
+        'pendingYouthIntake':
+            pendingYouthIntake.map((p) => p.toJson()).toList(),
         'infrastructure': infrastructure.toJson(),
         'cups': cups.map((c) => c.toJson()).toList(),
         'lastSeasonRank': lastSeasonRank,
         'continentalTeams': continentalTeams.map((t) => t.toJson()).toList(),
         'sponsorDeal': sponsorDeal?.toJson(),
-        'pendingSponsorOffers': pendingSponsorOffers.map((s) => s.toJson()).toList(),
-        'pendingInstallments': pendingInstallments.map((i) => i.toJson()).toList(),
+        'pendingSponsorOffers':
+            pendingSponsorOffers.map((s) => s.toJson()).toList(),
+        'pendingInstallments':
+            pendingInstallments.map((i) => i.toJson()).toList(),
         'friendlies': friendlies.map((f) => f.toJson()).toList(),
         'incomingOffers': incomingOffers.map((o) => o.toJson()).toList(),
         'bankLoans': bankLoans.map((l) => l.toJson()).toList(),
@@ -174,7 +183,8 @@ class SaveGame {
         'rivalTeamId': rivalTeamId,
         'rivalTeamName': rivalTeamName,
         'pendingPressConference': pendingPressConference?.toJson(),
-        'secondDivisionTeams': secondDivisionTeams.map((t) => t.toJson()).toList(),
+        'secondDivisionTeams':
+            secondDivisionTeams.map((t) => t.toJson()).toList(),
         'currentDivisionTier': currentDivisionTier,
         'careerWins': careerWins,
         'careerDraws': careerDraws,
@@ -182,6 +192,7 @@ class SaveGame {
         'careerSeasons': careerSeasons,
         'trophyHistory': trophyHistory,
         'clubHistory': clubHistory,
+        'freeAgents': freeAgents.map((p) => p.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -202,8 +213,12 @@ class SaveGame {
                 ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
-        infrastructure: ClubInfrastructure.fromJson(json['infrastructure'] as Map<String, dynamic>?),
-        cups: (json['cups'] as List?)?.map((e) => Cup.fromJson(e as Map<String, dynamic>)).toList() ?? [],
+        infrastructure: ClubInfrastructure.fromJson(
+            json['infrastructure'] as Map<String, dynamic>?),
+        cups: (json['cups'] as List?)
+                ?.map((e) => Cup.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
         lastSeasonRank: json['lastSeasonRank'] as int?,
         continentalTeams: (json['continentalTeams'] as List?)
                 ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
@@ -240,7 +255,8 @@ class SaveGame {
         rivalTeamName: json['rivalTeamName'] as String?,
         pendingPressConference: json['pendingPressConference'] == null
             ? null
-            : PressQuestion.fromJson(json['pendingPressConference'] as Map<String, dynamic>),
+            : PressQuestion.fromJson(
+                json['pendingPressConference'] as Map<String, dynamic>),
         secondDivisionTeams: (json['secondDivisionTeams'] as List?)
                 ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
                 .toList() ??
@@ -250,8 +266,16 @@ class SaveGame {
         careerDraws: json['careerDraws'] as int? ?? 0,
         careerLosses: json['careerLosses'] as int? ?? 0,
         careerSeasons: json['careerSeasons'] as int? ?? 0,
-        trophyHistory:
-            (json['trophyHistory'] as List?)?.map((e) => e as String).toList() ?? [],
-        clubHistory: (json['clubHistory'] as List?)?.map((e) => e as String).toList() ?? [],
+        trophyHistory: (json['trophyHistory'] as List?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        clubHistory:
+            (json['clubHistory'] as List?)?.map((e) => e as String).toList() ??
+                [],
+        freeAgents: (json['freeAgents'] as List?)
+                ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
       );
 }

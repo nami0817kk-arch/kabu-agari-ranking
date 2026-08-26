@@ -28,6 +28,7 @@ import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/promotion_engine.dart';
 import '../logic/fixture_generator.dart';
+import '../logic/free_agent_engine.dart';
 import '../logic/lineup_utils.dart';
 import '../logic/match_engine.dart';
 import '../logic/scouting_engine.dart';
@@ -156,6 +157,7 @@ class GameState extends ChangeNotifier {
     _save!.rivalTeamName = rival.name;
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
+    FreeAgentEngine.topUp(_save!.freeAgents);
     lastContractExpirations = [];
     isBusy = false;
     notifyListeners();
@@ -588,6 +590,24 @@ class GameState extends ChangeNotifier {
     _save!.pendingYouthIntake.removeWhere((p) => p.id == playerId);
     notifyListeners();
     await _persist();
+  }
+
+  /// 契約満了で放出された選手やベテラン選手からなる、移籍金なし(週俸のみ)
+  /// で獲得できるフリーエージェントのプール。
+  List<Player> get freeAgents => _save?.freeAgents ?? [];
+
+  /// フリーエージェントを新規契約で獲得する(移籍金は発生しない)。
+  Future<bool> signFreeAgent(String playerId) async {
+    if (_save == null) return false;
+    if (userTeam.players.length >= maxSquadSize) return false;
+    final idx = _save!.freeAgents.indexWhere((p) => p.id == playerId);
+    if (idx < 0) return false;
+    final player = _save!.freeAgents.removeAt(idx);
+    ContractEngine.renewContract(player);
+    userTeam.players.add(player);
+    notifyListeners();
+    await _persist();
+    return true;
   }
 
   /// 選手のリリース条項(解放金額)を設定・解除する。nullで解除。
@@ -1061,6 +1081,12 @@ class GameState extends ChangeNotifier {
     // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）
     final expired = ContractEngine.advanceWeek(userTeam);
     lastContractExpirations = expired.map((p) => p.name).toList();
+    // ローン満了(元クラブへ復帰)ではなく、正式に契約が切れた選手は
+    // フリーエージェントプールへ移す(移籍金なしで再獲得可能)。
+    for (final p in expired.where((p) => !p.isLoan)) {
+      if (_save!.freeAgents.length >= FreeAgentEngine.maxPoolSize) break;
+      _save!.freeAgents.add(p);
+    }
 
     // 選手の不満度を更新する。
     final preMatchRank = league.sortedStandings
@@ -1407,6 +1433,7 @@ class GameState extends ChangeNotifier {
         BoardEngine.estimateTargetRank(_save!.league, _save!.userTeamId);
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
+    FreeAgentEngine.topUp(_save!.freeAgents);
 
     _save!.lastSeasonRank = finalRank;
     final newCups = <Cup>[

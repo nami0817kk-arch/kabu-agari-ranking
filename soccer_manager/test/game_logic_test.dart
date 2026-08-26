@@ -1463,6 +1463,27 @@ void main() {
     expect(gameState.lastLoanReturns, contains(target.name));
   });
 
+  test(
+      'GameState.startNewGame seeds a free-agent pool, and signFreeAgent '
+      'moves a pooled player into the squad without charging a transfer fee',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.freeAgents, isNotEmpty);
+
+    final target = gameState.freeAgents.first;
+    final budgetBefore = gameState.save!.budget;
+    final squadSizeBefore = gameState.userTeam.players.length;
+
+    final ok = await gameState.signFreeAgent(target.id);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, budgetBefore);
+    expect(gameState.userTeam.players.length, squadSizeBefore + 1);
+    expect(gameState.userTeam.players.any((p) => p.id == target.id), isTrue);
+    expect(gameState.freeAgents.any((p) => p.id == target.id), isFalse);
+  });
+
   test('GameState.setTransferListed toggles the listed flag', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');

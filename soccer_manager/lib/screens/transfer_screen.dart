@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/player.dart';
+import '../models/save_game.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
@@ -58,15 +59,24 @@ class TransferScreen extends StatefulWidget {
   State<TransferScreen> createState() => _TransferScreenState();
 }
 
-class _TransferScreenState extends State<TransferScreen> {
+class _TransferScreenState extends State<TransferScreen>
+    with SingleTickerProviderStateMixin {
   PositionGroup? _filter;
   TransferSortOption _sort = TransferSortOption.overall;
   final _searchController = TextEditingController();
   String _query = '';
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
 
@@ -97,99 +107,182 @@ class _TransferScreenState extends State<TransferScreen> {
             ],
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            const Tab(text: '市場'),
+            Tab(text: 'フリーエージェント (${gameState.freeAgents.length})'),
+          ],
+        ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('資金: ${save.budget}万円',
-                    style: Theme.of(context).textTheme.titleMedium),
-                Text(
-                    'スカッド: ${gameState.userTeam.players.length}/$maxSquadSize'),
-              ],
-            ),
-          ),
-          if (squadFull)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text('スカッドが上限のため、獲得するには誰かを放出してください。',
-                  style: TextStyle(color: Colors.orange)),
-            ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: PositionFilterBar(
-              value: _filter,
-              onChanged: (v) => setState(() => _filter = v),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) => setState(() => _query = v),
-              decoration: InputDecoration(
-                hintText: '選手名で検索',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: '検索をクリア',
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: players.isEmpty
-                ? const Center(child: Text('該当する選手はいません'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: players.length,
-                    itemBuilder: (context, i) {
-                      final p = players[i];
-                      final affordable = save.budget >= p.marketValue;
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          leading: PlayerFaceAvatar(
-                              playerId: p.id, position: p.position),
-                          title: Row(
-                            children: [
-                              Flexible(
-                                  child: Text(p.name,
-                                      overflow: TextOverflow.ellipsis)),
-                              if (!affordable) ...[
-                                const SizedBox(width: 6),
-                                Icon(Icons.lock_outline,
-                                    size: 14, color: Colors.grey.shade600),
-                              ],
-                            ],
-                          ),
-                          subtitle: Text(
-                            '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万',
-                          ),
-                          trailing: FilledButton(
-                            onPressed: squadFull
-                                ? null
-                                : () => _showAcquireSheet(context, p),
-                            child: const Text('獲得する'),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
+          _buildMarketTab(context, gameState, save, squadFull, players),
+          _buildFreeAgentTab(context, gameState, squadFull),
         ],
       ),
     );
+  }
+
+  Widget _buildMarketTab(BuildContext context, GameState gameState,
+      SaveGame save, bool squadFull, List<Player> players) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('資金: ${save.budget}万円',
+                  style: Theme.of(context).textTheme.titleMedium),
+              Text('スカッド: ${gameState.userTeam.players.length}/$maxSquadSize'),
+            ],
+          ),
+        ),
+        if (squadFull)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('スカッドが上限のため、獲得するには誰かを放出してください。',
+                style: TextStyle(color: Colors.orange)),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: PositionFilterBar(
+            value: _filter,
+            onChanged: (v) => setState(() => _filter = v),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (v) => setState(() => _query = v),
+            decoration: InputDecoration(
+              hintText: '選手名で検索',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      tooltip: '検索をクリア',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: players.isEmpty
+              ? const Center(child: Text('該当する選手はいません'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: players.length,
+                  itemBuilder: (context, i) {
+                    final p = players[i];
+                    final affordable = save.budget >= p.marketValue;
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: PlayerFaceAvatar(
+                            playerId: p.id, position: p.position),
+                        title: Row(
+                          children: [
+                            Flexible(
+                                child: Text(p.name,
+                                    overflow: TextOverflow.ellipsis)),
+                            if (!affordable) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.lock_outline,
+                                  size: 14, color: Colors.grey.shade600),
+                            ],
+                          ],
+                        ),
+                        subtitle: Text(
+                          '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万',
+                        ),
+                        trailing: FilledButton(
+                          onPressed: squadFull
+                              ? null
+                              : () => _showAcquireSheet(context, p),
+                          child: const Text('獲得する'),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFreeAgentTab(
+      BuildContext context, GameState gameState, bool squadFull) {
+    final freeAgents = [...gameState.freeAgents]
+      ..sort((a, b) => b.overall.compareTo(a.overall));
+
+    return Column(
+      children: [
+        const Padding(
+          padding: EdgeInsets.all(16),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              '移籍金なし・週俸のみで獲得できる選手です。',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ),
+        ),
+        if (squadFull)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text('スカッドが上限のため、獲得するには誰かを放出してください。',
+                style: TextStyle(color: Colors.orange)),
+          ),
+        Expanded(
+          child: freeAgents.isEmpty
+              ? const Center(child: Text('現在フリーエージェントはいません'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: freeAgents.length,
+                  itemBuilder: (context, i) {
+                    final p = freeAgents[i];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: PlayerFaceAvatar(
+                            playerId: p.id, position: p.position),
+                        title: Text(p.name, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(
+                          '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 週俸 ${p.wage}万円',
+                        ),
+                        trailing: FilledButton(
+                          onPressed: squadFull
+                              ? null
+                              : () => _signFreeAgent(context, p),
+                          child: const Text('獲得する'),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _signFreeAgent(BuildContext context, Player player) async {
+    final gameState = context.read<GameState>();
+    final ok = await gameState.signFreeAgent(player.id);
+    ok ? FeedbackService.success() : FeedbackService.error();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ok ? '${player.name}と契約しました' : '契約できませんでした')),
+      );
+    }
   }
 
   void _showAcquireSheet(BuildContext context, Player player) {
