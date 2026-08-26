@@ -9,7 +9,6 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
-import '../theme/semantic_colors.dart';
 import '../widgets/match_widgets.dart';
 import '../widgets/player_face_avatar.dart';
 
@@ -145,11 +144,7 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
               ),
             ),
             if (finished)
-              _FullTimeBanner(
-                  userTeamId: _userTeamId,
-                  home: home,
-                  away: away,
-                  result: _finalResult),
+              FullTimeBanner(userTeamId: _userTeamId, result: _finalResult),
             AspectRatio(
               aspectRatio: 3 / 2,
               child: Container(
@@ -293,67 +288,6 @@ class _GoalFlashBanner extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 試合終了時の勝敗を色分けして示すバナー。
-class _FullTimeBanner extends StatelessWidget {
-  final String userTeamId;
-  final Team home;
-  final Team away;
-  final MatchResult? result;
-
-  const _FullTimeBanner({
-    required this.userTeamId,
-    required this.home,
-    required this.away,
-    required this.result,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final r = result;
-    if (r == null) return const SizedBox.shrink();
-    final userIsHome = r.homeTeamId == userTeamId;
-    final userGoals = userIsHome ? r.homeGoals : r.awayGoals;
-    final oppGoals = userIsHome ? r.awayGoals : r.homeGoals;
-
-    final String label;
-    final Color color;
-    final IconData icon;
-    if (userGoals > oppGoals) {
-      label = '勝利';
-      color = SemanticColors.positive(context);
-      icon = Icons.emoji_events;
-    } else if (userGoals < oppGoals) {
-      label = '敗北';
-      color = SemanticColors.negative(context);
-      icon = Icons.sentiment_dissatisfied;
-    } else {
-      label = '引き分け';
-      color = SemanticColors.neutral(context);
-      icon = Icons.handshake;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-            color: color, borderRadius: BorderRadius.circular(10)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 8),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ],
         ),
       ),
     );

@@ -1,8 +1,11 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../game/pitch_game.dart';
 import '../models/match_result.dart';
 import '../models/team.dart';
+import '../services/feedback_service.dart';
+import '../state/game_state.dart';
 import '../widgets/match_widgets.dart';
 
 class MatchScreen extends StatefulWidget {
@@ -12,7 +15,8 @@ class MatchScreen extends StatefulWidget {
   /// 画面上部に表示する見出し(省略時は「第N節」)。カップ戦ではラウンド名を渡す。
   final String? title;
 
-  const MatchScreen({super.key, required this.result, required this.teams, this.title});
+  const MatchScreen(
+      {super.key, required this.result, required this.teams, this.title});
 
   @override
   State<MatchScreen> createState() => _MatchScreenState();
@@ -23,16 +27,28 @@ class _MatchScreenState extends State<MatchScreen> {
   bool _finished = false;
   int _currentMinute = 0;
   late final PitchGame _game;
+  late final String _userTeamId;
 
   @override
   void initState() {
     super.initState();
+    _userTeamId = context.read<GameState>().userTeam.id;
     _game = PitchGame(
       events: widget.result.events,
       onEvent: (e) => setState(() => _revealed.add(e)),
-      onFinished: () => setState(() => _finished = true),
+      onFinished: _handleFinished,
       onMinuteTick: (m) => setState(() => _currentMinute = m),
     );
+  }
+
+  void _handleFinished() {
+    setState(() => _finished = true);
+    final r = widget.result;
+    final userIsHome = r.homeTeamId == _userTeamId;
+    final userGoals = userIsHome ? r.homeGoals : r.awayGoals;
+    final oppGoals = userIsHome ? r.awayGoals : r.homeGoals;
+    FeedbackService.matchResult(
+        won: userGoals > oppGoals, drew: userGoals == oppGoals);
   }
 
   @override
@@ -40,8 +56,12 @@ class _MatchScreenState extends State<MatchScreen> {
     final teams = widget.teams;
     final home = teams.firstWhere((t) => t.id == widget.result.homeTeamId);
     final away = teams.firstWhere((t) => t.id == widget.result.awayTeamId);
-    final homeGoalsSoFar = _revealed.where((e) => e.teamId == home.id && e.type == MatchEventType.goal).length;
-    final awayGoalsSoFar = _revealed.where((e) => e.teamId == away.id && e.type == MatchEventType.goal).length;
+    final homeGoalsSoFar = _revealed
+        .where((e) => e.teamId == home.id && e.type == MatchEventType.goal)
+        .length;
+    final awayGoalsSoFar = _revealed
+        .where((e) => e.teamId == away.id && e.type == MatchEventType.goal)
+        .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -78,6 +98,9 @@ class _MatchScreenState extends State<MatchScreen> {
               ],
             ),
           ),
+          if (_finished)
+            FullTimeBanner(userTeamId: _userTeamId, result: widget.result),
+          const SizedBox(height: 8),
           AspectRatio(
             aspectRatio: 3 / 2,
             child: Container(
@@ -116,7 +139,8 @@ class _MatchScreenState extends State<MatchScreen> {
         items.add(const _HalfTimeDivider());
         halfTimeShown = true;
       }
-      items.add(CommentaryTile(event: e, teamName: teams.firstWhere((t) => t.id == e.teamId).name));
+      items.add(CommentaryTile(
+          event: e, teamName: teams.firstWhere((t) => t.id == e.teamId).name));
     }
     if (!halfTimeShown && _currentMinute >= 45) {
       items.add(const _HalfTimeDivider());
@@ -137,7 +161,8 @@ class _HalfTimeDivider extends StatelessWidget {
           const Expanded(child: Divider()),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text('前半終了', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            child: Text('前半終了',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
           ),
           const Expanded(child: Divider()),
         ],
@@ -145,4 +170,3 @@ class _HalfTimeDivider extends StatelessWidget {
     );
   }
 }
-
