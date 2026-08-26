@@ -315,53 +315,76 @@ class HomeScreen extends StatelessWidget {
               )
             else if (next != null)
               Card(
-                child: ListTile(
-                  leading: ClubEmblem(
-                    teamId: next.homeTeamId == userTeam.id
-                        ? next.awayTeamId
-                        : next.homeTeamId,
-                    teamName: league.teams
-                        .firstWhere((t) =>
-                            t.id ==
-                            (next.homeTeamId == userTeam.id
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          ClubEmblem(
+                            teamId: next.homeTeamId == userTeam.id
                                 ? next.awayTeamId
-                                : next.homeTeamId))
-                        .name,
-                    size: 40,
-                  ),
-                  title: Row(
-                    children: [
-                      Text('第${next.matchday}節'),
-                      if (gameState.isRivalFixture(next)) ...[
-                        const SizedBox(width: 6),
-                        const Chip(
-                          label: Text('ダービー', style: TextStyle(fontSize: 11)),
-                          backgroundColor: Colors.redAccent,
-                          labelStyle: TextStyle(color: Colors.white),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
-                      ],
-                    ],
-                  ),
-                  subtitle: Text(_fixtureLabel(league, next)),
-                  trailing: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
+                                : next.homeTeamId,
+                            teamName: league.teams
+                                .firstWhere((t) =>
+                                    t.id ==
+                                    (next.homeTeamId == userTeam.id
+                                        ? next.awayTeamId
+                                        : next.homeTeamId))
+                                .name,
+                            size: 40,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text('第${next.matchday}節'),
+                                    if (gameState.isRivalFixture(next)) ...[
+                                      const SizedBox(width: 6),
+                                      const Chip(
+                                        label: Text('ダービー',
+                                            style: TextStyle(fontSize: 11)),
+                                        backgroundColor: Colors.redAccent,
+                                        labelStyle:
+                                            TextStyle(color: Colors.white),
+                                        visualDensity: VisualDensity.compact,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                Text(_fixtureLabel(league, next),
+                                    style: const TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
                       FilledButton(
                         onPressed: () => _playMatch(context),
                         child: const Text('試合を行う'),
                       ),
-                      TextButton(
-                        onPressed: () => _quickSimNextMatch(context, next),
-                        child: const Text('結果だけ見る',
-                            style: TextStyle(fontSize: 12)),
-                      ),
-                      TextButton(
-                        onPressed: () => _showScoutReport(context, next),
-                        child: const Text('偵察レポート',
-                            style: TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          TextButton(
+                            onPressed: () => _quickSimNextMatch(context, next),
+                            child: const Text('結果だけ見る',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                          TextButton(
+                            onPressed: () => _showScoutReport(context, next),
+                            child: const Text('偵察レポート',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
                       ),
                     ],
                   ),
