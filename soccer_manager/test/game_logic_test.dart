@@ -1820,6 +1820,46 @@ void main() {
     expect(gameState.save!.clubName, 'テストFC');
   });
 
+  test('GameState save slots keep independent clubs and support delete',
+      () async {
+    final gameState = GameState();
+    await gameState.init();
+
+    await gameState.loadSlot(0);
+    await gameState.startNewGame('スロット0FC');
+    await gameState.loadSlot(1);
+    await gameState.startNewGame('スロット1FC');
+
+    final slots = await gameState.listSaveSlots();
+    expect(slots.length, GameState.maxSaveSlots);
+    expect(slots[0].clubName, 'スロット0FC');
+    expect(slots[1].clubName, 'スロット1FC');
+    expect(slots[2].hasSave, isFalse);
+
+    await gameState.loadSlot(0);
+    expect(gameState.save!.clubName, 'スロット0FC');
+
+    await gameState.deleteSlot(1);
+    final afterDelete = await gameState.listSaveSlots();
+    expect(afterDelete[1].hasSave, isFalse);
+    // Deleting a non-current slot must not touch the currently loaded save.
+    expect(gameState.save!.clubName, 'スロット0FC');
+  });
+
+  test('GameState.init migrates a legacy single-slot save into slot 0',
+      () async {
+    final legacy = GameState();
+    await legacy.startNewGame('レガシーFC');
+    final json = legacy.exportSaveJson()!;
+
+    SharedPreferences.setMockInitialValues({'soccer_manager_save_v1': json});
+    final migrated = GameState();
+    await migrated.init();
+
+    expect(migrated.save!.clubName, 'レガシーFC');
+    expect(migrated.currentSlot, 0);
+  });
+
   test(
       'GameState.isBusy toggles off after startNewGame and startNextSeason complete',
       () async {

@@ -44,8 +44,32 @@ const int minSquadSize = 12;
 /// 1リーグあたりの参加クラブ数(自クラブ含む)。実際の主要リーグに近い規模とする。
 const int teamsPerLeague = 20;
 
+/// セーブスロット一覧表示用の概要情報。データが存在しないスロットは
+/// clubNameがnullになる。
+class SaveSlotSummary {
+  final int slot;
+  final String? clubName;
+  final int? season;
+  final int? divisionTier;
+
+  SaveSlotSummary(
+      {required this.slot, this.clubName, this.season, this.divisionTier});
+
+  bool get hasSave => clubName != null;
+}
+
 class GameState extends ChangeNotifier {
-  static const _prefsKey = 'soccer_manager_save_v1';
+  /// 旧バージョンで使われていた単一スロットのキー。起動時にスロット0へ移行する。
+  static const _legacyPrefsKey = 'soccer_manager_save_v1';
+  static const _slotKeyPrefix = 'soccer_manager_save_slot_';
+  static const _currentSlotKey = 'soccer_manager_current_slot';
+
+  /// 対応するセーブスロット数。
+  static const int maxSaveSlots = 3;
+
+  static String _slotKey(int slot) => '$_slotKeyPrefix$slot';
+
+  int currentSlot = 0;
 
   SaveGame? _save;
   bool initialized = false;
@@ -74,7 +98,14 @@ class GameState extends ChangeNotifier {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
+    // 旧バージョンの単一セーブをスロット0へ移行する(スロット0が未使用の場合のみ)。
+    final legacy = prefs.getString(_legacyPrefsKey);
+    if (legacy != null && prefs.getString(_slotKey(0)) == null) {
+      await prefs.setString(_slotKey(0), legacy);
+      await prefs.remove(_legacyPrefsKey);
+    }
+    currentSlot = prefs.getInt(_currentSlotKey) ?? 0;
+    final raw = prefs.getString(_slotKey(currentSlot));
     if (raw != null) {
       try {
         _save = SaveGame.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -93,9 +124,75 @@ class GameState extends ChangeNotifier {
   Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
     if (_save == null) {
-      await prefs.remove(_prefsKey);
+      await prefs.remove(_slotKey(currentSlot));
     } else {
-      await prefs.setString(_prefsKey, jsonEncode(_save!.toJson()));
+      await prefs.setString(_slotKey(currentSlot), jsonEncode(_save!.toJson()));
+    }
+  }
+
+  /// 各スロットの概要一覧を返す(スロット番号順)。
+  Future<List<SaveSlotSummary>> listSaveSlots() async {
+    final prefs = await SharedPreferences.getInstance();
+    final result = <SaveSlotSummary>[];
+    for (int i = 0; i < maxSaveSlots; i++) {
+      final raw = prefs.getString(_slotKey(i));
+      if (raw == null) {
+        result.add(SaveSlotSummary(slot: i));
+        continue;
+      }
+      try {
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        final league = json['league'] as Map<String, dynamic>?;
+        result.add(SaveSlotSummary(
+          slot: i,
+          clubName: json['clubName'] as String?,
+          season: league?['season'] as int?,
+          divisionTier: json['currentDivisionTier'] as int?,
+        ));
+      } catch (_) {
+        result.add(SaveSlotSummary(slot: i));
+      }
+    }
+    return result;
+  }
+
+  /// 指定スロットをカレントスロットにして読み込む(データがなければ空の状態にする)。
+  Future<void> loadSlot(int slot) async {
+    final prefs = await SharedPreferences.getInstance();
+    currentSlot = slot;
+    await prefs.setInt(_currentSlotKey, slot);
+    final raw = prefs.getString(_slotKey(slot));
+    if (raw == null) {
+      _save = null;
+    } else {
+      try {
+        _save = SaveGame.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      } catch (_) {
+        _save = null;
+      }
+    }
+    if (_save != null) {
+      transferMarket = TransferMarket.generate();
+      _refreshScoutCandidates();
+    } else {
+      transferMarket = [];
+      scoutCandidates = [];
+    }
+    lastContractExpirations = [];
+    lastRetirements = [];
+    notifyListeners();
+  }
+
+  /// 指定スロットのセーブデータを完全に削除する。カレントスロットの場合は
+  /// メモリ上のセーブも破棄する。
+  Future<void> deleteSlot(int slot) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_slotKey(slot));
+    if (slot == currentSlot) {
+      _save = null;
+      transferMarket = [];
+      scoutCandidates = [];
+      notifyListeners();
     }
   }
 

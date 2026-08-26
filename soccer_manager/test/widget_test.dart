@@ -9,24 +9,29 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('start screen shows club creation form', (WidgetTester tester) async {
+  testWidgets('start screen shows save slot list', (WidgetTester tester) async {
     await tester.pumpWidget(const SoccerManagerApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('スキップ'));
     await tester.pumpAndSettle();
 
     expect(find.text('サッカー経営マネージャー'), findsOneWidget);
-    expect(find.text('クラブ創設'), findsOneWidget);
+    expect(find.text('空きスロット'), findsWidgets);
+    expect(find.text('新規クラブ作成'), findsWidgets);
   });
 
-  testWidgets('creating a club navigates to the home dashboard', (WidgetTester tester) async {
+  testWidgets('creating a club navigates to the home dashboard',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const SoccerManagerApp());
     await tester.pumpAndSettle();
     await tester.tap(find.text('スキップ'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('新規クラブ作成').first);
+    await tester.pumpAndSettle();
+
     await tester.enterText(find.byType(TextField), 'テストFC');
-    await tester.tap(find.text('クラブ創設'));
+    await tester.tap(find.text('創設する'));
     await tester.pumpAndSettle();
 
     expect(find.text('テストFC'), findsWidgets);
