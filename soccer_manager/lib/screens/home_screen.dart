@@ -8,6 +8,7 @@ import '../theme/semantic_colors.dart';
 import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import 'awards_screen.dart';
+import 'best_eleven_screen.dart';
 import 'club_screen.dart';
 import 'cup_screen.dart';
 import 'finance_screen.dart';
@@ -370,6 +371,13 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.teal.shade700,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const SeasonHistoryScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.groups,
+                  label: 'ベストイレブン',
+                  color: Colors.orange.shade700,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const BestElevenScreen())),
                 ),
               ],
             ),

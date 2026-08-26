@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bank_loan.dart';
+import '../models/best_eleven.dart';
 import '../models/club_infrastructure.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
@@ -20,6 +21,7 @@ import '../models/league.dart';
 import '../models/match_result.dart';
 import '../logic/ai_transfer_engine.dart';
 import '../logic/awards_engine.dart';
+import '../logic/best_eleven_engine.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
 import '../logic/cup_engine.dart';
@@ -998,6 +1000,11 @@ class GameState extends ChangeNotifier {
   List<SeasonRecord> get seasonHistory =>
       (_save?.seasonHistory ?? const <SeasonRecord>[]).reversed.toList();
 
+  List<SeasonBestEleven> get bestElevenHistory =>
+      (_save?.bestElevenHistory ?? const <SeasonBestEleven>[])
+          .reversed
+          .toList();
+
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? get pendingPressConference => _save?.pendingPressConference;
 
@@ -1462,6 +1469,8 @@ class GameState extends ChangeNotifier {
     final wasTier1 = _save!.currentDivisionTier == 1;
 
     _save!.seasonAwards.add(AwardsEngine.computeAwards(league, league.season));
+    _save!.bestElevenHistory
+        .add(BestElevenEngine.compute(league, league.season));
 
     // 監督としての通算成績を更新する。
     final userRow = standings.firstWhere((r) => r.teamId == _save!.userTeamId);

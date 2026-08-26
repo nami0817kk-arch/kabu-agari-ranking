@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soccer_manager/logic/ai_transfer_engine.dart';
 import 'package:soccer_manager/logic/awards_engine.dart';
+import 'package:soccer_manager/logic/best_eleven_engine.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
@@ -1802,6 +1803,78 @@ void main() {
     expect(record.wonLeague, isTrue);
     expect(record.won, greaterThan(0));
     expect(record.points, record.won * 3 + record.draw);
+  });
+
+  test(
+      'BestElevenEngine.compute selects the highest average-rated player per position group',
+      () {
+    final teamA =
+        PlayerGenerator.generateSquad(id: 'a', name: 'AFC', strengthTier: 60);
+    final teamB =
+        PlayerGenerator.generateSquad(id: 'b', name: 'BFC', strengthTier: 60);
+    LineupUtils.autoFill(teamA);
+    LineupUtils.autoFill(teamB);
+
+    final gkA = teamA.players.firstWhere((p) => p.position == Position.gk);
+    final gkB = teamB.players.firstWhere((p) => p.position == Position.gk);
+
+    final fixtures = <Fixture>[
+      for (int md = 1; md <= 3; md++)
+        Fixture(
+          matchday: md,
+          homeTeamId: 'a',
+          awayTeamId: 'b',
+          result: MatchResult(
+            matchday: md,
+            homeTeamId: 'a',
+            awayTeamId: 'b',
+            homeGoals: 1,
+            awayGoals: 0,
+            events: [],
+            playerRatings: {gkA.id: 8.0, gkB.id: 5.0},
+          ),
+        ),
+    ];
+    final league = League(teams: [teamA, teamB], fixtures: fixtures, season: 1);
+
+    final best = BestElevenEngine.compute(league, 1);
+
+    final gkEntries =
+        best.entries.where((e) => e.group == PositionGroup.gk).toList();
+    expect(gkEntries.length, 1);
+    expect(gkEntries.first.playerId, gkA.id);
+    expect(gkEntries.first.avgRating, 8.0);
+  });
+
+  test(
+      'BestElevenEngine.compute excludes players below the minimum appearance count',
+      () {
+    final teamA =
+        PlayerGenerator.generateSquad(id: 'a', name: 'AFC', strengthTier: 60);
+    LineupUtils.autoFill(teamA);
+    final gk = teamA.players.firstWhere((p) => p.position == Position.gk);
+
+    final fixtures = <Fixture>[
+      Fixture(
+        matchday: 1,
+        homeTeamId: 'a',
+        awayTeamId: 'a',
+        result: MatchResult(
+          matchday: 1,
+          homeTeamId: 'a',
+          awayTeamId: 'a',
+          homeGoals: 1,
+          awayGoals: 0,
+          events: [],
+          playerRatings: {gk.id: 9.0},
+        ),
+      ),
+    ];
+    final league = League(teams: [teamA], fixtures: fixtures, season: 1);
+
+    final best = BestElevenEngine.compute(league, 1);
+
+    expect(best.entries, isEmpty);
   });
 
   test(

@@ -1,4 +1,5 @@
 import 'bank_loan.dart';
+import 'best_eleven.dart';
 import 'club_infrastructure.dart';
 import 'cup.dart';
 import 'incoming_offer.dart';
@@ -111,6 +112,9 @@ class SaveGame {
   /// シーズンごとの成績アーカイブ(最終順位・勝敗・昇降格・カップ優勝歴)。
   List<SeasonRecord> seasonHistory;
 
+  /// シーズンごとのベストイレブン選出履歴。
+  List<SeasonBestEleven> bestElevenHistory;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -148,11 +152,13 @@ class SaveGame {
     List<Player>? freeAgents,
     List<Player>? retiredLegends,
     List<SeasonRecord>? seasonHistory,
+    List<SeasonBestEleven>? bestElevenHistory,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
         retiredLegends = retiredLegends ?? [],
         seasonHistory = seasonHistory ?? [],
+        bestElevenHistory = bestElevenHistory ?? [],
         youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -207,6 +213,7 @@ class SaveGame {
         'freeAgents': freeAgents.map((p) => p.toJson()).toList(),
         'retiredLegends': retiredLegends.map((p) => p.toJson()).toList(),
         'seasonHistory': seasonHistory.map((r) => r.toJson()).toList(),
+        'bestElevenHistory': bestElevenHistory.map((r) => r.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -297,6 +304,11 @@ class SaveGame {
             [],
         seasonHistory: (json['seasonHistory'] as List?)
                 ?.map((e) => SeasonRecord.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        bestElevenHistory: (json['bestElevenHistory'] as List?)
+                ?.map(
+                    (e) => SeasonBestEleven.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
       );
