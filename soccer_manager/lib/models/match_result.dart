@@ -1,3 +1,5 @@
+import 'weather.dart';
+
 enum MatchEventType { goal, chance, yellowCard, redCard }
 
 class MatchEvent {
@@ -47,6 +49,9 @@ class MatchResult {
   /// 出場した選手の試合内採点(1.0〜10.0)。選手ID→採点。
   final Map<String, double> playerRatings;
 
+  /// この試合の天候。
+  final Weather weather;
+
   MatchResult({
     required this.matchday,
     required this.homeTeamId,
@@ -55,6 +60,7 @@ class MatchResult {
     required this.awayGoals,
     required this.events,
     Map<String, double>? playerRatings,
+    this.weather = Weather.clear,
   }) : playerRatings = playerRatings ?? {};
 
   /// この試合の最優秀選手(採点が最も高い選手)のID。採点データがなければnull。
@@ -73,6 +79,7 @@ class MatchResult {
         'awayGoals': awayGoals,
         'events': events.map((e) => e.toJson()).toList(),
         'playerRatings': playerRatings,
+        'weather': weather.name,
       };
 
   factory MatchResult.fromJson(Map<String, dynamic> json) => MatchResult(
@@ -88,5 +95,8 @@ class MatchResult {
               (k, v) => MapEntry(k as String, (v as num).toDouble()),
             ) ??
             {},
+        weather: json['weather'] == null
+            ? Weather.clear
+            : Weather.values.byName(json['weather'] as String),
       );
 }

@@ -1,5 +1,6 @@
 import 'team.dart';
 import 'match_result.dart';
+import 'weather.dart';
 
 class Fixture {
   final int matchday;
@@ -7,11 +8,15 @@ class Fixture {
   final String awayTeamId;
   MatchResult? result;
 
+  /// この試合の天候。試合開始時に決定される(未開催の場合はnull)。
+  Weather? weather;
+
   Fixture({
     required this.matchday,
     required this.homeTeamId,
     required this.awayTeamId,
     this.result,
+    this.weather,
   });
 
   Map<String, dynamic> toJson() => {
@@ -19,6 +24,7 @@ class Fixture {
         'homeTeamId': homeTeamId,
         'awayTeamId': awayTeamId,
         'result': result?.toJson(),
+        'weather': weather?.name,
       };
 
   factory Fixture.fromJson(Map<String, dynamic> json) => Fixture(
@@ -28,6 +34,9 @@ class Fixture {
         result: json['result'] == null
             ? null
             : MatchResult.fromJson(json['result'] as Map<String, dynamic>),
+        weather: json['weather'] == null
+            ? null
+            : Weather.values.byName(json['weather'] as String),
       );
 }
 

@@ -19,6 +19,7 @@ import '../models/sponsor.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../models/weather.dart';
 import '../logic/ai_transfer_engine.dart';
 import '../logic/awards_engine.dart';
 import '../logic/best_eleven_engine.dart';
@@ -39,6 +40,7 @@ import '../logic/scouting_engine.dart';
 import '../logic/sponsor_engine.dart';
 import '../logic/training_engine.dart';
 import '../logic/transfer_market.dart';
+import '../logic/weather_engine.dart';
 import '../data/name_pool.dart';
 
 const int maxSquadSize = 26;
@@ -859,10 +861,20 @@ class GameState extends ChangeNotifier {
     // MatchEngine.simulate()は内部でapplyPostMatchEffects()を呼び疲労蓄積・
     // 負傷判定を行ってしまうため、プレシーズン親善試合では使わない。前半・後半を
     // simulateMinutesで直接シミュレートし、疲労・負傷への影響を与えないようにする。
+    final weather = WeatherEngine.roll();
+    f.weather = weather;
     final first = MatchEngine.simulateMinutes(
-        home: home, away: away, startMinute: 1, endMinute: 45);
+        home: home,
+        away: away,
+        startMinute: 1,
+        endMinute: 45,
+        weather: weather);
     final second = MatchEngine.simulateMinutes(
-        home: home, away: away, startMinute: 46, endMinute: 90);
+        home: home,
+        away: away,
+        startMinute: 46,
+        endMinute: 90,
+        weather: weather);
     final result = MatchResult(
       matchday: 0,
       homeTeamId: home.id,
@@ -870,6 +882,7 @@ class GameState extends ChangeNotifier {
       homeGoals: first.homeGoals + second.homeGoals,
       awayGoals: first.awayGoals + second.awayGoals,
       events: [...first.events, ...second.events],
+      weather: weather,
     );
     f.result = result;
     // 実戦感覚を養う程度の軽い士気向上(疲労・負傷への影響は与えない)。
@@ -1387,14 +1400,21 @@ class GameState extends ChangeNotifier {
     for (final f in league.fixturesForMatchday(md)) {
       final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
       final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
+      final weather = WeatherEngine.roll();
+      f.weather = weather;
       final isUserFixture = f.homeTeamId == _save!.userTeamId ||
           f.awayTeamId == _save!.userTeamId;
       if (isUserFixture) {
         userFixture = f;
         userFirstHalf = MatchEngine.simulateMinutes(
-            home: home, away: away, startMinute: 1, endMinute: 45);
+            home: home,
+            away: away,
+            startMinute: 1,
+            endMinute: 45,
+            weather: weather);
       } else {
-        f.result = MatchEngine.simulate(home: home, away: away, matchday: md);
+        f.result = MatchEngine.simulate(
+            home: home, away: away, matchday: md, weather: weather);
       }
     }
 
@@ -1441,8 +1461,13 @@ class GameState extends ChangeNotifier {
     final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
     final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
 
+    final weather = f.weather ?? Weather.clear;
     final second = MatchEngine.simulateMinutes(
-        home: home, away: away, startMinute: 46, endMinute: 90);
+        home: home,
+        away: away,
+        startMinute: 46,
+        endMinute: 90,
+        weather: weather);
     final allEvents = [..._liveFirstHalf!.events, ...second.events];
     final homeGoals = _liveFirstHalf!.homeGoals + second.homeGoals;
     final awayGoals = _liveFirstHalf!.awayGoals + second.awayGoals;
@@ -1461,6 +1486,7 @@ class GameState extends ChangeNotifier {
       homeInjuryFactor: _injuryFactorFor(home.id),
       awayInjuryFactor: _injuryFactorFor(away.id),
       events: allEvents,
+      weather: weather,
     );
 
     final merged = MatchResult(
@@ -1471,6 +1497,7 @@ class GameState extends ChangeNotifier {
       awayGoals: awayGoals,
       events: allEvents,
       playerRatings: ratings,
+      weather: weather,
     );
     f.result = merged;
 

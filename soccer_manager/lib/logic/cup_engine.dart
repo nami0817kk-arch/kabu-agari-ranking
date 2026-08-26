@@ -3,6 +3,7 @@ import '../models/cup.dart';
 import '../models/match_result.dart';
 import '../models/team.dart';
 import 'match_engine.dart';
+import 'weather_engine.dart';
 
 class CupEngine {
   static final Random _rng = Random();
@@ -11,7 +12,10 @@ class CupEngine {
   /// 参加数が2の累乗でない場合は不戦勝(BYE)で埋める。BYE同士が対戦して
   /// 永久に決着しない事態を避けるため、各BYEは必ず実チーム1つと組ませる
   /// (2の累乗への切り上げである以上、BYE数は必ず組数の半分未満に収まる)。
-  static Cup createKnockout({required CupType type, required String name, required List<String> teamIds}) {
+  static Cup createKnockout(
+      {required CupType type,
+      required String name,
+      required List<String> teamIds}) {
     final shuffled = [...teamIds]..shuffle(_rng);
     int size = 1;
     while (size < shuffled.length) {
@@ -22,7 +26,8 @@ class CupEngine {
     final firstRound = <CupMatch>[];
     var idx = 0;
     for (int i = 0; i < byeCount; i++) {
-      final match = CupMatch(round: 1, homeTeamId: shuffled[idx], awayTeamId: byeTeamId);
+      final match =
+          CupMatch(round: 1, homeTeamId: shuffled[idx], awayTeamId: byeTeamId);
       match.result = MatchResult(
         matchday: 0,
         homeTeamId: match.homeTeamId,
@@ -35,7 +40,8 @@ class CupEngine {
       idx++;
     }
     while (idx < shuffled.length) {
-      firstRound.add(CupMatch(round: 1, homeTeamId: shuffled[idx], awayTeamId: shuffled[idx + 1]));
+      firstRound.add(CupMatch(
+          round: 1, homeTeamId: shuffled[idx], awayTeamId: shuffled[idx + 1]));
       idx += 2;
     }
 
@@ -52,13 +58,18 @@ class CupEngine {
   }
 
   /// カップの次の未消化試合を1試合消化する。試合結果を返す(BYE戦は既に消化済みなのでnullを返す)。
-  static MatchResult? playNextMatch(Cup cup, List<Team> allTeams, {int matchday = 0}) {
+  static MatchResult? playNextMatch(Cup cup, List<Team> allTeams,
+      {int matchday = 0}) {
     final match = cup.nextUnplayedMatch;
     if (match == null || match.isBye) return null;
 
     final home = allTeams.firstWhere((t) => t.id == match.homeTeamId);
     final away = allTeams.firstWhere((t) => t.id == match.awayTeamId);
-    final result = MatchEngine.simulate(home: home, away: away, matchday: matchday);
+    final result = MatchEngine.simulate(
+        home: home,
+        away: away,
+        matchday: matchday,
+        weather: WeatherEngine.roll());
     match.result = result;
     if (result.homeGoals == result.awayGoals) {
       match.penaltyWinnerId = decidePenaltyWinner(home, away);
@@ -77,7 +88,10 @@ class CupEngine {
       final nextRoundNum = lastRound.first.round + 1;
       final nextMatches = <CupMatch>[];
       for (int i = 0; i < winners.length; i += 2) {
-        final match = CupMatch(round: nextRoundNum, homeTeamId: winners[i], awayTeamId: winners[i + 1]);
+        final match = CupMatch(
+            round: nextRoundNum,
+            homeTeamId: winners[i],
+            awayTeamId: winners[i + 1]);
         if (match.isBye) {
           match.result = MatchResult(
             matchday: 0,

@@ -20,6 +20,7 @@ import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
+import 'package:soccer_manager/logic/weather_engine.dart';
 import 'package:soccer_manager/data/name_pool.dart';
 import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/club_infrastructure.dart';
@@ -32,6 +33,7 @@ import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/team.dart';
+import 'package:soccer_manager/models/weather.dart';
 import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/transfer_screen.dart';
 import 'package:soccer_manager/screens/young_talent_screen.dart';
@@ -832,6 +834,87 @@ void main() {
     final bought = await gameState.exerciseLoanBuyOption(target.id);
 
     expect(bought, isFalse);
+  });
+
+  test('Weather multipliers reflect worsening conditions for bad weather', () {
+    expect(Weather.clear.attackMultiplier, 1.0);
+    expect(Weather.clear.defenseMultiplier, 1.0);
+    expect(Weather.clear.chanceCountMultiplier, 1.0);
+    expect(Weather.clear.fatigueMultiplier, 1.0);
+
+    for (final bad in [
+      Weather.rain,
+      Weather.wind,
+      Weather.heatwave,
+      Weather.snow,
+    ]) {
+      expect(bad.attackMultiplier, lessThan(1.0));
+    }
+    expect(Weather.heatwave.fatigueMultiplier, greaterThan(1.0));
+    expect(Weather.snow.chanceCountMultiplier,
+        lessThan(Weather.rain.chanceCountMultiplier));
+  });
+
+  test('WeatherEngine.roll eventually produces every weather type', () {
+    final seen = <Weather>{};
+    for (int i = 0; i < 2000 && seen.length < Weather.values.length; i++) {
+      seen.add(WeatherEngine.roll());
+    }
+    expect(seen, containsAll(Weather.values));
+  });
+
+  test('MatchEngine.simulate records the requested weather on the result', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'wh', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'wa', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    final result = MatchEngine.simulate(
+        home: home, away: away, matchday: 1, weather: Weather.snow);
+
+    expect(result.weather, Weather.snow);
+  });
+
+  test('Fixture and MatchResult round-trip their weather through JSON', () {
+    final fixture = Fixture(
+      matchday: 3,
+      homeTeamId: 'h',
+      awayTeamId: 'a',
+      weather: Weather.wind,
+      result: MatchResult(
+        matchday: 3,
+        homeTeamId: 'h',
+        awayTeamId: 'a',
+        homeGoals: 1,
+        awayGoals: 1,
+        events: [],
+        weather: Weather.wind,
+      ),
+    );
+
+    final restored = Fixture.fromJson(fixture.toJson());
+
+    expect(restored.weather, Weather.wind);
+    expect(restored.result!.weather, Weather.wind);
+  });
+
+  test(
+      'GameState.playNextMatchday assigns a weather to the fixture that carries through to playSecondHalf',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    await gameState.playNextMatchday();
+    final fixture = gameState.liveFixture;
+    expect(fixture, isNotNull);
+    expect(fixture!.weather, isNotNull);
+
+    if (gameState.isHalfTime) {
+      final result = await gameState.playSecondHalf();
+      expect(result!.weather, fixture.weather);
+    }
   });
 
   test(

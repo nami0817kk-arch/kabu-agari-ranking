@@ -4,6 +4,7 @@ import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../models/match_result.dart';
+import '../models/weather.dart';
 
 /// この枚数の警告が貯まると次節出場停止になる(退場は即1試合出場停止)。
 const int yellowCardSuspensionThreshold = 5;
@@ -123,12 +124,15 @@ class MatchEngine {
     return candidates.last;
   }
 
-  static void _applyFatigue(Team t, List<Player> lineup) {
+  static void _applyFatigue(Team t, List<Player> lineup,
+      {double weatherFactor = 1.0}) {
     final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
     final tempoFatigueFactor = 1 + (t.tempo - 50) / 300;
     for (final p in lineup) {
-      final gain =
-          (12 + _rng.nextInt(8)) * pressFatigueFactor * tempoFatigueFactor;
+      final gain = (12 + _rng.nextInt(8)) *
+          pressFatigueFactor *
+          tempoFatigueFactor *
+          weatherFactor;
       p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
     }
   }
@@ -172,14 +176,19 @@ class MatchEngine {
     required Team away,
     required int startMinute,
     required int endMinute,
+    Weather weather = Weather.clear,
   }) {
     final homeLineup = lineupOf(home);
     final awayLineup = lineupOf(away);
 
-    final homeAttack = _attackPower(home, homeLineup) * 1.06;
-    final awayAttack = _attackPower(away, awayLineup);
-    final homeDefense = _defensePower(home, homeLineup);
-    final awayDefense = _defensePower(away, awayLineup);
+    final homeAttack =
+        _attackPower(home, homeLineup) * 1.06 * weather.attackMultiplier;
+    final awayAttack =
+        _attackPower(away, awayLineup) * weather.attackMultiplier;
+    final homeDefense =
+        _defensePower(home, homeLineup) * weather.defenseMultiplier;
+    final awayDefense =
+        _defensePower(away, awayLineup) * weather.defenseMultiplier;
 
     final events = <MatchEvent>[];
     int homeGoals = 0;
@@ -187,7 +196,9 @@ class MatchEngine {
     final span = endMinute - startMinute + 1;
 
     final totalChances =
-        ((9 + _rng.nextInt(8)) * span / 90).round().clamp(1, 20);
+        ((9 + _rng.nextInt(8)) * span / 90 * weather.chanceCountMultiplier)
+            .round()
+            .clamp(1, 20);
     final minutesUsed = <int>{};
     for (int i = 0; i < totalChances; i++) {
       int minute = startMinute;
@@ -270,11 +281,12 @@ class MatchEngine {
     double homeInjuryFactor = 1.0,
     double awayInjuryFactor = 1.0,
     List<MatchEvent> events = const [],
+    Weather weather = Weather.clear,
   }) {
     final homeLineup = lineupOf(home);
     final awayLineup = lineupOf(away);
-    _applyFatigue(home, homeLineup);
-    _applyFatigue(away, awayLineup);
+    _applyFatigue(home, homeLineup, weatherFactor: weather.fatigueMultiplier);
+    _applyFatigue(away, awayLineup, weatherFactor: weather.fatigueMultiplier);
     _rollInjuries(homeLineup, homeInjuryFactor);
     _rollInjuries(awayLineup, awayInjuryFactor);
     // 出場停止の消化は既存の出場停止(前節以前に受けたもの)にのみ適用し、
@@ -397,11 +409,20 @@ class MatchEngine {
     required int matchday,
     double homeInjuryFactor = 1.0,
     double awayInjuryFactor = 1.0,
+    Weather weather = Weather.clear,
   }) {
-    final first =
-        simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
-    final second =
-        simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    final first = simulateMinutes(
+        home: home,
+        away: away,
+        startMinute: 1,
+        endMinute: 45,
+        weather: weather);
+    final second = simulateMinutes(
+        home: home,
+        away: away,
+        startMinute: 46,
+        endMinute: 90,
+        weather: weather);
     final allEvents = [...first.events, ...second.events];
     final homeGoals = first.homeGoals + second.homeGoals;
     final awayGoals = first.awayGoals + second.awayGoals;
@@ -421,6 +442,7 @@ class MatchEngine {
       homeInjuryFactor: homeInjuryFactor,
       awayInjuryFactor: awayInjuryFactor,
       events: allEvents,
+      weather: weather,
     );
 
     return MatchResult(
@@ -431,6 +453,7 @@ class MatchEngine {
       awayGoals: awayGoals,
       events: allEvents,
       playerRatings: ratings,
+      weather: weather,
     );
   }
 }

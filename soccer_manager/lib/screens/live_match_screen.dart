@@ -7,6 +7,7 @@ import '../game/pitch_game.dart';
 import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../models/weather.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/match_widgets.dart';
@@ -91,6 +92,7 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
     final awayGoals = _revealed
         .where((e) => e.teamId == away.id && e.type == MatchEventType.goal)
         .length;
+    final weather = fixture?.weather ?? _finalResult?.weather ?? Weather.clear;
 
     return Scaffold(
       appBar:
@@ -103,17 +105,21 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
               awayGoals: awayGoals,
               onContinue: () => _startSecondHalf(),
             )
-          : _buildMatchView(context, home, away, homeGoals, awayGoals),
+          : _buildMatchView(context, home, away, homeGoals, awayGoals, weather),
     );
   }
 
   Widget _buildMatchView(BuildContext context, Team home, Team away,
-      int homeGoals, int awayGoals) {
+      int homeGoals, int awayGoals, Weather weather) {
     final finished = _phase == _Phase.finished;
     return Stack(
       children: [
         Column(
           children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: WeatherBadge(weather: weather),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(

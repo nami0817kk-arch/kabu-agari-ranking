@@ -71,6 +71,10 @@ class _MatchScreenState extends State<MatchScreen> {
       body: Column(
         children: [
           Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: WeatherBadge(weather: widget.result.weather),
+          ),
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,

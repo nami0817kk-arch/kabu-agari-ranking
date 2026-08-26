@@ -2,8 +2,40 @@ import 'package:flutter/material.dart';
 import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../models/weather.dart';
 import '../theme/semantic_colors.dart';
 import 'club_emblem.dart';
+
+/// 試合当日の天候を表示するバッジ。晴天以外は攻守・チャンス数への
+/// 影響があることを示すため色を変えて目立たせる。
+class WeatherBadge extends StatelessWidget {
+  final Weather weather;
+
+  const WeatherBadge({super.key, required this.weather});
+
+  @override
+  Widget build(BuildContext context) {
+    final isClear = weather == Weather.clear;
+    final color = isClear ? Colors.grey.shade600 : Colors.blueGrey.shade700;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(weather.emoji, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text(weather.label,
+              style: TextStyle(
+                  fontSize: 11, color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
 
 /// 試合画面上部に表示するチームの見出し(エンブレム付きの名称)。
 class TeamHeader extends StatelessWidget {
