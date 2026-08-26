@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/incoming_offer.dart';
 import '../models/league.dart';
+import '../models/match_result.dart';
+import '../models/team.dart';
 import '../state/game_state.dart';
 import '../services/feedback_service.dart';
 import '../theme/semantic_colors.dart';
@@ -559,19 +561,132 @@ class HomeScreen extends StatelessWidget {
     final userTeamId = gameState.userTeam.id;
     final isHome = next.homeTeamId == userTeamId;
     final opponentId = isHome ? next.awayTeamId : next.homeTeamId;
-    final opponentName =
-        gameState.save!.league.teams.firstWhere((t) => t.id == opponentId).name;
+    final teams = gameState.save!.league.teams;
+    final opponentName = teams.firstWhere((t) => t.id == opponentId).name;
+    final userTeamName = gameState.userTeam.name;
 
     final result = await gameState.playNextMatchdayQuickSim();
     if (!context.mounted || result == null) return;
 
-    final userGoals = isHome ? result.homeGoals : result.awayGoals;
-    final oppGoals = isHome ? result.awayGoals : result.homeGoals;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('結果: $opponentName に $userGoals - $oppGoals')),
+    await _showQuickSimResultDialog(
+      context,
+      result: result,
+      userTeamId: userTeamId,
+      userTeamName: userTeamName,
+      opponentName: opponentName,
+      teams: teams,
     );
+    if (!context.mounted) return;
     _showMatchdayNotifications(context, gameState);
     _showMonthlyAwardNotification(context, gameState);
+  }
+
+  /// クイックシム結果を、スコアだけでなく得点者・MVPまで含めたダイアログで表示する。
+  Future<void> _showQuickSimResultDialog(
+    BuildContext context, {
+    required MatchResult result,
+    required String userTeamId,
+    required String userTeamName,
+    required String opponentName,
+    required List<Team> teams,
+  }) async {
+    final isHome = result.homeTeamId == userTeamId;
+    final userGoals = isHome ? result.homeGoals : result.awayGoals;
+    final oppGoals = isHome ? result.awayGoals : result.homeGoals;
+    final resultLabel = userGoals > oppGoals
+        ? '勝利'
+        : userGoals < oppGoals
+            ? '敗北'
+            : '引き分け';
+    String teamNameOf(String teamId) =>
+        teamId == userTeamId ? userTeamName : opponentName;
+    String? scorerNameOf(String? playerId) {
+      if (playerId == null) return null;
+      for (final t in teams) {
+        for (final p in t.players) {
+          if (p.id == playerId) return p.name;
+        }
+      }
+      return null;
+    }
+
+    final goals = result.events
+        .where((e) => e.type == MatchEventType.goal)
+        .toList()
+      ..sort((a, b) => a.minute.compareTo(b.minute));
+    final motmName = scorerNameOf(result.manOfTheMatchId);
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final resultColor = userGoals > oppGoals
+            ? SemanticColors.positive(dialogContext)
+            : userGoals < oppGoals
+                ? SemanticColors.negative(dialogContext)
+                : SemanticColors.neutral(dialogContext);
+        return AlertDialog(
+          title: Text('結果: $resultLabel'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$userTeamName $userGoals - $oppGoals $opponentName',
+                  style: Theme.of(dialogContext)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(
+                          color: resultColor, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                if (goals.isEmpty)
+                  const Text('得点者はいませんでした',
+                      style: TextStyle(color: Colors.grey))
+                else ...[
+                  Text('得点者',
+                      style: Theme.of(dialogContext).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final g in goals)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '${g.minute}\' ${g.scorerName ?? '不明'}'
+                              '（${teamNameOf(g.teamId)}）',
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (motmName != null) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.star, color: Colors.amber, size: 18),
+                      const SizedBox(width: 4),
+                      Expanded(child: Text('マン・オブ・ザ・マッチ: $motmName')),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('閉じる'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _showMatchdayNotifications(BuildContext context, GameState gameState) {
@@ -670,6 +785,36 @@ class HomeScreen extends StatelessWidget {
             content: Text(superCupNews), duration: const Duration(seconds: 5)),
       );
       gameState.lastSuperCupNews = null;
+    }
+    if (context.mounted &&
+        gameState.userInvolvedInLastPromotionPlayoff &&
+        gameState.lastPromotionPlayoffResults.isNotEmpty) {
+      final results = gameState.lastPromotionPlayoffResults;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('昇格プレーオフ結果'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final line in results)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(line),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      );
+      gameState.lastPromotionPlayoffResults = [];
+      gameState.userInvolvedInLastPromotionPlayoff = false;
     }
   }
 }

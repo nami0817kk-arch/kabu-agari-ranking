@@ -1846,6 +1846,13 @@ class GameState extends ChangeNotifier {
   /// 直近のstartNextSeasonでの昇格・降格結果メッセージ(なければnull)。
   String? lastDivisionChangeMessage;
 
+  /// 直近のstartNextSeasonで昇格プレーオフが行われた場合の各試合結果
+  /// (準決勝2試合+決勝の順、表示用に整形済み)。行われなかった場合は空。
+  List<String> lastPromotionPlayoffResults = [];
+
+  /// 直近のプレーオフにユーザークラブが出場していたかどうか。
+  bool userInvolvedInLastPromotionPlayoff = false;
+
   Future<void> startNextSeason() async {
     if (_save == null) return;
     isBusy = true;
@@ -1952,6 +1959,12 @@ class GameState extends ChangeNotifier {
     final newTier = userNowInTier1 ? 1 : 2;
     final userInPromotionPlayoff = promotion.promotionPlayoff.any(
         (m) => m.homeId == _save!.userTeamId || m.awayId == _save!.userTeamId);
+    lastPromotionPlayoffResults = promotion.promotionPlayoff
+        .map((m) => '${m.roundLabel}: ${m.homeName} ${m.homeGoals}-'
+            '${m.awayGoals} ${m.awayName}'
+            '${m.decidedByPenalties ? '(PK: ${m.winnerName}が勝利)' : ''}')
+        .toList();
+    userInvolvedInLastPromotionPlayoff = userInPromotionPlayoff;
     if (wasTier1 && newTier == 2) {
       lastDivisionChangeMessage = '降格が決まりました。来シーズンは2部リーグでの再出発です。';
     } else if (!wasTier1 && newTier == 1) {

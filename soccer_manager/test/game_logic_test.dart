@@ -2279,6 +2279,40 @@ void main() {
   });
 
   test(
+      'AiTransferEngine.maybeGenerate biases the destination toward a club '
+      "whose strength fits the departing player's overall", () {
+    final rng = Random(11);
+    var movesToStrong = 0;
+    var movesToWeak = 0;
+    var trials = 0;
+    while (movesToStrong + movesToWeak < 20 && trials < 500) {
+      trials++;
+      final fromTeam = PlayerGenerator.generateSquad(
+          id: 'from', name: 'From FC', strengthTier: 60);
+      final strongTeam = PlayerGenerator.generateSquad(
+          id: 'strong', name: 'Strong FC', strengthTier: 95);
+      final weakTeam = PlayerGenerator.generateSquad(
+          id: 'weak', name: 'Weak FC', strengthTier: 5);
+      // strong/weakは選手層を16人ちょうどに抑え、移籍元候補から除外する
+      // (fromTeamの選手だけが必ず動くようにして、行き先の偏りだけを検証する)。
+      for (final t in [strongTeam, weakTeam]) {
+        while (t.players.length > 16) {
+          t.players.removeLast();
+        }
+      }
+      final teams = [fromTeam, strongTeam, weakTeam];
+
+      final news = AiTransferEngine.maybeGenerate(teams, 'user', rng);
+      if (news == null) continue;
+      if (strongTeam.players.length > 16) movesToStrong++;
+      if (weakTeam.players.length > 16) movesToWeak++;
+    }
+
+    expect(movesToStrong, greaterThan(0));
+    expect(movesToStrong, greaterThan(movesToWeak * 3));
+  });
+
+  test(
       'GameState.playNextMatchday generates CPU-to-CPU transfer news without touching the user squad',
       () async {
     final gameState = GameState();
@@ -2392,6 +2426,33 @@ void main() {
     expect(gameState.save!.careerWins, totalMatches);
     expect(gameState.save!.trophyHistory, isNotEmpty);
     expect(gameState.save!.trophyHistory.last, contains('優勝'));
+  });
+
+  test(
+      'GameState.startNextSeason records the background promotion playoff '
+      "results even when they don't involve the user's tier-1 club", () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      final userIsAway = f.awayTeamId == userId;
+      f.result = MatchResult(
+        matchday: f.matchday,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        homeGoals: userIsHome ? 3 : (userIsAway ? 0 : 1),
+        awayGoals: userIsHome ? 0 : (userIsAway ? 3 : 1),
+        events: [],
+      );
+    }
+
+    await gameState.startNextSeason();
+
+    // 2部の昇格プレーオフ(準決勝2試合+決勝)は毎シーズン必ず行われる。
+    expect(gameState.lastPromotionPlayoffResults.length, 3);
+    // ユーザーは1部で優勝しているため、2部のプレーオフには関与していない。
+    expect(gameState.userInvolvedInLastPromotionPlayoff, isFalse);
   });
 
   test(
@@ -3028,6 +3089,41 @@ void main() {
     final order = league.sortedStandings.map((r) => r.teamId).toList();
 
     expect(order, [b.id, a.id, d.id, c.id]);
+  });
+
+  test(
+      'League.recentFormFor returns the last 5 results in chronological '
+      'order', () {
+    final a = PlayerGenerator.generateSquad(
+        id: 'fa', name: 'Form FC', strengthTier: 60);
+    final b = PlayerGenerator.generateSquad(
+        id: 'fb', name: 'Opponent FC', strengthTier: 60);
+
+    Fixture fixture(int md, int hg, int ag) => Fixture(
+        matchday: md,
+        homeTeamId: a.id,
+        awayTeamId: b.id,
+        result: MatchResult(
+            matchday: md,
+            homeTeamId: a.id,
+            awayTeamId: b.id,
+            homeGoals: hg,
+            awayGoals: ag,
+            events: []));
+
+    final fixtures = [
+      fixture(1, 3, 0), // W (falls outside the last 5)
+      fixture(2, 0, 1), // L
+      fixture(3, 1, 1), // D
+      fixture(4, 2, 0), // W
+      fixture(5, 0, 2), // L
+      fixture(6, 1, 0), // W
+    ];
+    final league = League(teams: [a, b], fixtures: fixtures, season: 1);
+
+    final form = league.recentFormFor(a.id);
+
+    expect(form, ['L', 'D', 'W', 'L', 'W']);
   });
 
   test('GameState.cancelContractNegotiation clears the pending negotiation',

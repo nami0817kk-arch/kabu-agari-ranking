@@ -84,6 +84,28 @@ class League {
     return played.first;
   }
 
+  /// 指定チームの直近[count]試合の結果('W'/'D'/'L')を、古い順→新しい順で返す
+  /// (順位表のフォームガイド表示用)。
+  List<String> recentFormFor(String teamId, {int count = 5}) {
+    final played = fixtures
+        .where((f) =>
+            f.result != null &&
+            (f.homeTeamId == teamId || f.awayTeamId == teamId))
+        .toList()
+      ..sort((a, b) => a.matchday.compareTo(b.matchday));
+    final recent =
+        played.length > count ? played.sublist(played.length - count) : played;
+    return recent.map((f) {
+      final r = f.result!;
+      final isHome = f.homeTeamId == teamId;
+      final goalsFor = isHome ? r.homeGoals : r.awayGoals;
+      final goalsAgainst = isHome ? r.awayGoals : r.homeGoals;
+      if (goalsFor > goalsAgainst) return 'W';
+      if (goalsFor < goalsAgainst) return 'L';
+      return 'D';
+    }).toList();
+  }
+
   List<Fixture> fixturesForMatchday(int md) =>
       fixtures.where((f) => f.matchday == md).toList();
 

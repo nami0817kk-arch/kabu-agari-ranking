@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../logic/continental_cup_engine.dart';
 import '../logic/cup_engine.dart';
 import '../models/continental_cup.dart';
+import '../models/cup.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
@@ -101,29 +102,7 @@ class _DomesticCupTab extends StatelessWidget {
                 round.any((m) => m.result == null) || round == cup.rounds.last,
             children: [
               for (final m in round)
-                Card(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  child: ListTile(
-                    tileColor:
-                        (m.homeTeamId == userId || m.awayTeamId == userId)
-                            ? Theme.of(context)
-                                .colorScheme
-                                .primaryContainer
-                                .withValues(alpha: 0.25)
-                            : null,
-                    title: Text(
-                        '${nameOf(m.homeTeamId)} vs ${nameOf(m.awayTeamId)}'),
-                    subtitle: m.penaltyWinnerId != null
-                        ? Text('PK戦: ${nameOf(m.penaltyWinnerId!)}が勝利')
-                        : null,
-                    trailing: m.result == null
-                        ? const Text('未消化')
-                        : Text(
-                            '${m.result!.homeGoals} - ${m.result!.awayGoals}',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                  ),
-                ),
+                _BracketMatchCard(match: m, nameOf: nameOf, userId: userId),
             ],
           ),
         ],
@@ -295,6 +274,52 @@ class _ContinentalCupTab extends StatelessWidget {
   }
 }
 
+/// 国内カップの1試合分カード。自クラブの試合は背景色に加えて、
+/// スクリーンリーダー向けにもその旨を読み上げる。
+class _BracketMatchCard extends StatelessWidget {
+  final CupMatch match;
+  final String Function(String) nameOf;
+  final String userId;
+
+  const _BracketMatchCard(
+      {required this.match, required this.nameOf, required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUserMatch =
+        match.homeTeamId == userId || match.awayTeamId == userId;
+    final resultLabel = match.result == null
+        ? '未消化'
+        : '${match.result!.homeGoals} - ${match.result!.awayGoals}';
+    final card = Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ListTile(
+        tileColor: isUserMatch
+            ? Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.25)
+            : null,
+        title:
+            Text('${nameOf(match.homeTeamId)} vs ${nameOf(match.awayTeamId)}'),
+        subtitle: match.penaltyWinnerId != null
+            ? Text('PK戦: ${nameOf(match.penaltyWinnerId!)}が勝利')
+            : null,
+        trailing: match.result == null
+            ? const Text('未消化')
+            : Text(resultLabel, style: Theme.of(context).textTheme.titleMedium),
+      ),
+    );
+    if (!isUserMatch) return card;
+    return Semantics(
+      label: '自クラブの試合。'
+          '${nameOf(match.homeTeamId)} vs ${nameOf(match.awayTeamId)}、$resultLabel'
+          '${match.penaltyWinnerId != null ? '、PK戦: ${nameOf(match.penaltyWinnerId!)}が勝利' : ''}',
+      child: ExcludeSemantics(child: card),
+    );
+  }
+}
+
 class _GroupTable extends StatelessWidget {
   final String label;
   final int groupIndex;
@@ -328,24 +353,34 @@ class _GroupTable extends StatelessWidget {
                     Text(label, style: Theme.of(context).textTheme.titleSmall),
               ),
               for (int i = 0; i < standings.length; i++)
-                Container(
-                  color: standings[i].teamId == userId
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.25)
-                      : null,
-                  child: ListTile(
-                    dense: true,
-                    leading: SizedBox(width: 20, child: Text('${i + 1}')),
-                    title: Text(teams
-                        .firstWhere((t) => t.id == standings[i].teamId,
-                            orElse: () => teams.first)
-                        .name),
-                    trailing: Text(
-                        '${standings[i].points}pt (${standings[i].played}試合)'),
-                  ),
-                ),
+                Builder(builder: (context) {
+                  final isUserRow = standings[i].teamId == userId;
+                  final teamName = teams
+                      .firstWhere((t) => t.id == standings[i].teamId,
+                          orElse: () => teams.first)
+                      .name;
+                  final row = Container(
+                    color: isUserRow
+                        ? Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: 0.25)
+                        : null,
+                    child: ListTile(
+                      dense: true,
+                      leading: SizedBox(width: 20, child: Text('${i + 1}')),
+                      title: Text(teamName),
+                      trailing: Text(
+                          '${standings[i].points}pt (${standings[i].played}試合)'),
+                    ),
+                  );
+                  if (!isUserRow) return row;
+                  return Semantics(
+                    label: '自クラブ。${i + 1}位: $teamName、'
+                        '${standings[i].points}pt (${standings[i].played}試合)',
+                    child: ExcludeSemantics(child: row),
+                  );
+                }),
             ],
           ),
         ),
@@ -368,7 +403,12 @@ class _TieCard extends StatelessWidget {
     final legsLabel = tie.legs.isEmpty
         ? '未消化'
         : tie.legs.map((r) => '${r.homeGoals}-${r.awayGoals}').join(' / ');
-    return Card(
+    final scoreLabel = tie.singleLeg
+        ? '1試合制: $legsLabel'
+        : '合計スコア: ${tie.goalsFor(tie.teamAId)} - ${tie.goalsFor(tie.teamBId)} ($legsLabel)';
+    final resultLabel =
+        tie.winnerId == null ? '対戦中' : '${nameOf(tie.winnerId!)}が勝利';
+    final card = Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         tileColor: isUserTie
@@ -378,14 +418,17 @@ class _TieCard extends StatelessWidget {
                 .withValues(alpha: 0.25)
             : null,
         title: Text('${nameOf(tie.teamAId)} vs ${nameOf(tie.teamBId)}'),
-        subtitle: Text(tie.singleLeg
-            ? '1試合制: $legsLabel'
-            : '合計スコア: ${tie.goalsFor(tie.teamAId)} - ${tie.goalsFor(tie.teamBId)} ($legsLabel)'),
+        subtitle: Text(scoreLabel),
         trailing: tie.winnerId == null
             ? const Text('対戦中')
-            : Text('${nameOf(tie.winnerId!)}が勝利',
-                style: Theme.of(context).textTheme.titleSmall),
+            : Text(resultLabel, style: Theme.of(context).textTheme.titleSmall),
       ),
+    );
+    if (!isUserTie) return card;
+    return Semantics(
+      label: '自クラブの対戦。${nameOf(tie.teamAId)} vs ${nameOf(tie.teamBId)}、'
+          '$scoreLabel、$resultLabel',
+      child: ExcludeSemantics(child: card),
     );
   }
 }

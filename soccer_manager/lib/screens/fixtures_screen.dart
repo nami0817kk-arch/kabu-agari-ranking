@@ -283,8 +283,15 @@ class _StandingsTab extends StatelessWidget {
                     ),
                   ),
                   title: Text(team.name),
-                  subtitle: Text(
-                      '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
+                      const SizedBox(height: 4),
+                      _FormGuide(results: league.recentFormFor(r.teamId)),
+                    ],
+                  ),
                   trailing: Text('${r.points}pt',
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
@@ -293,6 +300,50 @@ class _StandingsTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 直近5試合の勝敗(W/D/L)を古い順→新しい順の丸アイコンで示すフォームガイド。
+class _FormGuide extends StatelessWidget {
+  final List<String> results;
+
+  const _FormGuide({required this.results});
+
+  @override
+  Widget build(BuildContext context) {
+    if (results.isEmpty) return const SizedBox.shrink();
+    Color colorFor(String r) => switch (r) {
+          'W' => SemanticColors.positive(context),
+          'L' => SemanticColors.negative(context),
+          _ => SemanticColors.neutral(context),
+        };
+    return Semantics(
+      label: '直近${results.length}試合のフォーム: ${results.join('、')}',
+      child: ExcludeSemantics(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final r in results)
+              Container(
+                margin: const EdgeInsets.only(right: 3),
+                width: 16,
+                height: 16,
+                alignment: Alignment.center,
+                decoration:
+                    BoxDecoration(color: colorFor(r), shape: BoxShape.circle),
+                child: Text(
+                  r,
+                  style: const TextStyle(
+                      fontSize: 9,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      height: 1),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
