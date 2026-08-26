@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/feedback_service.dart';
+import '../state/game_state.dart';
 import 'fixtures_screen.dart';
 import 'home_screen.dart';
 import 'lineup_screen.dart';
@@ -23,8 +25,29 @@ class _MainShellState extends State<MainShell> {
     FixturesScreen(),
   ];
 
+  int _pendingHomeActionCount(GameState gameState) {
+    var count = 0;
+    if (gameState.pendingPressConference != null) count++;
+    if (gameState.pendingJobOfferTeam != null) count++;
+    count += gameState.pendingYouthIntake.length;
+    count += gameState.incomingOffers.length;
+    return count;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final gameState = context.watch<GameState>();
+    final homeBadgeCount = _pendingHomeActionCount(gameState);
+
+    Widget homeIcon(bool selected) {
+      final icon = Icon(selected ? Icons.home : Icons.home_outlined);
+      if (homeBadgeCount == 0) return icon;
+      return Badge(
+        label: Text('$homeBadgeCount'),
+        child: icon,
+      );
+    }
+
     return Scaffold(
       body: IndexedStack(index: _index, children: _tabs),
       bottomNavigationBar: NavigationBar(
@@ -33,11 +56,23 @@ class _MainShellState extends State<MainShell> {
           FeedbackService.tap();
           setState(() => _index = i);
         },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'ホーム'),
-          NavigationDestination(icon: Icon(Icons.groups_outlined), selectedIcon: Icon(Icons.groups), label: 'スカッド'),
-          NavigationDestination(icon: Icon(Icons.checklist_outlined), selectedIcon: Icon(Icons.checklist), label: '戦術'),
-          NavigationDestination(icon: Icon(Icons.leaderboard_outlined), selectedIcon: Icon(Icons.leaderboard), label: '順位表'),
+        destinations: [
+          NavigationDestination(
+              icon: homeIcon(false),
+              selectedIcon: homeIcon(true),
+              label: 'ホーム'),
+          const NavigationDestination(
+              icon: Icon(Icons.groups_outlined),
+              selectedIcon: Icon(Icons.groups),
+              label: 'スカッド'),
+          const NavigationDestination(
+              icon: Icon(Icons.checklist_outlined),
+              selectedIcon: Icon(Icons.checklist),
+              label: '戦術'),
+          const NavigationDestination(
+              icon: Icon(Icons.leaderboard_outlined),
+              selectedIcon: Icon(Icons.leaderboard),
+              label: '順位表'),
         ],
       ),
     );
