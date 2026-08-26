@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 
@@ -11,7 +12,8 @@ class YouthIntakeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final candidates = gameState.pendingYouthIntake;
-    final slotsLeft = gameState.maxYouthProspects - gameState.save!.youthProspects.length;
+    final slotsLeft =
+        gameState.maxYouthProspects - gameState.save!.youthProspects.length;
 
     return Scaffold(
       appBar: AppBar(title: const Text('ユースインテーク')),
@@ -39,19 +41,33 @@ class YouthIntakeScreen extends StatelessWidget {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
-                          leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
+                          leading: PlayerFaceAvatar(
+                              playerId: p.id, position: p.position),
                           title: Text(p.name),
-                          subtitle: Text('${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
+                          subtitle: Text(
+                              '${p.age}歳 / 総合 ${p.overall} / 潜在 ${p.potential}'),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
                                 icon: const Icon(Icons.close),
                                 tooltip: '解雇',
-                                onPressed: () => gameState.releaseYouthIntakePlayer(p.id),
+                                onPressed: () async {
+                                  await gameState
+                                      .releaseYouthIntakePlayer(p.id);
+                                  FeedbackService.tap();
+                                },
                               ),
                               FilledButton(
-                                onPressed: slotsLeft <= 0 ? null : () => gameState.keepYouthIntakePlayer(p.id),
+                                onPressed: slotsLeft <= 0
+                                    ? null
+                                    : () async {
+                                        final ok = await gameState
+                                            .keepYouthIntakePlayer(p.id);
+                                        ok
+                                            ? FeedbackService.success()
+                                            : FeedbackService.error();
+                                      },
                                 child: const Text('引き取る'),
                               ),
                             ],

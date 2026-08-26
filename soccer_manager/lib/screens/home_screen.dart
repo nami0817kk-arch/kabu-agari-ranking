@@ -171,13 +171,17 @@ class HomeScreen extends StatelessWidget {
                                   child: Text(
                                       '${o.buyerClubName}が${o.playerName}に${o.amount}万円')),
                               TextButton(
-                                onPressed: () =>
-                                    gameState.declineIncomingOffer(o.id),
+                                onPressed: () {
+                                  FeedbackService.tap();
+                                  gameState.declineIncomingOffer(o.id);
+                                },
                                 child: const Text('拒否'),
                               ),
                               FilledButton(
-                                onPressed: () =>
-                                    gameState.acceptIncomingOffer(o.id),
+                                onPressed: () {
+                                  FeedbackService.success();
+                                  gameState.acceptIncomingOffer(o.id);
+                                },
                                 child: const Text('承諾'),
                               ),
                             ],
@@ -505,7 +509,10 @@ class _PressConferenceCard extends StatelessWidget {
                 child: SizedBox(
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: () => gameState.answerPressConference(i),
+                    onPressed: () {
+                      FeedbackService.tap();
+                      gameState.answerPressConference(i);
+                    },
                     child: Text(question.options[i].label,
                         textAlign: TextAlign.center),
                   ),
@@ -541,11 +548,17 @@ class _JobOfferCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                    onPressed: () => gameState.declineJobOffer(),
+                    onPressed: () {
+                      FeedbackService.tap();
+                      gameState.declineJobOffer();
+                    },
                     child: const Text('断る')),
                 const SizedBox(width: 8),
                 FilledButton(
-                    onPressed: () => gameState.acceptJobOffer(),
+                    onPressed: () {
+                      FeedbackService.success();
+                      gameState.acceptJobOffer();
+                    },
                     child: const Text('就任する')),
               ],
             ),

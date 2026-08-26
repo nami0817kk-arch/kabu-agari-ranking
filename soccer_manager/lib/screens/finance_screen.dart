@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../logic/loan_engine.dart';
 import '../models/player.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 
@@ -216,6 +217,7 @@ class _SponsorSection extends StatelessWidget {
 
   Future<void> _choose(BuildContext context, int index) async {
     await gameState.chooseSponsor(index);
+    FeedbackService.success();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('スポンサー契約を結んだ')),
@@ -353,6 +355,7 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
   Future<void> _confirm(BuildContext context, int amount, LoanTerm term) async {
     Navigator.pop(context);
     final ok = await widget.gameState.takeLoan(amount, term);
+    ok ? FeedbackService.success() : FeedbackService.error();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '$amount万円を借り入れました' : '融資を申し込めませんでした')),

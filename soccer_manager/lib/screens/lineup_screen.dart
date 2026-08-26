@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/formation_layout.dart';
 import '../widgets/player_face_avatar.dart';
@@ -37,7 +38,10 @@ class LineupScreen extends StatelessWidget {
                           DropdownMenuItem(value: f, child: Text(f.label)))
                       .toList(),
                   onChanged: (f) {
-                    if (f != null) context.read<GameState>().setFormation(f);
+                    if (f != null) {
+                      FeedbackService.tap();
+                      context.read<GameState>().setFormation(f);
+                    }
                   },
                 ),
                 const SizedBox(width: 8),
@@ -151,8 +155,10 @@ class LineupScreen extends StatelessWidget {
             child: Row(
               children: [
                 OutlinedButton(
-                  onPressed: () =>
-                      context.read<GameState>().autoFillStartingXI(),
+                  onPressed: () {
+                    FeedbackService.tap();
+                    context.read<GameState>().autoFillStartingXI();
+                  },
                   child: const Text('自動編成'),
                 ),
                 const SizedBox(width: 8),
@@ -292,6 +298,7 @@ class _PitchView extends StatelessWidget {
                 title: const Text('この枠を空ける'),
                 onTap: () {
                   Navigator.pop(ctx);
+                  FeedbackService.tap();
                   gameState.toggleStartingPlayer(current.id);
                 },
               ),
@@ -306,6 +313,7 @@ class _PitchView extends StatelessWidget {
                         selected: current.duty == duty,
                         onSelected: (_) {
                           Navigator.pop(ctx);
+                          FeedbackService.tap();
                           gameState.setPlayerDuty(current.id, duty);
                         },
                       ),
@@ -321,6 +329,7 @@ class _PitchView extends StatelessWidget {
                 subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
                 onTap: () {
                   Navigator.pop(ctx);
+                  FeedbackService.tap();
                   gameState.swapStartingPlayer(
                       outPlayerId: current?.id, inPlayerId: p.id);
                 },
@@ -484,7 +493,10 @@ class _BenchTile extends StatelessWidget {
         ),
         trailing: OutlinedButton(
           onPressed: canAdd
-              ? () => context.read<GameState>().toggleStartingPlayer(p.id)
+              ? () {
+                  FeedbackService.tap();
+                  context.read<GameState>().toggleStartingPlayer(p.id);
+                }
               : null,
           child: const Text('スタメンへ'),
         ),
