@@ -240,6 +240,8 @@ class MatchEngine {
       final isHomeTeam = _rng.nextBool();
       final lineup = isHomeTeam ? homeLineup : awayLineup;
       final team = isHomeTeam ? home : away;
+      // キャプテンがいるチームは規律が保たれ、カードをやや受けにくい。
+      if (team.captainId != null && _rng.nextDouble() < 0.25) continue;
       final target = _pickCardTarget(lineup);
       if (target == null) continue;
       final isRed = _rng.nextDouble() < 0.08;

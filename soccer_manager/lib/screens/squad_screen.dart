@@ -120,6 +120,10 @@ class _SquadScreenState extends State<SquadScreen> {
             _LegendRow(
                 icon: Icons.flag, color: Colors.blueAccent, label: '代表召集中'),
             _LegendRow(
+                icon: Icons.shield,
+                color: Colors.amber,
+                label: '「C」=キャプテン / 「VC」=副キャプテン(選手詳細画面から指名)'),
+            _LegendRow(
                 icon: Icons.block,
                 color: Colors.redAccent,
                 label: '出場停止中(警告累積または退場)'),
@@ -274,6 +278,36 @@ class _SquadScreenState extends State<SquadScreen> {
                               Flexible(
                                   child: Text(p.name,
                                       overflow: TextOverflow.ellipsis)),
+                              if (team.captainId == p.id) ...[
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: 'キャプテン',
+                                  child: CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: Colors.amber.shade700,
+                                    child: const Text('C',
+                                        style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ],
+                              if (team.viceCaptainId == p.id) ...[
+                                const SizedBox(width: 6),
+                                const Tooltip(
+                                  message: '副キャプテン',
+                                  child: CircleAvatar(
+                                    radius: 8,
+                                    backgroundColor: Colors.blueGrey,
+                                    child: Text('VC',
+                                        style: TextStyle(
+                                            fontSize: 8,
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold)),
+                                  ),
+                                ),
+                              ],
                               if (p.isLoan) ...[
                                 const SizedBox(width: 6),
                                 const Icon(Icons.swap_horiz,

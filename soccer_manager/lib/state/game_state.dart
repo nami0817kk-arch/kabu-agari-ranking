@@ -316,6 +316,28 @@ class GameState extends ChangeNotifier {
     _persist();
   }
 
+  /// キャプテンを指名する。既に副キャプテンだった場合はその指名を解除する。
+  Future<void> setCaptain(String? playerId) async {
+    if (_save == null) return;
+    userTeam.captainId = playerId;
+    if (playerId != null && userTeam.viceCaptainId == playerId) {
+      userTeam.viceCaptainId = null;
+    }
+    notifyListeners();
+    await _persist();
+  }
+
+  /// 副キャプテンを指名する。既にキャプテンだった場合はその指名を解除する。
+  Future<void> setViceCaptain(String? playerId) async {
+    if (_save == null) return;
+    userTeam.viceCaptainId = playerId;
+    if (playerId != null && userTeam.captainId == playerId) {
+      userTeam.captainId = null;
+    }
+    notifyListeners();
+    await _persist();
+  }
+
   void setFormation(Formation formation) {
     if (_save == null) return;
     userTeam.formation = formation;

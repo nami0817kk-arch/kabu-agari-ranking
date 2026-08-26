@@ -1548,6 +1548,28 @@ void main() {
     expect(gameState.freeAgents.any((p) => p.id == target.id), isFalse);
   });
 
+  test(
+      'GameState.setCaptain/setViceCaptain keep the two roles mutually '
+      'exclusive', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final a = gameState.userTeam.players[0].id;
+    final b = gameState.userTeam.players[1].id;
+
+    await gameState.setCaptain(a);
+    expect(gameState.userTeam.captainId, a);
+
+    // 同じ選手を副キャプテンにも指名すると、キャプテンの指名は解除される。
+    await gameState.setViceCaptain(a);
+    expect(gameState.userTeam.viceCaptainId, a);
+    expect(gameState.userTeam.captainId, isNull);
+
+    // 別の選手をキャプテンにしても、副キャプテンの指名はそのまま残る。
+    await gameState.setCaptain(b);
+    expect(gameState.userTeam.captainId, b);
+    expect(gameState.userTeam.viceCaptainId, a);
+  });
+
   test('GameState.setTransferListed toggles the listed flag', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');

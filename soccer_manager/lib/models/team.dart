@@ -27,6 +27,10 @@ class Team {
   /// プレーのテンポ（0-100）。高いほど攻撃的だが疲労が溜まりやすい。
   int tempo;
 
+  /// キャプテン・副キャプテンの選手ID(未指名の場合はnull)。
+  String? captainId;
+  String? viceCaptainId;
+
   Team({
     required this.id,
     required this.name,
@@ -39,6 +43,8 @@ class Team {
     this.lineHeight = 50,
     this.width = 50,
     this.tempo = 50,
+    this.captainId,
+    this.viceCaptainId,
   }) : startingXI = startingXI ?? [];
 
   int get overallRating {
@@ -58,6 +64,8 @@ class Team {
         'lineHeight': lineHeight,
         'width': width,
         'tempo': tempo,
+        'captainId': captainId,
+        'viceCaptainId': viceCaptainId,
         'players': players.map((p) => p.toJson()).toList(),
       };
 
@@ -66,14 +74,19 @@ class Team {
         name: json['name'] as String,
         isUserTeam: json['isUserTeam'] as bool? ?? false,
         formation: _parseFormation(json['formation'] as String?),
-        startingXI: (json['startingXI'] as List?)?.map((e) => e as String).toList() ?? [],
+        startingXI:
+            (json['startingXI'] as List?)?.map((e) => e as String).toList() ??
+                [],
         defaultTrainingFocus: json['defaultTrainingFocus'] == null
             ? TrainingFocus.rest
-            : TrainingFocus.values.byName(json['defaultTrainingFocus'] as String),
+            : TrainingFocus.values
+                .byName(json['defaultTrainingFocus'] as String),
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
         width: json['width'] as int? ?? 50,
         tempo: json['tempo'] as int? ?? 50,
+        captainId: json['captainId'] as String?,
+        viceCaptainId: json['viceCaptainId'] as String?,
         players: (json['players'] as List)
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),

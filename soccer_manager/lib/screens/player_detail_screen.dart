@@ -79,6 +79,18 @@ class PlayerDetailScreen extends StatelessWidget {
                     label: const Text('スタメン'),
                     backgroundColor:
                         Theme.of(context).colorScheme.primaryContainer),
+              if (team.captainId == p.id)
+                const Chip(
+                  label: Text('キャプテン'),
+                  backgroundColor: Colors.amber,
+                  labelStyle: TextStyle(color: Colors.white),
+                ),
+              if (team.viceCaptainId == p.id)
+                const Chip(
+                  label: Text('副キャプテン'),
+                  backgroundColor: Colors.blueGrey,
+                  labelStyle: TextStyle(color: Colors.white),
+                ),
               if (p.isLoan)
                 const Chip(
                     label: Text('ローン加入中'),
@@ -263,6 +275,26 @@ class PlayerDetailScreen extends StatelessWidget {
                   _editReleaseClause(context, p.releaseClause, p.marketValue),
               label:
                   Text(p.releaseClause == null ? 'リリース条項を設定する' : 'リリース条項を変更する'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.shield),
+              onPressed: () {
+                FeedbackService.tap();
+                gameState.setCaptain(team.captainId == p.id ? null : p.id);
+              },
+              label: Text(team.captainId == p.id ? 'キャプテンを解任する' : 'キャプテンに任命する'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.shield_outlined),
+              onPressed: () {
+                FeedbackService.tap();
+                gameState
+                    .setViceCaptain(team.viceCaptainId == p.id ? null : p.id);
+              },
+              label: Text(
+                  team.viceCaptainId == p.id ? '副キャプテンを解任する' : '副キャプテンに任命する'),
             ),
           ],
         ],
