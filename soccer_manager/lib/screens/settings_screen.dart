@@ -6,6 +6,9 @@ import '../state/settings_controller.dart';
 import 'onboarding_screen.dart';
 import 'start_screen.dart';
 
+/// pubspec.yamlのversionと合わせて更新する。
+const String _appVersion = '1.0.0';
+
 /// 表示・操作設定とセーブデータ管理をまとめた画面。
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -154,6 +157,43 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () => _confirmDelete(context),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text('アプリ情報', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    child: const Icon(Icons.sports_soccer, size: 26),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('サッカー経営マネージャー',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 2),
+                        const Text('バージョン $_appVersion',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'クラブ経営からスタメン編成、移籍市場、ユース育成までを1本で楽しめる'
+                          'サッカーマネージメントゲームです。',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
