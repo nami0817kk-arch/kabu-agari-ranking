@@ -284,6 +284,11 @@ class Player {
   /// ローン期間の残り週数（ローン選手でない場合は0）。
   int loanWeeksRemaining;
 
+  /// ローン契約に買取オプションが付いている場合の買取金額(万円)。
+  /// ローン期間中いつでもこの金額を支払えば恒久的に完全移籍へ切り替えられる。
+  /// 買取オプションがない通常のローンの場合はnull。
+  int? loanBuyOptionFee;
+
   /// リリース条項(解放金額、万円)。設定されている場合、他クラブがこの金額を
   /// 提示すると交渉なしで自動的に移籍が成立する。未設定はnull。
   int? releaseClause;
@@ -328,6 +333,7 @@ class Player {
     this.happiness = 70,
     this.isLoan = false,
     this.loanWeeksRemaining = 0,
+    this.loanBuyOptionFee,
     this.releaseClause,
     this.internationalDutyWeeksRemaining = 0,
     this.duty = PlayerDuty.support,
@@ -453,6 +459,7 @@ class Player {
         'happiness': happiness,
         'isLoan': isLoan,
         'loanWeeksRemaining': loanWeeksRemaining,
+        'loanBuyOptionFee': loanBuyOptionFee,
         'releaseClause': releaseClause,
         'internationalDutyWeeksRemaining': internationalDutyWeeksRemaining,
         'duty': duty.name,
@@ -500,6 +507,7 @@ class Player {
       happiness: json['happiness'] as int? ?? 70,
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
+      loanBuyOptionFee: json['loanBuyOptionFee'] as int?,
       releaseClause: json['releaseClause'] as int?,
       internationalDutyWeeksRemaining:
           json['internationalDutyWeeksRemaining'] as int? ?? 0,

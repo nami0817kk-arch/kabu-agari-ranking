@@ -297,6 +297,7 @@ class _TransferScreenState extends State<TransferScreen>
     final total = player.marketValue;
     final downPayment = (total * 0.3).round();
     final loanFee = (total * GameState.loanFeeRatioPercent / 100).round();
+    final buyOptionFee = (total * GameState.loanBuyOptionRatio).round();
 
     showModalBottomSheet<void>(
       context: context,
@@ -343,6 +344,21 @@ class _TransferScreenState extends State<TransferScreen>
                 onTap: () {
                   Navigator.pop(ctx);
                   _acquire(context, () => gameState.signLoanPlayer(player.id),
+                      player.name);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.request_quote),
+                title: const Text('買取オプション付きローンで獲得'),
+                subtitle: Text(
+                    '契約金$loanFee万円・週俸6割・ローン期間中いつでも$buyOptionFee万円で完全移籍化可能'),
+                enabled: save.budget >= loanFee,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _acquire(
+                      context,
+                      () => gameState.signLoanPlayer(player.id,
+                          withBuyOption: true),
                       player.name);
                 },
               ),

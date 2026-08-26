@@ -623,7 +623,11 @@ class GameState extends ChangeNotifier {
   static const int loanFeeRatioPercent = 20;
   static const int loanDurationWeeks = 20;
 
-  Future<bool> signLoanPlayer(String playerId) async {
+  /// 買取オプション付きローンの場合の買取金額(移籍金に対する割合)。
+  static const double loanBuyOptionRatio = 0.6;
+
+  Future<bool> signLoanPlayer(String playerId,
+      {bool withBuyOption = false}) async {
     if (_save == null) return false;
     if (!isTransferWindowOpen) return false;
     final idx = transferMarket.indexWhere((p) => p.id == playerId);
@@ -637,8 +641,30 @@ class GameState extends ChangeNotifier {
     player.isLoan = true;
     player.loanWeeksRemaining = loanDurationWeeks;
     player.wage = (player.wage * 0.6).round().clamp(1, 999);
+    player.loanBuyOptionFee = withBuyOption
+        ? (player.marketValue * loanBuyOptionRatio).round()
+        : null;
     userTeam.players.add(player);
     transferMarket.removeAt(idx);
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
+  /// ローン契約に付いている買取オプションを行使し、ローン中の選手を恒久的に
+  /// 完全移籍(自クラブの正式な選手)に切り替える。
+  Future<bool> exerciseLoanBuyOption(String playerId) async {
+    if (_save == null) return false;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    if (!player.isLoan || player.loanBuyOptionFee == null) return false;
+    final fee = player.loanBuyOptionFee!;
+    if (_save!.budget < fee) return false;
+
+    _save!.budget -= fee;
+    player.isLoan = false;
+    player.loanWeeksRemaining = 0;
+    player.loanBuyOptionFee = null;
+    player.contractWeeksRemaining = ContractEngine.renewalWeeks;
     notifyListeners();
     await _persist();
     return true;

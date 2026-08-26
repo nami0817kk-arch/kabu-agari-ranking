@@ -793,6 +793,48 @@ void main() {
   });
 
   test(
+      'GameState.signLoanPlayer with a buy option lets exerciseLoanBuyOption '
+      'convert the loan into a permanent signing', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    final expectedFee =
+        (target.marketValue * GameState.loanBuyOptionRatio).round();
+    gameState.save!.budget = target.marketValue + expectedFee;
+
+    final signed =
+        await gameState.signLoanPlayer(target.id, withBuyOption: true);
+    expect(signed, isTrue);
+    final player =
+        gameState.userTeam.players.firstWhere((p) => p.id == target.id);
+    expect(player.loanBuyOptionFee, expectedFee);
+    final budgetBeforeBuyout = gameState.save!.budget;
+
+    final bought = await gameState.exerciseLoanBuyOption(target.id);
+
+    expect(bought, isTrue);
+    expect(player.isLoan, isFalse);
+    expect(player.loanWeeksRemaining, 0);
+    expect(player.loanBuyOptionFee, isNull);
+    expect(gameState.save!.budget, budgetBeforeBuyout - expectedFee);
+  });
+
+  test(
+      'GameState.exerciseLoanBuyOption fails for a plain loan without a buy option',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    gameState.save!.budget = target.marketValue;
+    await gameState.signLoanPlayer(target.id);
+    gameState.save!.budget = 999999;
+
+    final bought = await gameState.exerciseLoanBuyOption(target.id);
+
+    expect(bought, isFalse);
+  });
+
+  test(
       'GameState.buyPlayerOnInstallments splits the remaining cost into weekly payments',
       () async {
     final gameState = GameState();

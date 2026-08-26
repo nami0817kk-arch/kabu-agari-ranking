@@ -207,11 +207,25 @@ class PlayerDetailScreen extends StatelessWidget {
             ),
           const SizedBox(height: 24),
           if (p.isLoan)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'ローン加入中の選手は契約更新・放出の対象外です。ローン期間終了時に自動的にチームを離れます。',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ローン加入中の選手は契約更新・放出の対象外です。ローン期間終了時に自動的にチームを離れます。',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  if (p.loanBuyOptionFee != null) ...[
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: gameState.save!.budget < p.loanBuyOptionFee!
+                          ? null
+                          : () => _exerciseBuyOption(context),
+                      child: Text('買取オプションを行使する（${p.loanBuyOptionFee}万円）'),
+                    ),
+                  ],
+                ],
               ),
             )
           else if (p.isLoanedOut)
@@ -327,6 +341,19 @@ class PlayerDetailScreen extends StatelessWidget {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '契約を更新しました' : '契約を更新できませんでした')),
+      );
+    }
+  }
+
+  Future<void> _exerciseBuyOption(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final ok = await gameState.exerciseLoanBuyOption(playerId);
+    ok ? FeedbackService.success() : FeedbackService.error();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content:
+                Text(ok ? '買取オプションを行使し、完全移籍が成立しました' : '買取オプションを行使できませんでした')),
       );
     }
   }
