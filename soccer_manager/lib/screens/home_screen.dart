@@ -354,6 +354,11 @@ class HomeScreen extends StatelessWidget {
                         child: const Text('試合を行う'),
                       ),
                       TextButton(
+                        onPressed: () => _quickSimNextMatch(context, next),
+                        child: const Text('結果だけ見る',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                      TextButton(
                         onPressed: () => _showScoutReport(context, next),
                         child: const Text('偵察レポート',
                             style: TextStyle(fontSize: 12)),
@@ -511,7 +516,39 @@ class HomeScreen extends StatelessWidget {
     final gameState = context.read<GameState>();
     final firstHalf = await gameState.playNextMatchday();
     if (!context.mounted) return;
+    _showMatchdayNotifications(context, gameState);
 
+    if (firstHalf != null) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LiveMatchScreen()),
+      );
+    }
+    if (context.mounted) _showMonthlyAwardNotification(context, gameState);
+  }
+
+  /// ライブ観戦せず、次節の結果だけを一括で確定させる(クイックシム)。
+  Future<void> _quickSimNextMatch(BuildContext context, Fixture next) async {
+    FeedbackService.tap();
+    final gameState = context.read<GameState>();
+    final userTeamId = gameState.userTeam.id;
+    final isHome = next.homeTeamId == userTeamId;
+    final opponentId = isHome ? next.awayTeamId : next.homeTeamId;
+    final opponentName =
+        gameState.save!.league.teams.firstWhere((t) => t.id == opponentId).name;
+
+    final result = await gameState.playNextMatchdayQuickSim();
+    if (!context.mounted || result == null) return;
+
+    final userGoals = isHome ? result.homeGoals : result.awayGoals;
+    final oppGoals = isHome ? result.awayGoals : result.homeGoals;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('結果: $opponentName に $userGoals - $oppGoals')),
+    );
+    _showMatchdayNotifications(context, gameState);
+    _showMonthlyAwardNotification(context, gameState);
+  }
+
+  void _showMatchdayNotifications(BuildContext context, GameState gameState) {
     final expired = gameState.lastContractExpirations;
     if (expired.isNotEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -547,20 +584,16 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastAiTransferNews = null;
     }
+  }
 
-    if (firstHalf != null) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const LiveMatchScreen()),
+  void _showMonthlyAwardNotification(
+      BuildContext context, GameState gameState) {
+    final monthlyAward = gameState.lastMonthlyManagerAward;
+    if (monthlyAward != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$monthlyAward 月間最優秀監督賞を受賞しました！')),
       );
-    }
-    if (context.mounted) {
-      final monthlyAward = gameState.lastMonthlyManagerAward;
-      if (monthlyAward != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$monthlyAward 月間最優秀監督賞を受賞しました！')),
-        );
-        gameState.lastMonthlyManagerAward = null;
-      }
+      gameState.lastMonthlyManagerAward = null;
     }
   }
 

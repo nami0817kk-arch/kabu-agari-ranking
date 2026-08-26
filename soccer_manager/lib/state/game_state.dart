@@ -39,6 +39,7 @@ import '../logic/free_agent_engine.dart';
 import '../logic/lineup_utils.dart';
 import '../logic/match_engine.dart';
 import '../logic/scouting_engine.dart';
+import '../logic/season_projection_engine.dart';
 import '../logic/sponsor_engine.dart';
 import '../logic/training_engine.dart';
 import '../logic/transfer_market.dart';
@@ -1655,6 +1656,43 @@ class GameState extends ChangeNotifier {
     await _persist();
     return merged;
   }
+
+  /// ライブ観戦せず、前半・後半を一括で消化して確定結果のみを返す
+  /// (クイックシム)。ユーザーの試合がない、またはシーズンが既に終了して
+  /// いる場合はnull。
+  Future<MatchResult?> playNextMatchdayQuickSim() async {
+    final firstHalf = await playNextMatchday();
+    if (firstHalf == null) return null;
+    return playSecondHalf();
+  }
+
+  /// クイックシムを最大[matchdays]節分繰り返し、確定した結果を節の順で返す。
+  /// シーズンが終了する、またはユーザーの試合がない節に達した時点で止まる。
+  Future<List<MatchResult>> simulateAheadMatchdays(int matchdays) async {
+    isBusy = true;
+    notifyListeners();
+    final results = <MatchResult>[];
+    try {
+      for (int i = 0; i < matchdays; i++) {
+        if (_save == null || _save!.league.isSeasonComplete) break;
+        final result = await playNextMatchdayQuickSim();
+        if (result == null) break;
+        results.add(result);
+      }
+    } finally {
+      isBusy = false;
+      notifyListeners();
+    }
+    return results;
+  }
+
+  /// 現在の順位表を起点に、残り試合をチーム総合力ベースで簡易シミュレー
+  /// ションし、シーズン最終順位の見込み(優勝/大陸カップ出場/降格の確率)
+  /// を算出する。実際の試合結果には影響しない参考情報。
+  List<TeamProjection> get seasonProjection => SeasonProjectionEngine.project(
+        _save!.league,
+        relegationCount: PromotionEngine.swapCount,
+      );
 
   List<Team> get allTeamsForCups =>
       [..._save!.league.teams, ..._save!.continentalTeams];

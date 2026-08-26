@@ -18,6 +18,7 @@ import 'package:soccer_manager/logic/retirement_engine.dart';
 import 'package:soccer_manager/logic/rotation_engine.dart';
 import 'package:soccer_manager/logic/scout_report_engine.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
+import 'package:soccer_manager/logic/season_projection_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
 import 'package:soccer_manager/logic/training_engine.dart';
 import 'package:soccer_manager/logic/transfer_market.dart';
@@ -2734,5 +2735,120 @@ void main() {
     gameState.cancelContractNegotiation();
 
     expect(gameState.pendingContractNegotiation, isNull);
+  });
+
+  test(
+      'SeasonProjectionEngine.project favors the stronger team over many remaining fixtures',
+      () {
+    final strong = PlayerGenerator.generateSquad(
+        id: 's', name: 'Strong FC', strengthTier: 90);
+    final weak = PlayerGenerator.generateSquad(
+        id: 'w', name: 'Weak FC', strengthTier: 30);
+    final league = League(teams: [
+      strong,
+      weak
+    ], fixtures: [
+      Fixture(matchday: 1, homeTeamId: strong.id, awayTeamId: weak.id),
+      Fixture(matchday: 2, homeTeamId: weak.id, awayTeamId: strong.id),
+    ]);
+
+    final projections = SeasonProjectionEngine.project(league,
+        iterations: 300, random: Random(7));
+    final strongProjection =
+        projections.firstWhere((p) => p.teamId == strong.id);
+    final weakProjection = projections.firstWhere((p) => p.teamId == weak.id);
+
+    expect(strongProjection.avgFinalPoints,
+        greaterThan(weakProjection.avgFinalPoints));
+    expect(strongProjection.titleProbability,
+        greaterThan(weakProjection.titleProbability));
+  });
+
+  test(
+      'SeasonProjectionEngine.project reflects current standings exactly once the season is complete',
+      () {
+    final teamA =
+        PlayerGenerator.generateSquad(id: 'a', name: 'A FC', strengthTier: 60);
+    final teamB =
+        PlayerGenerator.generateSquad(id: 'b', name: 'B FC', strengthTier: 60);
+    final league = League(teams: [
+      teamA,
+      teamB
+    ], fixtures: [
+      Fixture(
+        matchday: 1,
+        homeTeamId: teamA.id,
+        awayTeamId: teamB.id,
+        result: MatchResult(
+          matchday: 1,
+          homeTeamId: teamA.id,
+          awayTeamId: teamB.id,
+          homeGoals: 3,
+          awayGoals: 0,
+          events: [],
+        ),
+      ),
+    ]);
+
+    final projections = SeasonProjectionEngine.project(league, iterations: 50);
+    final aProjection = projections.firstWhere((p) => p.teamId == teamA.id);
+    final bProjection = projections.firstWhere((p) => p.teamId == teamB.id);
+
+    expect(aProjection.avgFinalPoints, 3);
+    expect(bProjection.avgFinalPoints, 0);
+    expect(aProjection.titleProbability, 1.0);
+    expect(bProjection.titleProbability, 0.0);
+  });
+
+  test(
+      'GameState.playNextMatchdayQuickSim resolves the whole matchday without leaving a half-time state',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final result = await gameState.playNextMatchdayQuickSim();
+
+    expect(result, isNotNull);
+    expect(result!.matchday, 1);
+    expect(gameState.isHalfTime, isFalse);
+    expect(
+        gameState.save!.league.fixturesForMatchday(1).any((f) =>
+            (f.homeTeamId == gameState.userTeam.id ||
+                f.awayTeamId == gameState.userTeam.id) &&
+            f.result != null),
+        isTrue);
+  });
+
+  test(
+      'GameState.simulateAheadMatchdays advances several matchdays in order and clears isBusy',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final results = await gameState.simulateAheadMatchdays(3);
+
+    expect(results.length, 3);
+    expect(results.map((r) => r.matchday).toList(), [1, 2, 3]);
+    expect(gameState.isBusy, isFalse);
+  });
+
+  test(
+      'GameState.seasonProjection ranks every league team with valid probabilities',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final projections = gameState.seasonProjection;
+
+    expect(projections.length, gameState.save!.league.teams.length);
+    for (final p in projections) {
+      expect(p.titleProbability, inInclusiveRange(0.0, 1.0));
+      expect(p.continentalProbability, inInclusiveRange(0.0, 1.0));
+      expect(p.relegationProbability, inInclusiveRange(0.0, 1.0));
+    }
+    for (int i = 1; i < projections.length; i++) {
+      expect(projections[i].avgFinalRank,
+          greaterThanOrEqualTo(projections[i - 1].avgFinalRank));
+    }
   });
 }

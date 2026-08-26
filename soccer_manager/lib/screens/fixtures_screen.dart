@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../logic/promotion_engine.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/club_emblem.dart';
@@ -18,6 +19,7 @@ class FixturesScreen extends StatelessWidget {
     final gameState = context.watch<GameState>();
     final league = gameState.save!.league;
     final userTeamId = gameState.userTeam.id;
+    final seasonComplete = league.isSeasonComplete;
 
     return DefaultTabController(
       length: 2,
@@ -25,12 +27,194 @@ class FixturesScreen extends StatelessWidget {
         appBar: AppBar(
           title: const Text('日程・順位表'),
           bottom: const TabBar(tabs: [Tab(text: '順位表'), Tab(text: '日程')]),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.query_stats),
+              tooltip: '順位予測シミュレーション',
+              onPressed:
+                  seasonComplete ? null : () => _showProjectionSheet(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.fast_forward),
+              tooltip: 'まとめてシミュレーション',
+              onPressed:
+                  seasonComplete ? null : () => _showQuickSimDialog(context),
+            ),
+          ],
         ),
         body: TabBarView(
           children: [
             _StandingsTab(league: league, userTeamId: userTeamId),
             _ScheduleTab(league: league, userTeamId: userTeamId),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showQuickSimDialog(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final remainingMatchdays = gameState.save!.league.fixtures
+        .where((f) => f.result == null)
+        .map((f) => f.matchday)
+        .toSet()
+        .length;
+
+    final choice = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('まとめてシミュレーション'),
+        children: [
+          for (final n in [1, 3, 5])
+            if (n < remainingMatchdays)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialogContext, n),
+                child: Text('$n節先まで進める'),
+              ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext, remainingMatchdays),
+            child: const Text('シーズン終了まで進める'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || choice <= 0 || !context.mounted) return;
+
+    FeedbackService.tap();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final results = await gameState.simulateAheadMatchdays(choice);
+    if (!context.mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+
+    final league = gameState.save!.league;
+    final userTeamId = gameState.userTeam.id;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('シミュレーション結果'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: results.isEmpty
+              ? const Text('進行できる試合がありませんでした')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  itemBuilder: (context, i) {
+                    final r = results[i];
+                    final isHome = r.homeTeamId == userTeamId;
+                    final opponentId = isHome ? r.awayTeamId : r.homeTeamId;
+                    final opponentName =
+                        league.teams.firstWhere((t) => t.id == opponentId).name;
+                    final userGoals = isHome ? r.homeGoals : r.awayGoals;
+                    final oppGoals = isHome ? r.awayGoals : r.homeGoals;
+                    return ListTile(
+                      dense: true,
+                      title: Text('第${r.matchday}節 vs $opponentName'),
+                      trailing: Text('$userGoals - $oppGoals',
+                          style: Theme.of(context).textTheme.titleSmall),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showProjectionSheet(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final projections = gameState.seasonProjection;
+    final league = gameState.save!.league;
+    final userTeamId = gameState.userTeam.id;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('順位予測シミュレーション',
+                  style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              const Text(
+                '現在の総合力をもとに残り試合を簡易シミュレーションした見込みです。実際の結果を保証するものではありません。',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: projections.length,
+                  itemBuilder: (context, i) {
+                    final p = projections[i];
+                    final team =
+                        league.teams.firstWhere((t) => t.id == p.teamId);
+                    final isUser = p.teamId == userTeamId;
+                    return Container(
+                      color: isUser
+                          ? Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: 0.3)
+                          : null,
+                      child: ListTile(
+                        dense: true,
+                        leading: SizedBox(
+                          width: 28,
+                          child: Text('${i + 1}',
+                              style: Theme.of(context).textTheme.titleSmall),
+                        ),
+                        title: Text(team.name),
+                        subtitle:
+                            Text('予測勝点 ${p.avgFinalPoints.toStringAsFixed(1)}'),
+                        trailing: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (p.titleProbability >= 0.01)
+                              Text(
+                                  '優勝 ${(p.titleProbability * 100).toStringAsFixed(0)}%',
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.amber,
+                                      fontWeight: FontWeight.bold)),
+                            if (p.continentalProbability >= 0.01)
+                              Text(
+                                  'カップ圏 ${(p.continentalProbability * 100).toStringAsFixed(0)}%',
+                                  style: const TextStyle(fontSize: 11)),
+                            if (p.relegationProbability >= 0.01)
+                              Text(
+                                  '降格 ${(p.relegationProbability * 100).toStringAsFixed(0)}%',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: SemanticColors.negative(context))),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
