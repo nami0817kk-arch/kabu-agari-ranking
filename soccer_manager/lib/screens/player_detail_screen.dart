@@ -238,7 +238,8 @@ class PlayerDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: team.players.length <= minSquadSize
+              onPressed: (team.players.length <= minSquadSize ||
+                      !gameState.isTransferWindowOpen)
                   ? null
                   : () => _confirmSell(context, sellPrice),
               child: Text('放出する（$sellPrice万円）'),
@@ -255,11 +256,17 @@ class PlayerDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.flight_takeoff),
-              onPressed: team.players.length <= minSquadSize
+              onPressed: (team.players.length <= minSquadSize ||
+                      !gameState.isTransferWindowOpen)
                   ? null
                   : () => _showLoanOutDialog(context),
               label: const Text('他クラブへローン放出する'),
             ),
+            if (!gameState.isTransferWindowOpen) ...[
+              const SizedBox(height: 4),
+              Text(gameState.transferWindowStatusLabel,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
           ],
           const SizedBox(height: 8),
           OutlinedButton.icon(

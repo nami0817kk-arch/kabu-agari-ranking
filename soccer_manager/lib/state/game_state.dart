@@ -99,6 +99,38 @@ class GameState extends ChangeNotifier {
   /// 信頼度が0まで落ち、監督が解任された状態かどうか。
   bool get isDismissed => _save != null && _save!.confidence <= 0;
 
+  /// 今シーズンの最終節(まだ日程が組まれていなければ0)。
+  int get _totalMatchdaysThisSeason {
+    if (_save == null || _save!.league.fixtures.isEmpty) return 0;
+    return _save!.league.fixtures.map((f) => f.matchday).reduce(max);
+  }
+
+  /// 移籍ウィンドウが開いているか。プレシーズン(開幕前)・シーズン中盤の
+  /// 数節・シーズン終了後(オフシーズン)にのみ、選手の獲得・放出ができる。
+  bool get isTransferWindowOpen {
+    if (_save == null) return true;
+    final nextMd = _save!.league.nextUnplayedFixture?.matchday;
+    if (nextMd == null) return true; // シーズン終了後(オフシーズン)
+    if (nextMd <= 1) return true; // プレシーズン(開幕前)
+    final total = _totalMatchdaysThisSeason;
+    if (total == 0) return true;
+    final midStart = total ~/ 2;
+    return nextMd >= midStart && nextMd <= midStart + 2;
+  }
+
+  /// UI表示用の移籍ウィンドウ状態文言。
+  String get transferWindowStatusLabel {
+    if (isTransferWindowOpen) return '移籍ウィンドウ: オープン中';
+    final nextMd = _save?.league.nextUnplayedFixture?.matchday;
+    final total = _totalMatchdaysThisSeason;
+    if (nextMd == null || total == 0) return '移籍ウィンドウ: クローズ中';
+    final midStart = total ~/ 2;
+    if (nextMd < midStart) {
+      return '移籍ウィンドウ: クローズ中(第$midStart節に再開)';
+    }
+    return '移籍ウィンドウ: クローズ中(来シーズン開幕前に再開)';
+  }
+
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     // 旧バージョンの単一セーブをスロット0へ移行する(スロット0が未使用の場合のみ)。
@@ -488,6 +520,7 @@ class GameState extends ChangeNotifier {
 
   Future<bool> buyPlayer(String playerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final player = transferMarket.firstWhere((p) => p.id == playerId);
     if (_save!.budget < player.marketValue) return false;
     if (userTeam.players.length >= maxSquadSize) return false;
@@ -501,6 +534,7 @@ class GameState extends ChangeNotifier {
 
   Future<bool> sellPlayer(String playerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final team = userTeam;
     if (team.players.length <= minSquadSize) return false;
     final player = team.players.firstWhere((p) => p.id == playerId);
@@ -560,6 +594,7 @@ class GameState extends ChangeNotifier {
   /// 分割払い(頭金3割 + 残額を4週で均等払い)で移籍市場の選手を獲得する。
   Future<bool> buyPlayerOnInstallments(String playerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final idx = transferMarket.indexWhere((p) => p.id == playerId);
     if (idx < 0) return false;
     if (userTeam.players.length >= maxSquadSize) return false;
@@ -590,6 +625,7 @@ class GameState extends ChangeNotifier {
 
   Future<bool> signLoanPlayer(String playerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final idx = transferMarket.indexWhere((p) => p.id == playerId);
     if (idx < 0) return false;
     if (userTeam.players.length >= maxSquadSize) return false;
@@ -725,6 +761,7 @@ class GameState extends ChangeNotifier {
   /// フリーエージェントを新規契約で獲得する(移籍金は発生しない)。
   Future<bool> signFreeAgent(String playerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     if (userTeam.players.length >= maxSquadSize) return false;
     final idx = _save!.freeAgents.indexWhere((p) => p.id == playerId);
     if (idx < 0) return false;
@@ -761,6 +798,7 @@ class GameState extends ChangeNotifier {
   /// 負担し、自クラブの試合には出場できない。スタメンだった場合は自動で欠員を埋める。
   Future<bool> loanOutPlayer(String playerId, int weeks) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final team = userTeam;
     if (team.players.length <= minSquadSize) return false;
     final player = team.players.firstWhere((p) => p.id == playerId);
@@ -822,6 +860,7 @@ class GameState extends ChangeNotifier {
 
   Future<bool> acceptIncomingOffer(String offerId) async {
     if (_save == null) return false;
+    if (!isTransferWindowOpen) return false;
     final idx = _save!.incomingOffers.indexWhere((o) => o.id == offerId);
     if (idx < 0) return false;
     final offer = _save!.incomingOffers[idx];
@@ -870,7 +909,8 @@ class GameState extends ChangeNotifier {
     }
 
     final team = userTeam;
-    if (team.players.length > minSquadSize + 2 &&
+    if (isTransferWindowOpen &&
+        team.players.length > minSquadSize + 2 &&
         _save!.incomingOffers.length < 3) {
       final eligible = team.players
           .where((p) =>

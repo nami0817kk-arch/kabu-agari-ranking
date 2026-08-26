@@ -180,10 +180,12 @@ class HomeScreen extends StatelessWidget {
                                 child: const Text('拒否'),
                               ),
                               FilledButton(
-                                onPressed: () {
-                                  FeedbackService.success();
-                                  gameState.acceptIncomingOffer(o.id);
-                                },
+                                onPressed: !gameState.isTransferWindowOpen
+                                    ? null
+                                    : () {
+                                        FeedbackService.success();
+                                        gameState.acceptIncomingOffer(o.id);
+                                      },
                                 child: const Text('承諾'),
                               ),
                             ],

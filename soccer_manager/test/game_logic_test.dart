@@ -1571,6 +1571,47 @@ void main() {
     expect(gameState.userTeam.viceCaptainId, a);
   });
 
+  test('GameState.isTransferWindowOpen closes mid-season and blocks buyPlayer',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.isTransferWindowOpen, isTrue);
+
+    for (int i = 0; i < 5; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+    expect(gameState.isTransferWindowOpen, isFalse);
+
+    gameState.save!.budget = 999999;
+    final target = gameState.transferMarket.first;
+    final ok = await gameState.buyPlayer(target.id);
+    expect(ok, isFalse);
+  });
+
+  test('GameState.isTransferWindowOpen reopens for the mid-season window',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final league = gameState.save!.league;
+    for (final f in league.fixtures) {
+      if (f.matchday < 19) {
+        f.result ??= MatchResult(
+          matchday: f.matchday,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: 0,
+          awayGoals: 0,
+          events: [],
+        );
+      }
+    }
+
+    expect(gameState.isTransferWindowOpen, isTrue);
+  });
+
   test('GameState.setTransferListed toggles the listed flag', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');

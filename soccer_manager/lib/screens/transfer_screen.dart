@@ -127,8 +127,11 @@ class _TransferScreenState extends State<TransferScreen>
 
   Widget _buildMarketTab(BuildContext context, GameState gameState,
       SaveGame save, bool squadFull, List<Player> players) {
+    final windowOpen = gameState.isTransferWindowOpen;
     return Column(
       children: [
+        _TransferWindowBanner(
+            open: windowOpen, label: gameState.transferWindowStatusLabel),
         Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -205,7 +208,7 @@ class _TransferScreenState extends State<TransferScreen>
                           '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万',
                         ),
                         trailing: FilledButton(
-                          onPressed: squadFull
+                          onPressed: (squadFull || !windowOpen)
                               ? null
                               : () => _showAcquireSheet(context, p),
                           child: const Text('獲得する'),
@@ -223,9 +226,12 @@ class _TransferScreenState extends State<TransferScreen>
       BuildContext context, GameState gameState, bool squadFull) {
     final freeAgents = [...gameState.freeAgents]
       ..sort((a, b) => b.overall.compareTo(a.overall));
+    final windowOpen = gameState.isTransferWindowOpen;
 
     return Column(
       children: [
+        _TransferWindowBanner(
+            open: windowOpen, label: gameState.transferWindowStatusLabel),
         const Padding(
           padding: EdgeInsets.all(16),
           child: Align(
@@ -260,7 +266,7 @@ class _TransferScreenState extends State<TransferScreen>
                           '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 週俸 ${p.wage}万円',
                         ),
                         trailing: FilledButton(
-                          onPressed: squadFull
+                          onPressed: (squadFull || !windowOpen)
                               ? null
                               : () => _signFreeAgent(context, p),
                           child: const Text('獲得する'),
@@ -356,5 +362,32 @@ class _TransferScreenState extends State<TransferScreen>
         SnackBar(content: Text(ok ? '$nameを獲得しました' : '獲得できませんでした')),
       );
     }
+  }
+}
+
+/// 移籍ウィンドウの開閉状態を示すバナー。閉じている間は選手の獲得・放出ができない。
+class _TransferWindowBanner extends StatelessWidget {
+  final bool open;
+  final String label;
+  const _TransferWindowBanner({required this.open, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = open ? Colors.green.shade700 : Colors.grey.shade700;
+    return Container(
+      width: double.infinity,
+      color: color.withValues(alpha: 0.12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(open ? Icons.lock_open : Icons.lock, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 }
