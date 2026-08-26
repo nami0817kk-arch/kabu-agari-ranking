@@ -12,6 +12,7 @@ import 'awards_screen.dart';
 import 'best_eleven_screen.dart';
 import 'club_screen.dart';
 import 'cup_screen.dart';
+import 'hall_of_fame_screen.dart';
 import 'finance_screen.dart';
 import 'live_match_screen.dart';
 import 'manager_career_screen.dart';
@@ -455,6 +456,13 @@ class HomeScreen extends StatelessWidget {
                   color: Colors.orange.shade700,
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => const BestElevenScreen())),
+                ),
+                _ActionTile(
+                  icon: Icons.stars,
+                  label: '殿堂',
+                  color: Colors.brown.shade700,
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const HallOfFameScreen())),
                 ),
               ],
             ),
