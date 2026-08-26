@@ -16,6 +16,7 @@ import 'hall_of_fame_screen.dart';
 import 'finance_screen.dart';
 import 'live_match_screen.dart';
 import 'manager_career_screen.dart';
+import 'match_screen.dart';
 import 'settings_screen.dart';
 import 'scout_report_screen.dart';
 import 'season_history_screen.dart';
@@ -190,6 +191,8 @@ class HomeScreen extends StatelessWidget {
               _PressConferenceCard(gameState: gameState),
             if (gameState.pendingJobOfferTeam != null)
               _JobOfferCard(gameState: gameState),
+            if (gameState.pendingSuperCup != null)
+              _SuperCupCard(gameState: gameState),
             if (gameState.pendingYouthIntake.isNotEmpty)
               Card(
                 color: scheme.secondaryContainer,
@@ -660,6 +663,14 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastSeasonManagerAwardWon = false;
     }
+    final superCupNews = gameState.lastSuperCupNews;
+    if (context.mounted && superCupNews != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(superCupNews), duration: const Duration(seconds: 5)),
+      );
+      gameState.lastSuperCupNews = null;
+    }
   }
 }
 
@@ -749,6 +760,63 @@ class _JobOfferCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SuperCupCard extends StatelessWidget {
+  final GameState gameState;
+
+  const _SuperCupCard({required this.gameState});
+
+  @override
+  Widget build(BuildContext context) {
+    final match = gameState.pendingSuperCup!;
+    final teams = [
+      ...gameState.save!.league.teams,
+      ...gameState.save!.secondDivisionTeams,
+    ];
+    final userId = gameState.userTeam.id;
+    final opponentId =
+        match.homeTeamId == userId ? match.awayTeamId : match.homeTeamId;
+    final opponentName = teams.firstWhere((t) => t.id == opponentId).name;
+    return Card(
+      color: Theme.of(context).colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('スーパーカップ', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text('開幕前特別マッチ: $opponentNameと対戦します'),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: () => _play(context),
+                child: const Text('試合を行う'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _play(BuildContext context) async {
+    FeedbackService.tap();
+    final teams = [
+      ...gameState.save!.league.teams,
+      ...gameState.save!.secondDivisionTeams,
+    ];
+    final result = await gameState.playSuperCup();
+    if (!context.mounted || result == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            MatchScreen(result: result, teams: teams, title: 'スーパーカップ'),
       ),
     );
   }

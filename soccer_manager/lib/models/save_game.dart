@@ -129,6 +129,10 @@ class SaveGame {
   /// 進行中の契約交渉(週俸の駆け引き)。ない場合はnull。
   ContractNegotiation? pendingContractNegotiation;
 
+  /// 新シーズン開幕前のスーパーカップ(前シーズンのリーグ王者 対 国内カップ王者)。
+  /// ユーザークラブが出場する場合のみ、結果が未確定のまま保持される。
+  CupMatch? pendingSuperCup;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -171,6 +175,7 @@ class SaveGame {
     this.pendingBoardReviewMessage,
     this.lastManagerOfMonthCheckpoint = 0,
     this.pendingContractNegotiation,
+    this.pendingSuperCup,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -236,6 +241,7 @@ class SaveGame {
         'pendingBoardReviewMessage': pendingBoardReviewMessage,
         'lastManagerOfMonthCheckpoint': lastManagerOfMonthCheckpoint,
         'pendingContractNegotiation': pendingContractNegotiation?.toJson(),
+        'pendingSuperCup': pendingSuperCup?.toJson(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -342,5 +348,9 @@ class SaveGame {
             ? null
             : ContractNegotiation.fromJson(
                 json['pendingContractNegotiation'] as Map<String, dynamic>),
+        pendingSuperCup: json['pendingSuperCup'] == null
+            ? null
+            : CupMatch.fromJson(
+                json['pendingSuperCup'] as Map<String, dynamic>),
       );
 }

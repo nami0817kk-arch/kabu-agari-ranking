@@ -41,6 +41,7 @@ import '../logic/match_engine.dart';
 import '../logic/scouting_engine.dart';
 import '../logic/season_projection_engine.dart';
 import '../logic/sponsor_engine.dart';
+import '../logic/super_cup_engine.dart';
 import '../logic/training_engine.dart';
 import '../logic/transfer_market.dart';
 import '../logic/weather_engine.dart';
@@ -1740,6 +1741,35 @@ class GameState extends ChangeNotifier {
     return result;
   }
 
+  /// 新シーズン開幕前のスーパーカップ(ユーザークラブが出場する場合のみ保留される)。
+  CupMatch? get pendingSuperCup => _save?.pendingSuperCup;
+
+  /// 直近のstartNextSeasonでユーザーが出場しないスーパーカップが自動消化された
+  /// 場合のニュース文言。ない場合はnull(表示後は呼び出し側でクリアする想定)。
+  String? lastSuperCupNews;
+
+  /// 保留中のスーパーカップを消化する。ユーザークラブが出場する場合のみ有効。
+  Future<MatchResult?> playSuperCup() async {
+    if (_save == null || _save!.pendingSuperCup == null) return null;
+    final match = _save!.pendingSuperCup!;
+    final teams = [..._save!.league.teams, ..._save!.secondDivisionTeams];
+    final home = teams.firstWhere((t) => t.id == match.homeTeamId);
+    final away = teams.firstWhere((t) => t.id == match.awayTeamId);
+    final result = MatchEngine.simulate(
+        home: home, away: away, matchday: 0, weather: WeatherEngine.roll());
+    match.result = result;
+    if (result.homeGoals == result.awayGoals) {
+      match.penaltyWinnerId = CupEngine.decidePenaltyWinner(home, away);
+    }
+    if (match.winnerId == _save!.userTeamId) {
+      _save!.trophyHistory.add('シーズン${_save!.league.season} スーパーカップ優勝');
+    }
+    _save!.pendingSuperCup = null;
+    notifyListeners();
+    await _persist();
+    return result;
+  }
+
   List<Team> _generateContinentalTeams() {
     final rng = Random();
     final names = NamePool.clubNames(7).map((n) => '$n（欧州）').toList();
@@ -1863,10 +1893,16 @@ class GameState extends ChangeNotifier {
     final newBackgroundTeams =
         userNowInTier1 ? promotion.tier2 : promotion.tier1;
     final newTier = userNowInTier1 ? 1 : 2;
+    final userInPromotionPlayoff = promotion.promotionPlayoff.any(
+        (m) => m.homeId == _save!.userTeamId || m.awayId == _save!.userTeamId);
     if (wasTier1 && newTier == 2) {
       lastDivisionChangeMessage = '降格が決まりました。来シーズンは2部リーグでの再出発です。';
     } else if (!wasTier1 && newTier == 1) {
-      lastDivisionChangeMessage = '昇格達成！来シーズンは1部リーグに戻ります。';
+      lastDivisionChangeMessage = userInPromotionPlayoff
+          ? '昇格プレーオフを勝ち抜き、来シーズンは1部リーグに戻ります！'
+          : '昇格達成！来シーズンは1部リーグに戻ります。';
+    } else if (userInPromotionPlayoff) {
+      lastDivisionChangeMessage = '昇格プレーオフで敗れ、来シーズンも2部リーグで戦います。';
     } else {
       lastDivisionChangeMessage = null;
     }
@@ -1914,6 +1950,56 @@ class GameState extends ChangeNotifier {
       relegated: wasTier1 && newTier == 2,
       cupsWon: cupsWonThisSeason,
     ));
+
+    // スーパーカップ: 前シーズンのリーグ王者と国内カップ王者(同一クラブが両方
+    // 制した場合はカップ準優勝クラブ)が新シーズン開幕前に対戦する。カップが
+    // 未消化のままシーズンが終わった場合は開催しない。
+    lastSuperCupNews = null;
+    Cup? previousDomesticCup;
+    for (final c in _save!.cups) {
+      if (c.type == CupType.domestic) {
+        previousDomesticCup = c;
+        break;
+      }
+    }
+    if (previousDomesticCup != null) {
+      final pairing = SuperCupEngine.pairing(
+        leagueChampionId: standings.first.teamId,
+        domesticCup: previousDomesticCup,
+      );
+      final teamsThisSeason = [...newActiveTeams, ...newBackgroundTeams];
+      Team? findTeam(String id) {
+        for (final t in teamsThisSeason) {
+          if (t.id == id) return t;
+        }
+        return null;
+      }
+
+      final champion = pairing == null ? null : findTeam(pairing.$1);
+      final opponent = pairing == null ? null : findTeam(pairing.$2);
+      if (champion != null && opponent != null && champion.id != opponent.id) {
+        final superCup = CupMatch(
+            round: 1, homeTeamId: champion.id, awayTeamId: opponent.id);
+        if (champion.id == _save!.userTeamId ||
+            opponent.id == _save!.userTeamId) {
+          _save!.pendingSuperCup = superCup;
+        } else {
+          final result = MatchEngine.simulate(
+              home: champion,
+              away: opponent,
+              matchday: 0,
+              weather: WeatherEngine.roll());
+          superCup.result = result;
+          if (result.homeGoals == result.awayGoals) {
+            superCup.penaltyWinnerId =
+                CupEngine.decidePenaltyWinner(champion, opponent);
+          }
+          final winnerName =
+              superCup.winnerId == champion.id ? champion.name : opponent.name;
+          lastSuperCupNews = '$winnerNameがスーパーカップを制した。';
+        }
+      }
+    }
 
     final newCups = <Cup>[
       CupEngine.createKnockout(

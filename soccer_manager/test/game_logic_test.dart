@@ -16,6 +16,7 @@ import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/promotion_engine.dart';
 import 'package:soccer_manager/logic/retirement_engine.dart';
 import 'package:soccer_manager/logic/rotation_engine.dart';
+import 'package:soccer_manager/logic/super_cup_engine.dart';
 import 'package:soccer_manager/logic/scout_report_engine.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/season_projection_engine.dart';
@@ -1843,6 +1844,70 @@ void main() {
   });
 
   test(
+      'PromotionEngine.resolve runs a promotion playoff among 3rd-6th place '
+      'for the final promotion spot', () {
+    List<Team> makeTeams(String prefix, int count) => List.generate(
+          count,
+          (i) => PlayerGenerator.generateSquad(
+              id: '$prefix$i', name: '$prefix Team $i', strengthTier: 60),
+        );
+
+    final tier1Teams = makeTeams('q1', 8);
+    final tier2Teams = makeTeams('q2', 8);
+    for (final t in [...tier1Teams, ...tier2Teams]) {
+      LineupUtils.autoFill(t);
+    }
+    final tier1PlayedOrder = List<Team>.from(tier1Teams);
+    final tier2PlayedOrder = List<Team>.from(tier2Teams);
+
+    final result = PromotionEngine.resolve(
+      tier1Teams: tier1Teams,
+      tier2Teams: tier2Teams,
+      tier1PlayedOrder: tier1PlayedOrder,
+      tier2PlayedOrder: tier2PlayedOrder,
+    );
+
+    expect(result.promotionPlayoff.length, 3);
+    final semiA = result.promotionPlayoff[0];
+    final semiB = result.promotionPlayoff[1];
+    final finalMatch = result.promotionPlayoff[2];
+
+    // 準決勝は3位対6位、4位対5位の組み合わせで行われる。
+    expect({semiA.homeId, semiA.awayId},
+        {tier2PlayedOrder[2].id, tier2PlayedOrder[5].id});
+    expect({semiB.homeId, semiB.awayId},
+        {tier2PlayedOrder[3].id, tier2PlayedOrder[4].id});
+    expect({finalMatch.homeId, finalMatch.awayId},
+        {semiA.winnerId, semiB.winnerId});
+
+    final newTier1Ids = result.tier1.map((t) => t.id).toSet();
+    final newTier2Ids = result.tier2.map((t) => t.id).toSet();
+
+    // 自動昇格の上位2チームは必ず昇格する。
+    expect(newTier1Ids, contains(tier2PlayedOrder[0].id));
+    expect(newTier1Ids, contains(tier2PlayedOrder[1].id));
+    // プレーオフ決勝の勝者も昇格する。
+    expect(newTier1Ids, contains(finalMatch.winnerId));
+
+    // プレーオフで敗れた3チーム(両準決勝の敗者+決勝の敗者)は昇格しない。
+    final playoffLosers = {
+      semiA.homeId == semiA.winnerId ? semiA.awayId : semiA.homeId,
+      semiB.homeId == semiB.winnerId ? semiB.awayId : semiB.homeId,
+      finalMatch.homeId == finalMatch.winnerId
+          ? finalMatch.awayId
+          : finalMatch.homeId,
+    };
+    expect(playoffLosers.length, 3);
+    for (final loserId in playoffLosers) {
+      expect(newTier2Ids, contains(loserId));
+    }
+
+    // 昇格したのはちょうど3チーム(自動2+プレーオフ勝者1)。
+    final survivingTier1Ids = tier1PlayedOrder.take(5).map((t) => t.id).toSet();
+    expect(newTier1Ids.difference(survivingTier1Ids).length, 3);
+  });
+
+  test(
       'GameState.startNextSeason relegates the user to the second division when they finish last',
       () async {
     final gameState = GameState();
@@ -2223,6 +2288,101 @@ void main() {
     expect(gameState.save!.careerWins, totalMatches);
     expect(gameState.save!.trophyHistory, isNotEmpty);
     expect(gameState.save!.trophyHistory.last, contains('優勝'));
+  });
+
+  test(
+      'SuperCupEngine.pairing pits the league champion against the domestic '
+      'cup champion', () {
+    final cup = Cup(type: CupType.domestic, name: '国内カップ', rounds: [
+      [
+        CupMatch(
+          round: 1,
+          homeTeamId: 'cupWinner',
+          awayTeamId: 'cupRunnerUp',
+          result: MatchResult(
+              matchday: 0,
+              homeTeamId: 'cupWinner',
+              awayTeamId: 'cupRunnerUp',
+              homeGoals: 2,
+              awayGoals: 1,
+              events: []),
+        ),
+      ],
+    ]);
+
+    final pairing = SuperCupEngine.pairing(
+        leagueChampionId: 'leagueChamp', domesticCup: cup);
+
+    expect(pairing, ('leagueChamp', 'cupWinner'));
+  });
+
+  test(
+      'SuperCupEngine.pairing falls back to the cup runner-up when one club '
+      'won both titles', () {
+    final cup = Cup(type: CupType.domestic, name: '国内カップ', rounds: [
+      [
+        CupMatch(
+          round: 1,
+          homeTeamId: 'doubleWinner',
+          awayTeamId: 'cupRunnerUp',
+          result: MatchResult(
+              matchday: 0,
+              homeTeamId: 'doubleWinner',
+              awayTeamId: 'cupRunnerUp',
+              homeGoals: 3,
+              awayGoals: 0,
+              events: []),
+        ),
+      ],
+    ]);
+
+    final pairing = SuperCupEngine.pairing(
+        leagueChampionId: 'doubleWinner', domesticCup: cup);
+
+    expect(pairing, ('doubleWinner', 'cupRunnerUp'));
+  });
+
+  test(
+      'SuperCupEngine.pairing returns null when the domestic cup has not '
+      'finished', () {
+    final cup = Cup(type: CupType.domestic, name: '国内カップ', rounds: [
+      [CupMatch(round: 1, homeTeamId: 'a', awayTeamId: 'b')],
+    ]);
+
+    final pairing = SuperCupEngine.pairing(
+        leagueChampionId: 'leagueChamp', domesticCup: cup);
+
+    expect(pairing, isNull);
+  });
+
+  test(
+      'GameState.startNextSeason schedules a pending Super Cup for the '
+      'league champion once the domestic cup has finished', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      final userIsAway = f.awayTeamId == userId;
+      f.result = MatchResult(
+        matchday: f.matchday,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        homeGoals: userIsHome ? 3 : (userIsAway ? 0 : 1),
+        awayGoals: userIsHome ? 0 : (userIsAway ? 3 : 1),
+        events: [],
+      );
+    }
+    // 国内カップを最後まで消化しておく(誰が優勝してもよい)。
+    while (gameState.domesticCup?.nextUnplayedMatch != null) {
+      await gameState.playNextCupMatch(CupType.domestic);
+    }
+
+    await gameState.startNextSeason();
+
+    expect(gameState.pendingSuperCup, isNotNull);
+    final match = gameState.pendingSuperCup!;
+    expect(match.homeTeamId == userId || match.awayTeamId == userId, isTrue);
   });
 
   test(
@@ -2722,6 +2882,48 @@ void main() {
 
     expect(result, ContractOfferResult.walkedAway);
     expect(gameState.pendingContractNegotiation, isNull);
+  });
+
+  test(
+      'League.sortedStandings breaks a points tie by head-to-head record '
+      'before falling back to overall goal difference', () {
+    final a =
+        PlayerGenerator.generateSquad(id: 'ha', name: 'A FC', strengthTier: 60);
+    final b =
+        PlayerGenerator.generateSquad(id: 'hb', name: 'B FC', strengthTier: 60);
+    final c =
+        PlayerGenerator.generateSquad(id: 'hc', name: 'C FC', strengthTier: 60);
+    final d =
+        PlayerGenerator.generateSquad(id: 'hd', name: 'D FC', strengthTier: 60);
+
+    MatchResult result(String home, String away, int hg, int ag) => MatchResult(
+        matchday: 1,
+        homeTeamId: home,
+        awayTeamId: away,
+        homeGoals: hg,
+        awayGoals: ag,
+        events: []);
+    Fixture fixture(String home, String away, int hg, int ag) => Fixture(
+        matchday: 1,
+        homeTeamId: home,
+        awayTeamId: away,
+        result: result(home, away, hg, ag));
+
+    // Aとbは総勝点6で並ぶが、AはBより総得失点差で上回る(+3 対 0)。
+    // ただし直接対決ではBがAに勝っているため、直接対決を優先すればBが上位になる。
+    final fixtures = [
+      fixture(a.id, b.id, 0, 1),
+      fixture(a.id, c.id, 2, 0),
+      fixture(a.id, d.id, 2, 0),
+      fixture(b.id, c.id, 1, 0),
+      fixture(b.id, d.id, 0, 2),
+      fixture(c.id, d.id, 1, 1),
+    ];
+    final league = League(teams: [a, b, c, d], fixtures: fixtures, season: 1);
+
+    final order = league.sortedStandings.map((r) => r.teamId).toList();
+
+    expect(order, [b.id, a.id, d.id, c.id]);
   });
 
   test('GameState.cancelContractNegotiation clears the pending negotiation',
