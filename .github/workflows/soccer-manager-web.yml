@@ -42,8 +42,9 @@ jobs:
 
       - name: Assemble Pages artifact
         run: |
-          mkdir -p dist/play
+          mkdir -p dist/play dist/legal
           cp -r soccer_manager/build/web/* dist/play/
+          cp soccer_manager/legal/*.html dist/legal/
           cat > dist/index.html << 'HTML'
           <!doctype html>
           <html lang="ja">

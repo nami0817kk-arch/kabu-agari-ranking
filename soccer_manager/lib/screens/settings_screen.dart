@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../state/game_state.dart';
 import '../state/settings_controller.dart';
 import 'onboarding_screen.dart';
 import 'start_screen.dart';
 
-/// pubspec.yamlのversionと合わせて更新する。
-const String _appVersion = '1.0.0';
+const String _privacyPolicyUrl =
+    'https://nami0817kk-arch.github.io/kabu-agari-ranking/legal/privacy.html';
+const String _termsUrl =
+    'https://nami0817kk-arch.github.io/kabu-agari-ranking/legal/terms.html';
 
 /// 表示・操作設定とセーブデータ管理をまとめた画面。
 class SettingsScreen extends StatelessWidget {
@@ -181,8 +185,18 @@ class SettingsScreen extends StatelessWidget {
                         Text('サッカー経営マネージャー',
                             style: Theme.of(context).textTheme.titleSmall),
                         const SizedBox(height: 2),
-                        const Text('バージョン $_appVersion',
-                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        FutureBuilder<PackageInfo>(
+                          future: PackageInfo.fromPlatform(),
+                          builder: (context, snapshot) {
+                            final info = snapshot.data;
+                            final label = info == null
+                                ? '読み込み中…'
+                                : 'バージョン ${info.version}+${info.buildNumber}';
+                            return Text(label,
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey));
+                          },
+                        ),
                         const SizedBox(height: 6),
                         const Text(
                           'クラブ経営からスタメン編成、移籍市場、ユース育成までを1本で楽しめる'
@@ -196,9 +210,38 @@ class SettingsScreen extends StatelessWidget {
               ),
             ),
           ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.privacy_tip_outlined),
+                  title: const Text('プライバシーポリシー'),
+                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  onTap: () => _openLink(context, _privacyPolicyUrl),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.description_outlined),
+                  title: const Text('利用規約'),
+                  trailing: const Icon(Icons.open_in_new, size: 16),
+                  onTap: () => _openLink(context, _termsUrl),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _openLink(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('リンクを開けませんでした')),
+      );
+    }
   }
 
   Future<void> _exportSave(BuildContext context) async {
