@@ -394,63 +394,69 @@ class _SlotChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = player;
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 52,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                p == null
-                    ? CircleAvatar(
-                        radius: 18,
-                        backgroundColor: Colors.white.withValues(alpha: 0.3),
-                        child: Text(slotPosition.label,
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.white)),
-                      )
-                    : PlayerFaceAvatar(
-                        playerId: p.id,
-                        position: p.position,
-                        size: 36,
-                        highlighted: true),
-                if (p != null)
-                  Positioned(
-                    right: -2,
-                    bottom: -2,
-                    child: Tooltip(
-                      message: p.duty.label,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _dutyColor(p.duty),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 1),
+    return Semantics(
+      button: true,
+      label: p == null
+          ? '${slotPosition.fullLabel}: 空き枠'
+          : '${slotPosition.fullLabel}: ${p.name}（${p.duty.label}）',
+      child: GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 52,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  p == null
+                      ? CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.white.withValues(alpha: 0.3),
+                          child: Text(slotPosition.label,
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.white)),
+                        )
+                      : PlayerFaceAvatar(
+                          playerId: p.id,
+                          position: p.position,
+                          size: 36,
+                          highlighted: true),
+                  if (p != null)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Tooltip(
+                        message: p.duty.label,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _dutyColor(p.duty),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(4),
+                ],
               ),
-              child: Text(
-                p == null ? '空き' : p.name.split(' ').last,
-                style: const TextStyle(fontSize: 10, color: Colors.white),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  p == null ? '空き' : p.name.split(' ').last,
+                  style: const TextStyle(fontSize: 10, color: Colors.white),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

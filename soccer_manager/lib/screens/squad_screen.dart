@@ -219,6 +219,7 @@ class _SquadScreenState extends State<SquadScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: '検索をクリア',
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');

@@ -138,6 +138,7 @@ class _TransferScreenState extends State<TransferScreen> {
                     ? null
                     : IconButton(
                         icon: const Icon(Icons.clear),
+                        tooltip: '検索をクリア',
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');
