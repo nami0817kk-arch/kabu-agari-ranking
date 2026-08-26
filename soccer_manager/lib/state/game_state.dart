@@ -1151,6 +1151,17 @@ class GameState extends ChangeNotifier {
           .reversed
           .toList();
 
+  /// 表示待ちのシーズン中盤理事会レビュー講評。ない場合はnull。
+  String? get pendingBoardReviewMessage => _save?.pendingBoardReviewMessage;
+
+  /// シーズン中盤理事会レビューの内容を確認済みにする。
+  Future<void> dismissBoardReview() async {
+    if (_save == null) return;
+    _save!.pendingBoardReviewMessage = null;
+    notifyListeners();
+    await _persist();
+  }
+
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? get pendingPressConference => _save?.pendingPressConference;
 
@@ -1374,6 +1385,20 @@ class GameState extends ChangeNotifier {
         1;
     HappinessEngine.applyWeekly(userTeam,
         leagueRank: preMatchRank, boardTargetRank: _save!.boardTargetRank);
+
+    // シーズン折り返し地点で、理事会が一度だけ中間レビューを行う。
+    if (!_save!.boardReviewDoneThisSeason) {
+      final total = _totalMatchdaysThisSeason;
+      final midMatchday = total ~/ 2;
+      if (total > 0 && next.matchday == midMatchday) {
+        final delta = BoardEngine.midSeasonReviewDelta(
+            currentRank: preMatchRank, targetRank: _save!.boardTargetRank);
+        _save!.confidence = (_save!.confidence + delta).clamp(0, 100);
+        _save!.pendingBoardReviewMessage = BoardEngine.midSeasonReviewMessage(
+            currentRank: preMatchRank, targetRank: _save!.boardTargetRank);
+        _save!.boardReviewDoneThisSeason = true;
+      }
+    }
 
     // スポンサー契約の消化・分割払いの引き落とし。
     if (_save!.sponsorDeal != null) {
@@ -1781,6 +1806,8 @@ class GameState extends ChangeNotifier {
     }
     _save!.cups = newCups;
     _save!.friendlies = _generateFriendlies(newActiveTeams, _save!.userTeamId);
+    _save!.boardReviewDoneThisSeason = false;
+    _save!.pendingBoardReviewMessage = null;
 
     isBusy = false;
     notifyListeners();

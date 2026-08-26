@@ -149,6 +149,42 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
+            if (gameState.pendingBoardReviewMessage != null)
+              Card(
+                color: Colors.indigo.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.gavel, color: Colors.indigo.shade700),
+                          const SizedBox(width: 8),
+                          Text('シーズン中盤 理事会レビュー',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(color: Colors.indigo.shade900)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(gameState.pendingBoardReviewMessage!),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () {
+                            FeedbackService.tap();
+                            gameState.dismissBoardReview();
+                          },
+                          child: const Text('了解した'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (gameState.pendingPressConference != null)
               _PressConferenceCard(gameState: gameState),
             if (gameState.pendingJobOfferTeam != null)

@@ -121,6 +121,39 @@ void main() {
     expect(first, greaterThan(last));
   });
 
+  test(
+      'BoardEngine.midSeasonReviewDelta rewards being on pace and punishes '
+      'badly trailing the target', () {
+    expect(BoardEngine.midSeasonReviewDelta(currentRank: 2, targetRank: 4),
+        greaterThan(0));
+    expect(BoardEngine.midSeasonReviewDelta(currentRank: 5, targetRank: 4), 0);
+    expect(BoardEngine.midSeasonReviewDelta(currentRank: 10, targetRank: 4),
+        lessThan(0));
+  });
+
+  test(
+      'GameState.playNextMatchday triggers exactly one board review at mid-season',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.save!.boardReviewDoneThisSeason, isFalse);
+
+    var reviewSeenCount = 0;
+    while (!gameState.save!.league.isSeasonComplete) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+      if (gameState.pendingBoardReviewMessage != null) {
+        reviewSeenCount++;
+        await gameState.dismissBoardReview();
+      }
+    }
+
+    expect(reviewSeenCount, 1);
+    expect(gameState.save!.boardReviewDoneThisSeason, isTrue);
+  });
+
   test('GameState.buyPlayer deducts budget and adds the player to the squad',
       () async {
     final gameState = GameState();

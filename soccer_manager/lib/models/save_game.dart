@@ -115,6 +115,12 @@ class SaveGame {
   /// シーズンごとのベストイレブン選出履歴。
   List<SeasonBestEleven> bestElevenHistory;
 
+  /// シーズン中盤の理事会レビューを既に実施したかどうか(シーズン開始時にリセット)。
+  bool boardReviewDoneThisSeason;
+
+  /// 表示待ちのシーズン中盤レビューの講評文(ない場合はnull)。
+  String? pendingBoardReviewMessage;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -153,6 +159,8 @@ class SaveGame {
     List<Player>? retiredLegends,
     List<SeasonRecord>? seasonHistory,
     List<SeasonBestEleven>? bestElevenHistory,
+    this.boardReviewDoneThisSeason = false,
+    this.pendingBoardReviewMessage,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -214,6 +222,8 @@ class SaveGame {
         'retiredLegends': retiredLegends.map((p) => p.toJson()).toList(),
         'seasonHistory': seasonHistory.map((r) => r.toJson()).toList(),
         'bestElevenHistory': bestElevenHistory.map((r) => r.toJson()).toList(),
+        'boardReviewDoneThisSeason': boardReviewDoneThisSeason,
+        'pendingBoardReviewMessage': pendingBoardReviewMessage,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -311,5 +321,8 @@ class SaveGame {
                     (e) => SeasonBestEleven.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        boardReviewDoneThisSeason:
+            json['boardReviewDoneThisSeason'] as bool? ?? false,
+        pendingBoardReviewMessage: json['pendingBoardReviewMessage'] as String?,
       );
 }
