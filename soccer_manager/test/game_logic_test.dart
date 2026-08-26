@@ -154,6 +154,27 @@ void main() {
     expect(gameState.save!.boardReviewDoneThisSeason, isTrue);
   });
 
+  test(
+      'GameState.playSecondHalf advances the manager-of-the-month checkpoint '
+      'in steps of 4 matchdays and resets it for the next season', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    var lastCheckpoint = 0;
+    while (!gameState.save!.league.isSeasonComplete) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+      final checkpoint = gameState.save!.lastManagerOfMonthCheckpoint;
+      expect(checkpoint - lastCheckpoint, anyOf(0, 4));
+      lastCheckpoint = checkpoint;
+    }
+
+    await gameState.startNextSeason();
+    expect(gameState.save!.lastManagerOfMonthCheckpoint, 0);
+  });
+
   test('GameState.buyPlayer deducts budget and adds the player to the squad',
       () async {
     final gameState = GameState();
@@ -1589,6 +1610,92 @@ void main() {
     expect(award.topScorerTeamName, home.name);
     expect(award.topScorerGoals, 2);
     expect(award.mvpName, isNotNull);
+  });
+
+  test(
+      'AwardsEngine.computeManagerOfPeriod picks the best record within the '
+      'matchday range and ignores fixtures outside it', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'h2', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'a2', name: 'Away FC', strengthTier: 60);
+    final fixtures = [
+      Fixture(
+        matchday: 1,
+        homeTeamId: home.id,
+        awayTeamId: away.id,
+        result: MatchResult(
+            matchday: 1,
+            homeTeamId: home.id,
+            awayTeamId: away.id,
+            homeGoals: 3,
+            awayGoals: 0,
+            events: []),
+      ),
+      Fixture(
+        matchday: 2,
+        homeTeamId: away.id,
+        awayTeamId: home.id,
+        result: MatchResult(
+            matchday: 2,
+            homeTeamId: away.id,
+            awayTeamId: home.id,
+            homeGoals: 0,
+            awayGoals: 0,
+            events: []),
+      ),
+      // このシーズン後半の結果は範囲外なので無視されるべき。
+      Fixture(
+        matchday: 10,
+        homeTeamId: away.id,
+        awayTeamId: home.id,
+        result: MatchResult(
+            matchday: 10,
+            homeTeamId: away.id,
+            awayTeamId: home.id,
+            homeGoals: 5,
+            awayGoals: 0,
+            events: []),
+      ),
+    ];
+    final league = League(teams: [home, away], fixtures: fixtures, season: 1);
+
+    final winner = AwardsEngine.computeManagerOfPeriod(league,
+        fromMatchday: 1, toMatchday: 4);
+
+    expect(winner, home.name);
+  });
+
+  test(
+      'AwardsEngine.computeManagerOfSeason rewards the club that most '
+      'overachieved its expected rank', () {
+    final strong = PlayerGenerator.generateSquad(
+        id: 'strong', name: 'Strong FC', strengthTier: 90);
+    final weak = PlayerGenerator.generateSquad(
+        id: 'weak2', name: 'Weak FC', strengthTier: 20);
+    // 総合力ではstrongが優位だが、最終順位はweakが上(=weakの大健闘)。
+    final league = League(
+      teams: [strong, weak],
+      fixtures: [
+        Fixture(
+          matchday: 1,
+          homeTeamId: weak.id,
+          awayTeamId: strong.id,
+          result: MatchResult(
+              matchday: 1,
+              homeTeamId: weak.id,
+              awayTeamId: strong.id,
+              homeGoals: 2,
+              awayGoals: 0,
+              events: []),
+        ),
+      ],
+      season: 1,
+    );
+
+    final winner = AwardsEngine.computeManagerOfSeason(league);
+
+    expect(winner, weak.name);
   });
 
   test('GameState.startNextSeason records a season award once the season ends',

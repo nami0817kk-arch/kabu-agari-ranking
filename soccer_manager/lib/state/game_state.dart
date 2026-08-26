@@ -1090,6 +1090,12 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayで発生したCPUクラブ同士の移籍ニュース。ない場合はnull。
   String? lastAiTransferNews;
 
+  /// 直近のplaySecondHalfでユーザーが月間最優秀監督賞を受賞した場合の対象節ラベル。ない場合はnull。
+  String? lastMonthlyManagerAward;
+
+  /// 直近のstartNextSeasonでユーザーが年間最優秀監督賞を受賞したかどうか。
+  bool lastSeasonManagerAwardWon = false;
+
   /// 直近のplayNextMatchdayでスタメン出場手当として支払った総額(万円)。
   int lastAppearanceFeesPaid = 0;
 
@@ -1555,6 +1561,19 @@ class GameState extends ChangeNotifier {
     );
     f.result = merged;
 
+    // 4節ごとに月間最優秀監督賞を判定する(ユーザーが受賞した場合のみ通知・記録する)。
+    if (f.matchday - _save!.lastManagerOfMonthCheckpoint >= 4) {
+      final fromMatchday = _save!.lastManagerOfMonthCheckpoint + 1;
+      final winnerName = AwardsEngine.computeManagerOfPeriod(league,
+          fromMatchday: fromMatchday, toMatchday: f.matchday);
+      if (winnerName == userTeam.name) {
+        final label = '第$fromMatchday-${f.matchday}節';
+        _save!.trophyHistory.add('シーズン${league.season} 月間最優秀監督賞($label)');
+        lastMonthlyManagerAward = label;
+      }
+      _save!.lastManagerOfMonthCheckpoint = f.matchday;
+    }
+
     var delta = BoardEngine.confidenceDeltaForMatch(merged, _save!.userTeamId);
     if (isRivalFixture(f)) {
       delta = (delta * derbyConfidenceMultiplier).round();
@@ -1667,6 +1686,13 @@ class GameState extends ChangeNotifier {
       final divisionLabel =
           wasTier1 ? _save!.leagueName : '${_save!.leagueName}(2部)';
       _save!.trophyHistory.add('シーズン${league.season}: $divisionLabel 優勝');
+    }
+
+    // 年間最優秀監督賞: 総合力から見た期待順位を最も上回ったクラブに贈られる。
+    lastSeasonManagerAwardWon = false;
+    if (AwardsEngine.computeManagerOfSeason(league) == userTeam.name) {
+      _save!.trophyHistory.add('シーズン${league.season} 年間最優秀監督賞');
+      lastSeasonManagerAwardWon = true;
     }
 
     // 2部リーグは1部より観客動員・賞金が少ない。
@@ -1808,6 +1834,7 @@ class GameState extends ChangeNotifier {
     _save!.friendlies = _generateFriendlies(newActiveTeams, _save!.userTeamId);
     _save!.boardReviewDoneThisSeason = false;
     _save!.pendingBoardReviewMessage = null;
+    _save!.lastManagerOfMonthCheckpoint = 0;
 
     isBusy = false;
     notifyListeners();

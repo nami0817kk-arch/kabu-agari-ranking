@@ -121,6 +121,10 @@ class SaveGame {
   /// 表示待ちのシーズン中盤レビューの講評文(ない場合はnull)。
   String? pendingBoardReviewMessage;
 
+  /// 月間最優秀監督賞の集計済み節数(この節までの成績は既に賞の判定に使用済み)。
+  /// シーズン開始時に0へリセットされる。
+  int lastManagerOfMonthCheckpoint;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -161,6 +165,7 @@ class SaveGame {
     List<SeasonBestEleven>? bestElevenHistory,
     this.boardReviewDoneThisSeason = false,
     this.pendingBoardReviewMessage,
+    this.lastManagerOfMonthCheckpoint = 0,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -224,6 +229,7 @@ class SaveGame {
         'bestElevenHistory': bestElevenHistory.map((r) => r.toJson()).toList(),
         'boardReviewDoneThisSeason': boardReviewDoneThisSeason,
         'pendingBoardReviewMessage': pendingBoardReviewMessage,
+        'lastManagerOfMonthCheckpoint': lastManagerOfMonthCheckpoint,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -324,5 +330,7 @@ class SaveGame {
         boardReviewDoneThisSeason:
             json['boardReviewDoneThisSeason'] as bool? ?? false,
         pendingBoardReviewMessage: json['pendingBoardReviewMessage'] as String?,
+        lastManagerOfMonthCheckpoint:
+            json['lastManagerOfMonthCheckpoint'] as int? ?? 0,
       );
 }

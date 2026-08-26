@@ -545,6 +545,15 @@ class HomeScreen extends StatelessWidget {
         MaterialPageRoute(builder: (_) => const LiveMatchScreen()),
       );
     }
+    if (context.mounted) {
+      final monthlyAward = gameState.lastMonthlyManagerAward;
+      if (monthlyAward != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$monthlyAward 月間最優秀監督賞を受賞しました！')),
+        );
+        gameState.lastMonthlyManagerAward = null;
+      }
+    }
   }
 
   Future<void> _playFriendly(BuildContext context, int index) async {
@@ -577,6 +586,15 @@ class HomeScreen extends StatelessWidget {
         ),
       );
       gameState.lastRetirements = [];
+    }
+    if (context.mounted && gameState.lastSeasonManagerAwardWon) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('年間最優秀監督賞を受賞しました！'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      gameState.lastSeasonManagerAwardWon = false;
     }
   }
 }
