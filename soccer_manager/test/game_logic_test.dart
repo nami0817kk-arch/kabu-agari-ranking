@@ -13,6 +13,7 @@ import 'package:soccer_manager/logic/loan_engine.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/promotion_engine.dart';
+import 'package:soccer_manager/logic/retirement_engine.dart';
 import 'package:soccer_manager/logic/scout_report_engine.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
@@ -357,6 +358,69 @@ void main() {
       playerRatings: ratings,
     );
     expect(result.manOfTheMatchId, scorer.id);
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects tallies career appearances and '
+      'goals for the players who took part', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home4', name: 'Home FC 4', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away4', name: 'Away FC 4', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    final scorer =
+        home.players.firstWhere((p) => home.startingXI.contains(p.id));
+    final benched =
+        home.players.firstWhere((p) => !home.startingXI.contains(p.id));
+
+    MatchEngine.applyPostMatchEffects(
+      home: home,
+      away: away,
+      events: [
+        MatchEvent(
+            minute: 5,
+            teamId: home.id,
+            scorerName: scorer.name,
+            scorerId: scorer.id),
+      ],
+    );
+
+    expect(scorer.careerAppearances, 1);
+    expect(scorer.careerGoals, 1);
+    expect(benched.careerAppearances, 0);
+  });
+
+  test('RetirementEngine.retirementChance is zero below 32 and rises with age',
+      () {
+    final young = PlayerGenerator.generate(
+        position: Position.st, strengthTier: 60, ageOverride: 25);
+    final veteran = PlayerGenerator.generate(
+        position: Position.st, strengthTier: 60, ageOverride: 37);
+
+    expect(RetirementEngine.retirementChance(young), 0.0);
+    expect(RetirementEngine.retirementChance(veteran), greaterThan(0.0));
+  });
+
+  test('RetirementEngine.resolveRetirements removes retirees from the squad',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'ret', name: 'Retire FC', strengthTier: 60);
+    LineupUtils.autoFill(team);
+    // 90%の確率で引退する年齢に全員を揃え、23人独立試行でほぼ確実に
+    // 1人以上引退する状況を作る(単独選手の抽選に依存しない安定したテストにする)。
+    for (final p in team.players) {
+      p.age = 45;
+    }
+
+    final retirees = RetirementEngine.resolveRetirements(team);
+
+    expect(retirees, isNotEmpty);
+    for (final r in retirees) {
+      expect(team.players.contains(r), isFalse);
+      expect(team.startingXI.contains(r.id), isFalse);
+    }
   });
 
   test('GameState.scoutProspect deducts budget and adds a youth prospect',

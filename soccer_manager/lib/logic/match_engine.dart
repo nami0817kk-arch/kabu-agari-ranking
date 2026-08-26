@@ -280,6 +280,23 @@ class MatchEngine {
     _advanceSuspensions(home, homeLineup);
     _advanceSuspensions(away, awayLineup);
     _applyCardAccumulation(home, away, events);
+    _applyCareerStats(homeLineup, awayLineup, events);
+  }
+
+  /// 出場選手の通算出場数・通算得点数を加算する(親善試合はこの関数を
+  /// 呼ばないため対象外)。
+  static void _applyCareerStats(List<Player> homeLineup,
+      List<Player> awayLineup, List<MatchEvent> events) {
+    final lineupIds = <String, Player>{
+      for (final p in [...homeLineup, ...awayLineup]) p.id: p,
+    };
+    for (final p in lineupIds.values) {
+      p.careerAppearances += 1;
+    }
+    for (final e in events) {
+      if (e.type != MatchEventType.goal) continue;
+      lineupIds[e.scorerId]?.careerGoals += 1;
+    }
   }
 
   /// 出場停止選手のうち、今節の対象外だった(実際に1試合を消化した)選手だけ

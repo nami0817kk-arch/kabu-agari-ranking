@@ -27,6 +27,7 @@ import '../logic/loan_engine.dart';
 import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/promotion_engine.dart';
+import '../logic/retirement_engine.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/free_agent_engine.dart';
 import '../logic/lineup_utils.dart';
@@ -59,6 +60,9 @@ class GameState extends ChangeNotifier {
 
   /// 直近のplayNextMatchdayで契約切れとなった選手名（1回表示したら呼び出し側でクリアする想定）。
   List<String> lastContractExpirations = [];
+
+  /// 直近のstartNextSeasonで引退した選手名(1回表示したら呼び出し側でクリアする想定)。
+  List<String> lastRetirements = [];
 
   SaveGame? get save => _save;
   bool get hasSave => _save != null;
@@ -1434,6 +1438,11 @@ class GameState extends ChangeNotifier {
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     FreeAgentEngine.topUp(_save!.freeAgents);
+
+    // 高齢選手の引退判定(ユースプロスペクトは対象外)。
+    final retirees = RetirementEngine.resolveRetirements(userTeam);
+    _save!.retiredLegends.addAll(retirees);
+    lastRetirements = retirees.map((p) => p.name).toList();
 
     _save!.lastSeasonRank = finalRank;
     final newCups = <Cup>[

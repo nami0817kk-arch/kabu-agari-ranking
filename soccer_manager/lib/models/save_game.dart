@@ -103,6 +103,10 @@ class SaveGame {
   /// 移籍金なし(週俸のみ)で獲得できるフリーエージェントのプール。
   List<Player> freeAgents;
 
+  /// 引退した選手(殿堂)。契約満了で単に自由契約になった選手とは異なり、
+  /// 高齢による正式な引退のため再契約はできない。
+  List<Player> retiredLegends;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -138,9 +142,11 @@ class SaveGame {
     List<String>? trophyHistory,
     List<String>? clubHistory,
     List<Player>? freeAgents,
+    List<Player>? retiredLegends,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
+        retiredLegends = retiredLegends ?? [],
         youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
@@ -193,6 +199,7 @@ class SaveGame {
         'trophyHistory': trophyHistory,
         'clubHistory': clubHistory,
         'freeAgents': freeAgents.map((p) => p.toJson()).toList(),
+        'retiredLegends': retiredLegends.map((p) => p.toJson()).toList(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -274,6 +281,10 @@ class SaveGame {
             (json['clubHistory'] as List?)?.map((e) => e as String).toList() ??
                 [],
         freeAgents: (json['freeAgents'] as List?)
+                ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        retiredLegends: (json['retiredLegends'] as List?)
                 ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],

@@ -475,6 +475,16 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastDivisionChangeMessage = null;
     }
+    final retirees = gameState.lastRetirements;
+    if (context.mounted && retirees.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('引退: ${retirees.join('、')}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      gameState.lastRetirements = [];
+    }
   }
 }
 

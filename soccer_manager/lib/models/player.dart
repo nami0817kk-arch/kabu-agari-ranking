@@ -258,6 +258,10 @@ class Player {
   /// 警告累積は[yellowCardSuspensionThreshold]枚で1試合の出場停止。
   int suspendedMatches;
 
+  /// 通算出場試合数・通算得点数(公式戦・カップ戦。親善試合は含まない)。
+  int careerAppearances;
+  int careerGoals;
+
   /// 個別のトレーニング方針。nullの場合はチームの既定方針に従う。
   TrainingFocus? individualFocus;
 
@@ -315,6 +319,8 @@ class Player {
     this.injuryWeeks = 0,
     this.yellowCards = 0,
     this.suspendedMatches = 0,
+    this.careerAppearances = 0,
+    this.careerGoals = 0,
     this.individualFocus,
     this.wage = 20,
     this.contractWeeksRemaining = 20,
@@ -438,6 +444,8 @@ class Player {
         'injuryWeeks': injuryWeeks,
         'yellowCards': yellowCards,
         'suspendedMatches': suspendedMatches,
+        'careerAppearances': careerAppearances,
+        'careerGoals': careerGoals,
         'individualFocus': individualFocus?.name,
         'wage': wage,
         'contractWeeksRemaining': contractWeeksRemaining,
@@ -479,6 +487,8 @@ class Player {
       injuryWeeks: json['injuryWeeks'] as int? ?? 0,
       yellowCards: json['yellowCards'] as int? ?? 0,
       suspendedMatches: json['suspendedMatches'] as int? ?? 0,
+      careerAppearances: json['careerAppearances'] as int? ?? 0,
+      careerGoals: json['careerGoals'] as int? ?? 0,
       individualFocus: json['individualFocus'] == null
           ? null
           : TrainingFocus.values.byName(json['individualFocus'] as String),

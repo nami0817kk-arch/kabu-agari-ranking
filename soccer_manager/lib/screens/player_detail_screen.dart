@@ -61,6 +61,14 @@ class PlayerDetailScreen extends StatelessWidget {
                 style: const TextStyle(color: Colors.grey),
               ),
             ),
+          if (p.careerAppearances > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '通算成績: ${p.careerAppearances}試合 ${p.careerGoals}得点',
+                style: const TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
