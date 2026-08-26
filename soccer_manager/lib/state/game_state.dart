@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bank_loan.dart';
 import '../models/best_eleven.dart';
 import '../models/club_infrastructure.dart';
+import '../models/continental_cup.dart';
 import '../models/contract_negotiation.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
@@ -26,6 +27,7 @@ import '../logic/awards_engine.dart';
 import '../logic/best_eleven_engine.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
+import '../logic/continental_cup_engine.dart';
 import '../logic/cup_engine.dart';
 import '../logic/happiness_engine.dart';
 import '../logic/loan_engine.dart';
@@ -1706,15 +1708,16 @@ class GameState extends ChangeNotifier {
   }
 
   Cup? get domesticCup => _save == null ? null : _cupOfType(CupType.domestic);
-  Cup? get continentalCup =>
-      _save == null ? null : _cupOfType(CupType.continental);
+
+  /// 大陸カップ(グループステージ+決勝トーナメント)。出場資格がない間はnull。
+  ContinentalCup? get continentalCup => _save?.continentalCup;
 
   /// 前シーズンの最終順位に基づき、来季の大陸カップ出場資格があるか。
   bool get qualifiedForContinentalCup => (_save?.lastSeasonRank ?? 99) <= 2;
 
-  Future<MatchResult?> playNextCupMatch(CupType type) async {
+  Future<MatchResult?> playNextCupMatch() async {
     if (_save == null) return null;
-    final cup = _cupOfType(type);
+    final cup = domesticCup;
     if (cup == null) return null;
     final userId = _save!.userTeamId;
 
@@ -1722,18 +1725,54 @@ class GameState extends ChangeNotifier {
     if (result != null &&
         (result.homeTeamId == userId || result.awayTeamId == userId)) {
       if (cup.isEliminated(userId)) {
-        _save!.confidence =
-            (_save!.confidence + (type == CupType.continental ? -3 : -1))
-                .clamp(0, 100);
+        _save!.confidence = (_save!.confidence - 1).clamp(0, 100);
       }
     }
     if (cup.isComplete && cup.championId == userId && !cup.rewardClaimed) {
       cup.rewardClaimed = true;
-      final prize = type == CupType.continental ? 1500 : 700;
-      _save!.budget += prize;
-      _save!.confidence =
-          (_save!.confidence + (type == CupType.continental ? 20 : 10))
-              .clamp(0, 100);
+      _save!.budget += 700;
+      _save!.confidence = (_save!.confidence + 10).clamp(0, 100);
+      _save!.trophyHistory.add('シーズン${_save!.league.season}: ${cup.name} 優勝');
+    }
+    notifyListeners();
+    await _persist();
+    return result;
+  }
+
+  /// 大陸カップのグループステージ次の1試合を消化する。全組が終わると
+  /// 自動的に決勝トーナメントの組み合わせが決定される。
+  Future<MatchResult?> playNextContinentalGroupMatch() async {
+    if (_save == null || _save!.continentalCup == null) return null;
+    final cup = _save!.continentalCup!;
+    final userId = _save!.userTeamId;
+    final result =
+        ContinentalCupEngine.playNextGroupMatch(cup, allTeamsForCups);
+    if (result != null &&
+        (result.homeTeamId == userId || result.awayTeamId == userId) &&
+        cup.isEliminated(userId)) {
+      _save!.confidence = (_save!.confidence - 3).clamp(0, 100);
+    }
+    notifyListeners();
+    await _persist();
+    return result;
+  }
+
+  /// 大陸カップの決勝トーナメント次の1レグを消化する。
+  Future<MatchResult?> playNextContinentalKnockoutLeg() async {
+    if (_save == null || _save!.continentalCup == null) return null;
+    final cup = _save!.continentalCup!;
+    final userId = _save!.userTeamId;
+    final result =
+        ContinentalCupEngine.playNextKnockoutLeg(cup, allTeamsForCups);
+    if (result != null &&
+        (result.homeTeamId == userId || result.awayTeamId == userId) &&
+        cup.isEliminated(userId)) {
+      _save!.confidence = (_save!.confidence - 3).clamp(0, 100);
+    }
+    if (cup.isComplete && cup.championId == userId && !cup.rewardClaimed) {
+      cup.rewardClaimed = true;
+      _save!.budget += 1500;
+      _save!.confidence = (_save!.confidence + 20).clamp(0, 100);
       _save!.trophyHistory.add('シーズン${_save!.league.season}: ${cup.name} 優勝');
     }
     notifyListeners();
@@ -1928,10 +1967,13 @@ class GameState extends ChangeNotifier {
 
     _save!.lastSeasonRank = finalRank;
 
-    final cupsWonThisSeason = _save!.cups
-        .where((c) => c.championId == _save!.userTeamId)
-        .map((c) => c.name)
-        .toList();
+    final cupsWonThisSeason = [
+      ..._save!.cups
+          .where((c) => c.championId == _save!.userTeamId)
+          .map((c) => c.name),
+      if (_save!.continentalCup?.championId == _save!.userTeamId)
+        _save!.continentalCup!.name,
+    ];
     _save!.seasonHistory.add(SeasonRecord(
       season: league.season,
       clubName: _save!.clubName,
@@ -2001,7 +2043,7 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    final newCups = <Cup>[
+    _save!.cups = [
       CupEngine.createKnockout(
         type: CupType.domestic,
         name: '国内カップ',
@@ -2011,15 +2053,14 @@ class GameState extends ChangeNotifier {
     if (wasTier1 && finalRank <= 2) {
       final continentalTeams = _generateContinentalTeams();
       _save!.continentalTeams = continentalTeams;
-      newCups.add(CupEngine.createKnockout(
-        type: CupType.continental,
+      _save!.continentalCup = ContinentalCupEngine.create(
         name: '大陸カップ',
         teamIds: [_save!.userTeamId, ...continentalTeams.map((t) => t.id)],
-      ));
+      );
     } else {
       _save!.continentalTeams = [];
+      _save!.continentalCup = null;
     }
-    _save!.cups = newCups;
     _save!.friendlies = _generateFriendlies(newActiveTeams, _save!.userTeamId);
     _save!.boardReviewDoneThisSeason = false;
     _save!.pendingBoardReviewMessage = null;

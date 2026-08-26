@@ -7,6 +7,7 @@ import 'package:soccer_manager/logic/awards_engine.dart';
 import 'package:soccer_manager/logic/best_eleven_engine.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
 import 'package:soccer_manager/logic/contract_engine.dart';
+import 'package:soccer_manager/logic/continental_cup_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
 import 'package:soccer_manager/logic/happiness_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
@@ -748,11 +749,105 @@ void main() {
 
     int guard = 0;
     do {
-      await gameState.playNextCupMatch(CupType.domestic);
+      await gameState.playNextCupMatch();
       guard++;
     } while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20);
 
     expect(gameState.domesticCup!.isComplete, isTrue);
+  });
+
+  test(
+      'ContinentalCupEngine.create splits teams into 4-team groups with a '
+      'full round robin', () {
+    final ids = List.generate(8, (i) => 't$i');
+    final cup = ContinentalCupEngine.create(name: '大陸カップ', teamIds: ids);
+
+    expect(cup.groups.length, 2);
+    expect(cup.groups.expand((g) => g).toSet(), ids.toSet());
+    expect(cup.groupMatches.length, 12);
+    for (final group in cup.groups) {
+      for (final id in group) {
+        final played = cup.groupMatches
+            .where((m) => m.homeTeamId == id || m.awayTeamId == id)
+            .length;
+        expect(played, 3);
+      }
+    }
+  });
+
+  test(
+      'ContinentalCupEngine plays from the group stage through to a champion, '
+      'swapping home/away for the second knockout leg', () {
+    final teams = List.generate(
+        8,
+        (i) => PlayerGenerator.generateSquad(
+            id: 'c$i', name: 'Club $i', strengthTier: 60));
+    for (final t in teams) {
+      LineupUtils.autoFill(t);
+    }
+    final cup = ContinentalCupEngine.create(
+        name: '大陸カップ', teamIds: teams.map((t) => t.id).toList());
+
+    int guard = 0;
+    while (!cup.isGroupStageComplete && guard < 50) {
+      ContinentalCupEngine.playNextGroupMatch(cup, teams);
+      guard++;
+    }
+    expect(cup.isGroupStageComplete, isTrue);
+    expect(cup.knockoutRounds.length, 1);
+    expect(cup.knockoutRounds.first.length, 2);
+
+    // 準決勝は同組同士が当たらないよう、他組の2位とクロスで組まれる。
+    for (final tie in cup.knockoutRounds.first) {
+      final groupOfA = cup.groups.indexWhere((g) => g.contains(tie.teamAId));
+      final groupOfB = cup.groups.indexWhere((g) => g.contains(tie.teamBId));
+      expect(groupOfA, isNot(groupOfB));
+    }
+
+    guard = 0;
+    while (!cup.isComplete && guard < 50) {
+      ContinentalCupEngine.playNextKnockoutLeg(cup, teams);
+      guard++;
+    }
+
+    expect(cup.isComplete, isTrue);
+    expect(cup.championId, isNotNull);
+    expect(cup.knockoutRounds.length, 2);
+    final finalTie = cup.knockoutRounds.last.first;
+    expect(finalTie.singleLeg, isTrue);
+    expect(finalTie.legs.length, 1);
+
+    final semi = cup.knockoutRounds.first.first;
+    expect(semi.legs.length, 2);
+    expect(semi.legs[0].homeTeamId, semi.teamAId);
+    expect(semi.legs[1].homeTeamId, semi.teamBId);
+  });
+
+  test(
+      "GameState.startNextSeason creates a continental cup with two 4-team "
+      "groups when the user finishes in the league's top two", () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      final userIsAway = f.awayTeamId == userId;
+      f.result = MatchResult(
+        matchday: f.matchday,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        homeGoals: userIsHome ? 3 : (userIsAway ? 0 : 1),
+        awayGoals: userIsHome ? 0 : (userIsAway ? 3 : 1),
+        events: [],
+      );
+    }
+
+    await gameState.startNextSeason();
+
+    expect(gameState.continentalCup, isNotNull);
+    final cup = gameState.continentalCup!;
+    expect(cup.groups.length, 2);
+    expect(cup.groups.expand((g) => g), contains(userId));
   });
 
   test(
@@ -2375,7 +2470,7 @@ void main() {
     }
     // 国内カップを最後まで消化しておく(誰が優勝してもよい)。
     while (gameState.domesticCup?.nextUnplayedMatch != null) {
-      await gameState.playNextCupMatch(CupType.domestic);
+      await gameState.playNextCupMatch();
     }
 
     await gameState.startNextSeason();

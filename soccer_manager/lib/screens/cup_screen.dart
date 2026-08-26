@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/continental_cup_engine.dart';
 import '../logic/cup_engine.dart';
-import '../models/cup.dart';
+import '../models/continental_cup.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
@@ -21,8 +22,8 @@ class CupScreen extends StatelessWidget {
         ),
         body: const TabBarView(
           children: [
-            _CupTab(type: CupType.domestic),
-            _CupTab(type: CupType.continental),
+            _DomesticCupTab(),
+            _ContinentalCupTab(),
           ],
         ),
       ),
@@ -30,27 +31,19 @@ class CupScreen extends StatelessWidget {
   }
 }
 
-class _CupTab extends StatelessWidget {
-  final CupType type;
-  const _CupTab({required this.type});
+class _DomesticCupTab extends StatelessWidget {
+  const _DomesticCupTab();
 
   @override
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
-    final cup = type == CupType.domestic
-        ? gameState.domesticCup
-        : gameState.continentalCup;
+    final cup = gameState.domesticCup;
 
     if (cup == null) {
-      return Center(
+      return const Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            type == CupType.continental
-                ? '前シーズンをリーグ2位以内で終えると、翌シーズンは大陸カップに出場できます。'
-                : 'カップ戦の情報がありません。',
-            textAlign: TextAlign.center,
-          ),
+          padding: EdgeInsets.all(24),
+          child: Text('カップ戦の情報がありません。', textAlign: TextAlign.center),
         ),
       );
     }
@@ -96,7 +89,7 @@ class _CupTab extends StatelessWidget {
             child: SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () => _playNext(context, type),
+                onPressed: () => _playNext(context),
                 child: const Text('次の試合を消化'),
               ),
             ),
@@ -138,25 +131,262 @@ class _CupTab extends StatelessWidget {
     );
   }
 
-  Future<void> _playNext(BuildContext context, CupType type) async {
+  Future<void> _playNext(BuildContext context) async {
     final gameState = context.read<GameState>();
     final userId = gameState.userTeam.id;
     final List<Team> teams = gameState.allTeamsForCups;
-    final cup = type == CupType.domestic
-        ? gameState.domesticCup
-        : gameState.continentalCup;
-    final match = cup?.nextUnplayedMatch;
+    final match = gameState.domesticCup?.nextUnplayedMatch;
     final isUserMatch = match != null &&
         (match.homeTeamId == userId || match.awayTeamId == userId);
-    final result = await gameState.playNextCupMatch(type);
+    final result = await gameState.playNextCupMatch();
     if (!context.mounted) return;
     if (result != null && isUserMatch) {
       Navigator.of(context).push(
         MaterialPageRoute(
             builder: (_) =>
-                MatchScreen(result: result, teams: teams, title: type.label)),
+                MatchScreen(result: result, teams: teams, title: '国内カップ')),
       );
     }
+  }
+}
+
+class _ContinentalCupTab extends StatelessWidget {
+  const _ContinentalCupTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final gameState = context.watch<GameState>();
+    final cup = gameState.continentalCup;
+
+    if (cup == null) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('前シーズンをリーグ2位以内で終えると、翌シーズンは大陸カップに出場できます。',
+              textAlign: TextAlign.center),
+        ),
+      );
+    }
+
+    final userId = gameState.userTeam.id;
+    final teams = gameState.allTeamsForCups;
+    String nameOf(String id) =>
+        teams.firstWhere((t) => t.id == id, orElse: () => teams.first).name;
+    final userEliminated = cup.isEliminated(userId);
+    final groupStageDone = cup.isGroupStageComplete;
+    final nextGroupMatch = ContinentalCupEngine.nextGroupMatch(cup);
+    final knockoutPending = cup.knockoutRounds.isNotEmpty &&
+        cup.knockoutRounds.last.any((t) => !t.isComplete);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (cup.isComplete)
+          Card(
+            color: cup.championId == userId
+                ? SemanticColors.positive(context).withValues(alpha: 0.15)
+                : null,
+            child: ListTile(
+              leading: Icon(
+                Icons.emoji_events,
+                color: cup.championId == userId
+                    ? SemanticColors.positive(context)
+                    : null,
+              ),
+              title: Text('優勝: ${nameOf(cup.championId!)}'),
+            ),
+          )
+        else if (userEliminated)
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.info_outline,
+                  color: SemanticColors.negative(context)),
+              title: const Text('自クラブは敗退しました'),
+              subtitle: const Text('他クラブの結果は引き続き更新されます'),
+            ),
+          ),
+        if (nextGroupMatch != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => _playNextGroup(context),
+                child: const Text('次のグループステージの試合を消化'),
+              ),
+            ),
+          )
+        else if (knockoutPending)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => _playNextKnockoutLeg(context),
+                child: const Text('次の決勝トーナメントのレグを消化'),
+              ),
+            ),
+          ),
+        _RoundSection(
+          title: 'グループステージ',
+          initiallyExpanded: !groupStageDone,
+          children: [
+            for (int g = 0; g < cup.groups.length; g++)
+              _GroupTable(
+                label: 'グループ${String.fromCharCode(65 + g)}',
+                groupIndex: g,
+                cup: cup,
+                teams: teams,
+                userId: userId,
+              ),
+          ],
+        ),
+        if (cup.knockoutRounds.isNotEmpty)
+          for (final round in cup.knockoutRounds)
+            _RoundSection(
+              title: ContinentalCupEngine.roundLabel(
+                  round.first.round, cup.knockoutRounds.length),
+              initiallyExpanded: round == cup.knockoutRounds.last,
+              children: [
+                for (final tie in round)
+                  _TieCard(tie: tie, nameOf: nameOf, userId: userId),
+              ],
+            ),
+      ],
+    );
+  }
+
+  Future<void> _playNextGroup(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final userId = gameState.userTeam.id;
+    final List<Team> teams = gameState.allTeamsForCups;
+    final match =
+        ContinentalCupEngine.nextGroupMatch(gameState.continentalCup!);
+    final isUserMatch = match != null &&
+        (match.homeTeamId == userId || match.awayTeamId == userId);
+    final result = await gameState.playNextContinentalGroupMatch();
+    if (!context.mounted) return;
+    if (result != null && isUserMatch) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => MatchScreen(
+                result: result, teams: teams, title: '大陸カップ グループステージ')),
+      );
+    }
+  }
+
+  Future<void> _playNextKnockoutLeg(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final userId = gameState.userTeam.id;
+    final List<Team> teams = gameState.allTeamsForCups;
+    final round = gameState.continentalCup!.knockoutRounds.last;
+    final tie =
+        round.firstWhere((t) => !t.isComplete, orElse: () => round.first);
+    final isUserTie = tie.teamAId == userId || tie.teamBId == userId;
+    final result = await gameState.playNextContinentalKnockoutLeg();
+    if (!context.mounted) return;
+    if (result != null && isUserTie) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+            builder: (_) => MatchScreen(
+                result: result, teams: teams, title: '大陸カップ 決勝トーナメント')),
+      );
+    }
+  }
+}
+
+class _GroupTable extends StatelessWidget {
+  final String label;
+  final int groupIndex;
+  final ContinentalCup cup;
+  final List<Team> teams;
+  final String userId;
+
+  const _GroupTable({
+    required this.label,
+    required this.groupIndex,
+    required this.cup,
+    required this.teams,
+    required this.userId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final standings =
+        ContinentalCupEngine.groupStandings(cup, groupIndex, teams);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child:
+                    Text(label, style: Theme.of(context).textTheme.titleSmall),
+              ),
+              for (int i = 0; i < standings.length; i++)
+                Container(
+                  color: standings[i].teamId == userId
+                      ? Theme.of(context)
+                          .colorScheme
+                          .primaryContainer
+                          .withValues(alpha: 0.25)
+                      : null,
+                  child: ListTile(
+                    dense: true,
+                    leading: SizedBox(width: 20, child: Text('${i + 1}')),
+                    title: Text(teams
+                        .firstWhere((t) => t.id == standings[i].teamId,
+                            orElse: () => teams.first)
+                        .name),
+                    trailing: Text(
+                        '${standings[i].points}pt (${standings[i].played}試合)'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TieCard extends StatelessWidget {
+  final CupTie tie;
+  final String Function(String) nameOf;
+  final String userId;
+
+  const _TieCard(
+      {required this.tie, required this.nameOf, required this.userId});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUserTie = tie.teamAId == userId || tie.teamBId == userId;
+    final legsLabel = tie.legs.isEmpty
+        ? '未消化'
+        : tie.legs.map((r) => '${r.homeGoals}-${r.awayGoals}').join(' / ');
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      child: ListTile(
+        tileColor: isUserTie
+            ? Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.25)
+            : null,
+        title: Text('${nameOf(tie.teamAId)} vs ${nameOf(tie.teamBId)}'),
+        subtitle: Text(tie.singleLeg
+            ? '1試合制: $legsLabel'
+            : '合計スコア: ${tie.goalsFor(tie.teamAId)} - ${tie.goalsFor(tie.teamBId)} ($legsLabel)'),
+        trailing: tie.winnerId == null
+            ? const Text('対戦中')
+            : Text('${nameOf(tie.winnerId!)}が勝利',
+                style: Theme.of(context).textTheme.titleSmall),
+      ),
+    );
   }
 }
 

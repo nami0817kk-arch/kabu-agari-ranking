@@ -1,6 +1,7 @@
 import 'bank_loan.dart';
 import 'best_eleven.dart';
 import 'club_infrastructure.dart';
+import 'continental_cup.dart';
 import 'contract_negotiation.dart';
 import 'cup.dart';
 import 'incoming_offer.dart';
@@ -46,8 +47,12 @@ class SaveGame {
   /// スタッフ・施設のレベル。
   ClubInfrastructure infrastructure;
 
-  /// 今シーズン進行中のカップ戦(国内・大陸)。
+  /// 今シーズン進行中の国内カップ戦。
   List<Cup> cups;
+
+  /// 今シーズン進行中の大陸カップ(グループステージ+決勝トーナメント)。
+  /// 出場資格がない間はnull。
+  ContinentalCup? continentalCup;
 
   /// 前シーズン終了時の最終順位(大陸カップ出場資格判定に使用)。未経験の場合はnull。
   int? lastSeasonRank;
@@ -147,6 +152,7 @@ class SaveGame {
     List<Player>? pendingYouthIntake,
     ClubInfrastructure? infrastructure,
     List<Cup>? cups,
+    this.continentalCup,
     this.lastSeasonRank,
     List<Team>? continentalTeams,
     this.sponsorDeal,
@@ -210,6 +216,7 @@ class SaveGame {
             pendingYouthIntake.map((p) => p.toJson()).toList(),
         'infrastructure': infrastructure.toJson(),
         'cups': cups.map((c) => c.toJson()).toList(),
+        'continentalCup': continentalCup?.toJson(),
         'lastSeasonRank': lastSeasonRank,
         'continentalTeams': continentalTeams.map((t) => t.toJson()).toList(),
         'sponsorDeal': sponsorDeal?.toJson(),
@@ -268,6 +275,10 @@ class SaveGame {
                 ?.map((e) => Cup.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        continentalCup: json['continentalCup'] == null
+            ? null
+            : ContinentalCup.fromJson(
+                json['continentalCup'] as Map<String, dynamic>),
         lastSeasonRank: json['lastSeasonRank'] as int?,
         continentalTeams: (json['continentalTeams'] as List?)
                 ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
