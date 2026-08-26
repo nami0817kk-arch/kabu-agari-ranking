@@ -918,6 +918,55 @@ void main() {
   });
 
   test(
+      'A designated penalty taker scores more often than a teammate with '
+      'equal attack but no set-piece duty', () {
+    Player makeOutfield(String id, Position pos, {int penalties = 50}) {
+      final attrs = {for (final k in AttributeKeys.all) k: 60};
+      attrs[AttributeKeys.penalties] = penalties;
+      return Player(
+        id: id,
+        name: id,
+        age: 25,
+        position: pos,
+        potential: 70,
+        attributes: attrs,
+      );
+    }
+
+    final gk = makeOutfield('gk', Position.gk);
+    final defs = [for (int i = 0; i < 4; i++) makeOutfield('d$i', Position.dc)];
+    final mids = [for (int i = 0; i < 4; i++) makeOutfield('m$i', Position.mc)];
+    final strikerA = makeOutfield('strikerA', Position.st, penalties: 99);
+    final strikerB = makeOutfield('strikerB', Position.st, penalties: 1);
+    final allPlayers = [gk, ...defs, ...mids, strikerA, strikerB];
+    final team = Team(
+        id: 'setpiece',
+        name: 'Set Piece FC',
+        players: allPlayers,
+        formation: Formation.f442);
+    team.startingXI = allPlayers.map((p) => p.id).toList();
+    team.penaltyTakerId = strikerA.id;
+
+    final away = PlayerGenerator.generateSquad(
+        id: 'weak', name: 'Weak FC', strengthTier: 10);
+    LineupUtils.autoFill(away);
+
+    var strikerAGoals = 0;
+    var strikerBGoals = 0;
+    for (int i = 0; i < 300; i++) {
+      final result = MatchEngine.simulateMinutes(
+          home: team, away: away, startMinute: 1, endMinute: 90);
+      for (final e in result.events) {
+        if (e.type != MatchEventType.goal) continue;
+        if (e.scorerId == strikerA.id) strikerAGoals++;
+        if (e.scorerId == strikerB.id) strikerBGoals++;
+      }
+    }
+
+    expect(strikerAGoals, greaterThan(strikerBGoals));
+  });
+
+  test(
       'GameState.buyPlayerOnInstallments splits the remaining cost into weekly payments',
       () async {
     final gameState = GameState();

@@ -31,6 +31,13 @@ class Team {
   String? captainId;
   String? viceCaptainId;
 
+  /// セットプレー担当の選手ID(未指名の場合はnull)。指名されていれば
+  /// 該当する場面で優先的にボールに関わる(PK・FKは優先的に打ち、
+  /// CKはキッカーの精度がチャンスの質に反映される)。
+  String? penaltyTakerId;
+  String? freeKickTakerId;
+  String? cornerTakerId;
+
   Team({
     required this.id,
     required this.name,
@@ -45,6 +52,9 @@ class Team {
     this.tempo = 50,
     this.captainId,
     this.viceCaptainId,
+    this.penaltyTakerId,
+    this.freeKickTakerId,
+    this.cornerTakerId,
   }) : startingXI = startingXI ?? [];
 
   int get overallRating {
@@ -66,6 +76,9 @@ class Team {
         'tempo': tempo,
         'captainId': captainId,
         'viceCaptainId': viceCaptainId,
+        'penaltyTakerId': penaltyTakerId,
+        'freeKickTakerId': freeKickTakerId,
+        'cornerTakerId': cornerTakerId,
         'players': players.map((p) => p.toJson()).toList(),
       };
 
@@ -87,6 +100,9 @@ class Team {
         tempo: json['tempo'] as int? ?? 50,
         captainId: json['captainId'] as String?,
         viceCaptainId: json['viceCaptainId'] as String?,
+        penaltyTakerId: json['penaltyTakerId'] as String?,
+        freeKickTakerId: json['freeKickTakerId'] as String?,
+        cornerTakerId: json['cornerTakerId'] as String?,
         players: (json['players'] as List)
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),

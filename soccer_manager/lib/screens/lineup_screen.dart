@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/attributes.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
@@ -152,6 +153,11 @@ class LineupScreen extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _SetPieceTakersCard(team: team),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 OutlinedButton(
@@ -186,6 +192,105 @@ class LineupScreen extends StatelessWidget {
           const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+}
+
+/// PK・直接FK・CKの担当選手を指名するカード。指名するとその場面で優先的に
+/// 関わり、専門の能力値(PK・FK・CK)がチャンスの質に反映される。
+class _SetPieceTakersCard extends StatelessWidget {
+  final Team team;
+  const _SetPieceTakersCard({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    final players = [...team.players]
+      ..sort((a, b) => b.overall.compareTo(a.overall));
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('セットプレー担当', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 8),
+            _TakerDropdown(
+              label: 'PK',
+              players: players,
+              attributeKey: AttributeKeys.penalties,
+              selectedId: team.penaltyTakerId,
+              onChanged: (id) {
+                FeedbackService.tap();
+                context.read<GameState>().setPenaltyTaker(id);
+              },
+            ),
+            _TakerDropdown(
+              label: 'FK',
+              players: players,
+              attributeKey: AttributeKeys.freeKick,
+              selectedId: team.freeKickTakerId,
+              onChanged: (id) {
+                FeedbackService.tap();
+                context.read<GameState>().setFreeKickTaker(id);
+              },
+            ),
+            _TakerDropdown(
+              label: 'CK',
+              players: players,
+              attributeKey: AttributeKeys.corners,
+              selectedId: team.cornerTakerId,
+              onChanged: (id) {
+                FeedbackService.tap();
+                context.read<GameState>().setCornerTaker(id);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TakerDropdown extends StatelessWidget {
+  final String label;
+  final List<Player> players;
+  final String attributeKey;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
+
+  const _TakerDropdown({
+    required this.label,
+    required this.players,
+    required this.attributeKey,
+    required this.selectedId,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(width: 40, child: Text(label)),
+        Expanded(
+          child: DropdownButton<String?>(
+            isExpanded: true,
+            value: selectedId,
+            hint: const Text('未指名'),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('未指名')),
+              for (final p in players)
+                DropdownMenuItem<String?>(
+                  value: p.id,
+                  child: Text(
+                      '${p.name}（$label ${p.attributeValue(attributeKey)}）',
+                      overflow: TextOverflow.ellipsis),
+                ),
+            ],
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 }

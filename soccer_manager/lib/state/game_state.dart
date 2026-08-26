@@ -472,6 +472,30 @@ class GameState extends ChangeNotifier {
     await _persist();
   }
 
+  /// PK(ペナルティキック)の担当選手を指名する。
+  void setPenaltyTaker(String? playerId) {
+    if (_save == null) return;
+    userTeam.penaltyTakerId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 直接FK(フリーキック)の担当選手を指名する。
+  void setFreeKickTaker(String? playerId) {
+    if (_save == null) return;
+    userTeam.freeKickTakerId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
+  /// CK(コーナーキック)の担当選手を指名する。
+  void setCornerTaker(String? playerId) {
+    if (_save == null) return;
+    userTeam.cornerTakerId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
   void setFormation(Formation formation) {
     if (_save == null) return;
     userTeam.formation = formation;

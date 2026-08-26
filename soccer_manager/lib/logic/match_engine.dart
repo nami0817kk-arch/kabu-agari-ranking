@@ -124,6 +124,16 @@ class MatchEngine {
     return candidates.last;
   }
 
+  /// セットプレー担当に指名された選手を出場中のメンバーから探す。
+  /// 指名なし、または指名選手が出場していない(負傷・出場停止など)場合はnull。
+  static Player? _pickSetPieceTaker(String? takerId, List<Player> lineup) {
+    if (takerId == null) return null;
+    for (final p in lineup) {
+      if (p.id == takerId) return p;
+    }
+    return null;
+  }
+
   static void _applyFatigue(Team t, List<Player> lineup,
       {double weatherFactor = 1.0}) {
     final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
@@ -217,9 +227,41 @@ class MatchEngine {
       final attackingPower = isHomeChance ? homeAttack : awayAttack;
 
       final diff = attackingPower - defendingDefense;
-      final scoreProb = (0.30 + diff / 220).clamp(0.08, 0.65);
+      var scoreProb = (0.30 + diff / 220).clamp(0.08, 0.65);
+      Player? scorer;
+      if (_rng.nextDouble() < 0.25) {
+        // セットプレー(PK・直接FK・CK)由来のチャンス。担当に指名された選手が
+        // いれば優先的に関わり、専門の能力値でチャンスの質が変わる。
+        final subRoll = _rng.nextDouble();
+        if (subRoll < 0.15) {
+          scorer = _pickSetPieceTaker(
+                  attackingTeam.penaltyTakerId, attackingLineup) ??
+              _pickScorer(attackingLineup);
+          final penaltyAttr =
+              scorer?.attributeValue(AttributeKeys.penalties) ?? 50;
+          scoreProb = (0.55 + (penaltyAttr - 50) / 200).clamp(0.5, 0.9);
+        } else if (subRoll < 0.55) {
+          scorer = _pickSetPieceTaker(
+                  attackingTeam.freeKickTakerId, attackingLineup) ??
+              _pickScorer(attackingLineup);
+          final freeKickAttr =
+              scorer?.attributeValue(AttributeKeys.freeKick) ?? 50;
+          scoreProb = (0.18 + (freeKickAttr - 50) / 300).clamp(0.05, 0.35);
+        } else {
+          scorer = _pickScorer(attackingLineup);
+          final cornerTaker =
+              _pickSetPieceTaker(attackingTeam.cornerTakerId, attackingLineup);
+          if (cornerTaker != null) {
+            final cornersAttr =
+                cornerTaker.attributeValue(AttributeKeys.corners);
+            scoreProb =
+                (scoreProb * (1 + (cornersAttr - 50) / 200)).clamp(0.05, 0.75);
+          }
+        }
+      } else {
+        scorer = _pickScorer(attackingLineup);
+      }
       if (_rng.nextDouble() < scoreProb) {
-        final scorer = _pickScorer(attackingLineup);
         events.add(MatchEvent(
             minute: minute,
             teamId: attackingTeam.id,
