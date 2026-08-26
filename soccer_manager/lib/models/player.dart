@@ -406,6 +406,14 @@ class Player {
   /// 直後は大きく下がる。試合エンジンのコンディション算出に用いる。
   int matchSharpness;
 
+  /// メンター(指導役)に指名されたベテラン選手のID。若手選手の成長率に
+  /// ボーナスを与える代わりに、メンター自身の士気も少し上がる。
+  String? mentorId;
+
+  /// ピンポイントで重点的に伸ばしたい能力値。設定するとチーム/個別の
+  /// トレーニング方針とは別に、この1項目の成長確率が上乗せされる。
+  String? drillAttributeKey;
+
   Player({
     required this.id,
     required this.name,
@@ -439,6 +447,8 @@ class Player {
     this.role = PlayerRole.standard,
     Map<String, int>? positionFamiliarity,
     this.matchSharpness = 80,
+    this.mentorId,
+    this.drillAttributeKey,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50},
         positionFamiliarity = positionFamiliarity ?? {};
@@ -580,6 +590,8 @@ class Player {
         'role': role.name,
         'positionFamiliarity': positionFamiliarity,
         'matchSharpness': matchSharpness,
+        'mentorId': mentorId,
+        'drillAttributeKey': drillAttributeKey,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -639,6 +651,8 @@ class Player {
           ) ??
           {},
       matchSharpness: json['matchSharpness'] as int? ?? 80,
+      mentorId: json['mentorId'] as String?,
+      drillAttributeKey: json['drillAttributeKey'] as String?,
     );
   }
 

@@ -3602,4 +3602,292 @@ void main() {
     final none = GlossaryScreen.filter(glossaryEntries, query: '存在しない用語123');
     expect(none, isEmpty);
   });
+
+  Player makeFreshPlayer({
+    int age = 24,
+    int potential = 99,
+    int determination = 50,
+    int matchSharpness = 80,
+    Position position = Position.st,
+  }) {
+    final p = Player(
+        id: 'p-${identityHashCode(Object())}',
+        name: 'p',
+        age: age,
+        position: position,
+        potential: potential,
+        matchSharpness: matchSharpness);
+    for (final k in AttributeKeys.all) {
+      p.setAttributeValue(k, 50);
+    }
+    p.setAttributeValue(AttributeKeys.determination, determination);
+    return p;
+  }
+
+  int countStaminaGrowths(int trials, Player Function() makePlayer) {
+    var growths = 0;
+    for (int i = 0; i < trials; i++) {
+      final p = makePlayer();
+      final team = Team(
+          id: 't',
+          name: 'T',
+          players: [p],
+          defaultTrainingFocus: TrainingFocus.fitness);
+      TrainingEngine.applyWeeklyTraining(team);
+      if (p.attributeValue(AttributeKeys.stamina) > 50) growths++;
+    }
+    return growths;
+  }
+
+  test(
+      'TrainingEngine growth chance scales with determination: high '
+      'determination players grow noticeably faster than low ones', () {
+    final high =
+        countStaminaGrowths(400, () => makeFreshPlayer(determination: 99));
+    final low =
+        countStaminaGrowths(400, () => makeFreshPlayer(determination: 1));
+    expect(high, greaterThan(low));
+  });
+
+  test(
+      'TrainingEngine growth chance is dampened for players with low match '
+      'sharpness (little playing time)', () {
+    final sharp =
+        countStaminaGrowths(400, () => makeFreshPlayer(matchSharpness: 90));
+    final stale =
+        countStaminaGrowths(400, () => makeFreshPlayer(matchSharpness: 20));
+    expect(sharp, greaterThan(stale));
+  });
+
+  test(
+      'GameState.setMentor rejects self-mentoring and under-age mentors, '
+      'and a valid mentor boosts the mentee\'s growth chance', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final mentee = team.players.first;
+    final tooYoung = team.players.firstWhere(
+        (p) => p.id != mentee.id && p.age < TrainingEngine.minMentorAge,
+        orElse: () => team.players[1]);
+    tooYoung.age = 20;
+
+    expect(gameState.setMentor(mentee.id, mentee.id), isFalse);
+    expect(gameState.setMentor(mentee.id, tooYoung.id), isFalse);
+    expect(mentee.mentorId, isNull);
+
+    final veteran = team.players.firstWhere((p) => p.id != mentee.id);
+    veteran.age = 30;
+    expect(gameState.setMentor(mentee.id, veteran.id), isTrue);
+    expect(mentee.mentorId, veteran.id);
+
+    expect(gameState.setMentor(mentee.id, null), isTrue);
+    expect(mentee.mentorId, isNull);
+  });
+
+  test('a valid mentor increases the mentee\'s training growth chance', () {
+    int countWithMentor(bool withMentor) {
+      var growths = 0;
+      for (int i = 0; i < 400; i++) {
+        final mentee = makeFreshPlayer();
+        final mentor = makeFreshPlayer(age: 32);
+        if (withMentor) mentee.mentorId = mentor.id;
+        final team = Team(
+            id: 't',
+            name: 'T',
+            players: [mentee, mentor],
+            defaultTrainingFocus: TrainingFocus.fitness);
+        TrainingEngine.applyWeeklyTraining(team);
+        if (mentee.attributeValue(AttributeKeys.stamina) > 50) growths++;
+      }
+      return growths;
+    }
+
+    final withMentor = countWithMentor(true);
+    final withoutMentor = countWithMentor(false);
+    expect(withMentor, greaterThan(withoutMentor));
+  });
+
+  test(
+      'a mentor gains a small happiness boost after a week of valid '
+      'mentoring', () {
+    final mentee = makeFreshPlayer();
+    final mentor = makeFreshPlayer(age: 32);
+    mentee.mentorId = mentor.id;
+    mentor.happiness = 70;
+    final team = Team(id: 't', name: 'T', players: [mentee, mentor]);
+    TrainingEngine.applyWeeklyTraining(team);
+    expect(mentor.happiness, 71);
+  });
+
+  test(
+      'TrainingFocus.positionSwitch grows familiarity for secondary '
+      'positions without requiring a match appearance', () {
+    final p = makeFreshPlayer(position: Position.mc);
+    p.secondaryPositions = [Position.amc];
+    final team = Team(
+        id: 't',
+        name: 'T',
+        players: [p],
+        defaultTrainingFocus: TrainingFocus.positionSwitch);
+    for (int i = 0; i < 30 && p.familiarityFor(Position.amc) == 0; i++) {
+      TrainingEngine.applyWeeklyTraining(team);
+    }
+    expect(p.familiarityFor(Position.amc), greaterThan(0));
+  });
+
+  test(
+      'TrainingIntensity changes fatigue gain deterministically: intense > '
+      'normal > light', () {
+    int fatigueAfter(TrainingIntensity intensity) {
+      final p = makeFreshPlayer();
+      final team = Team(
+          id: 't',
+          name: 'T',
+          players: [p],
+          defaultTrainingFocus: TrainingFocus.attack,
+          trainingIntensity: intensity);
+      TrainingEngine.applyWeeklyTraining(team);
+      return p.fatigue;
+    }
+
+    final light = fatigueAfter(TrainingIntensity.light);
+    final normal = fatigueAfter(TrainingIntensity.normal);
+    final intense = fatigueAfter(TrainingIntensity.intense);
+    expect(intense, greaterThan(normal));
+    expect(normal, greaterThan(light));
+  });
+
+  test(
+      'high-intensity training with poor natural fitness produces at least '
+      'some minor training injuries over many weeks', () {
+    var injuries = 0;
+    for (int i = 0; i < 500; i++) {
+      final p = makeFreshPlayer();
+      p.setAttributeValue(AttributeKeys.naturalFitness, 1);
+      p.fatigue = 90;
+      final team = Team(
+          id: 't',
+          name: 'T',
+          players: [p],
+          defaultTrainingFocus: TrainingFocus.attack,
+          trainingIntensity: TrainingIntensity.intense);
+      TrainingEngine.applyWeeklyTraining(team);
+      if (p.injuryWeeks > 0) injuries++;
+    }
+    expect(injuries, greaterThan(0));
+  });
+
+  test(
+      'TrainingEngine._decline is biased toward goalkeeping attributes for '
+      'goalkeepers versus outfield players', () {
+    int goalkeepingDeclines(Position position) {
+      var count = 0;
+      for (int i = 0; i < 2500; i++) {
+        final p = makeFreshPlayer(position: position, age: 33);
+        final before = {
+          for (final k in AttributeKeys.all) k: p.attributeValue(k)
+        };
+        final team = Team(id: 't', name: 'T', players: [p]);
+        TrainingEngine.applyWeeklyTraining(team);
+        for (final k in AttributeKeys.goalkeeping) {
+          if (p.attributeValue(k) < before[k]!) {
+            count++;
+            break;
+          }
+        }
+      }
+      return count;
+    }
+
+    final gkDeclines = goalkeepingDeclines(Position.gk);
+    final outfieldDeclines = goalkeepingDeclines(Position.st);
+    expect(gkDeclines, greaterThan(outfieldDeclines));
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects grows mental attributes for '
+      'players through match experience over many matches', () {
+    var growths = 0;
+    for (int i = 0; i < 500; i++) {
+      final home = PlayerGenerator.generateSquad(
+          id: 'home', name: 'Home FC', strengthTier: 60);
+      final away = PlayerGenerator.generateSquad(
+          id: 'away', name: 'Away FC', strengthTier: 60);
+      LineupUtils.autoFill(home);
+      LineupUtils.autoFill(away);
+      final p =
+          home.players.firstWhere((pl) => home.startingXI.contains(pl.id));
+      final before = {
+        for (final k in TrainingEngine.matchExperienceGrowthKeys)
+          k: p.attributeValue(k)
+      };
+      MatchEngine.applyPostMatchEffects(home: home, away: away);
+      if (TrainingEngine.matchExperienceGrowthKeys
+          .any((k) => p.attributeValue(k) > before[k]!)) {
+        growths++;
+      }
+    }
+    expect(growths, greaterThan(0));
+  });
+
+  test('GameState.setDrillAttribute sets and clears the drill attribute',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+
+    gameState.setDrillAttribute(player.id, AttributeKeys.finishing);
+    expect(player.drillAttributeKey, AttributeKeys.finishing);
+
+    gameState.setDrillAttribute(player.id, null);
+    expect(player.drillAttributeKey, isNull);
+  });
+
+  test('a drill attribute grows noticeably more often than an undrilled one',
+      () {
+    int countFinishingGrowths(bool withDrill) {
+      var growths = 0;
+      for (int i = 0; i < 400; i++) {
+        final p = makeFreshPlayer();
+        if (withDrill) p.drillAttributeKey = AttributeKeys.finishing;
+        final team = Team(
+            id: 't',
+            name: 'T',
+            players: [p],
+            defaultTrainingFocus: TrainingFocus.rest);
+        TrainingEngine.applyWeeklyTraining(team);
+        if (p.attributeValue(AttributeKeys.finishing) > 50) growths++;
+      }
+      return growths;
+    }
+
+    final withDrill = countFinishingGrowths(true);
+    final withoutDrill = countFinishingGrowths(false);
+    expect(withDrill, greaterThan(withoutDrill));
+  });
+
+  test(
+      'a loaned-out player does not receive the parent club\'s facility '
+      'growth bonus', () {
+    int countStaminaGrowthsWithHeadCoach(bool isLoanedOut) {
+      var growths = 0;
+      for (int i = 0; i < 400; i++) {
+        final p = makeFreshPlayer();
+        if (isLoanedOut) p.loanedOutWeeksRemaining = 4;
+        final team = Team(
+            id: 't',
+            name: 'T',
+            players: [p],
+            defaultTrainingFocus: TrainingFocus.fitness);
+        TrainingEngine.applyWeeklyTraining(team,
+            headCoachLevel: 5, trainingGroundLevel: 5);
+        if (p.attributeValue(AttributeKeys.stamina) > 50) growths++;
+      }
+      return growths;
+    }
+
+    final loanedOut = countStaminaGrowthsWithHeadCoach(true);
+    final notLoanedOut = countStaminaGrowthsWithHeadCoach(false);
+    expect(notLoanedOut, greaterThan(loanedOut));
+  });
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/training_engine.dart';
+import '../models/attributes.dart';
 import '../models/player.dart';
-import '../models/training_focus.dart';
+import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/position_filter_bar.dart';
@@ -56,6 +58,27 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         )
                         .toList(),
                   ),
+                  const SizedBox(height: 12),
+                  Text('トレーニング強度',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(team.trainingIntensity.description,
+                      style: const TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: TrainingIntensity.values
+                        .map(
+                          (intensity) => ChoiceChip(
+                            label: Text(intensity.label),
+                            selected: team.trainingIntensity == intensity,
+                            onSelected: (_) => context
+                                .read<GameState>()
+                                .setTrainingIntensity(intensity),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ],
               ),
             ),
@@ -77,34 +100,66 @@ class _TrainingScreenState extends State<TrainingScreen> {
           for (final p in players)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Row(
-                  children: [
-                    Flexible(
-                        child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                    if (p.individualFocus != null) ...[
-                      const SizedBox(width: 6),
-                      const Icon(Icons.push_pin,
-                          size: 14, color: Colors.deepPurple),
-                    ],
-                  ],
-                ),
-                subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
-                trailing: DropdownButton<TrainingFocus?>(
-                  value: p.individualFocus,
-                  hint: const Text('既定に従う'),
-                  items: [
-                    const DropdownMenuItem<TrainingFocus?>(
-                        value: null, child: Text('既定に従う')),
-                    ...TrainingFocus.values.map(
-                      (f) => DropdownMenuItem<TrainingFocus?>(
-                          value: f, child: Text(f.label)),
+              child: Column(
+                children: [
+                  ListTile(
+                    title: Row(
+                      children: [
+                        Flexible(
+                            child:
+                                Text(p.name, overflow: TextOverflow.ellipsis)),
+                        if (p.individualFocus != null) ...[
+                          const SizedBox(width: 6),
+                          const Icon(Icons.push_pin,
+                              size: 14, color: Colors.deepPurple),
+                        ],
+                      ],
                     ),
-                  ],
-                  onChanged: (focus) => context
-                      .read<GameState>()
-                      .setPlayerTrainingFocus(p.id, focus),
-                ),
+                    subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
+                    trailing: DropdownButton<TrainingFocus?>(
+                      value: p.individualFocus,
+                      hint: const Text('既定に従う'),
+                      items: [
+                        const DropdownMenuItem<TrainingFocus?>(
+                            value: null, child: Text('既定に従う')),
+                        ...TrainingFocus.values.map(
+                          (f) => DropdownMenuItem<TrainingFocus?>(
+                              value: f, child: Text(f.label)),
+                        ),
+                      ],
+                      onChanged: (focus) => context
+                          .read<GameState>()
+                          .setPlayerTrainingFocus(p.id, focus),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            p.mentorId == null
+                                ? 'メンター: なし'
+                                : 'メンター: ${_mentorName(team.players, p.mentorId!)}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => _showMentorPicker(context, team, p),
+                          child: const Text('メンター'),
+                        ),
+                        TextButton(
+                          onPressed: () => _showDrillPicker(context, p),
+                          child: Text(p.drillAttributeKey == null
+                              ? '特訓ドリル'
+                              : '特訓: ${AttributeKeys.labelOf(p.drillAttributeKey!)}'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
         ],
@@ -121,5 +176,86 @@ class _TrainingScreenState extends State<TrainingScreen> {
         const SnackBar(content: Text('トレーニングを実施しました')),
       );
     }
+  }
+
+  String _mentorName(List<Player> players, String mentorId) {
+    for (final p in players) {
+      if (p.id == mentorId) return p.name;
+    }
+    return '(退団済み)';
+  }
+
+  void _showMentorPicker(BuildContext context, Team team, Player mentee) {
+    final candidates = team.players
+        .where((p) => p.id != mentee.id && p.age >= TrainingEngine.minMentorAge)
+        .toList()
+      ..sort((a, b) => b.age.compareTo(a.age));
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: const Text('メンターを解除する'),
+              onTap: () {
+                context.read<GameState>().setMentor(mentee.id, null);
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            if (candidates.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('28歳以上の選手がいないため指名できません',
+                    style: TextStyle(color: Colors.grey)),
+              ),
+            for (final c in candidates)
+              ListTile(
+                title: Text(c.name),
+                subtitle:
+                    Text('${c.age}歳 / ${c.position.label} / 総合 ${c.overall}'),
+                trailing: mentee.mentorId == c.id
+                    ? const Icon(Icons.check, color: Colors.deepPurple)
+                    : null,
+                onTap: () {
+                  context.read<GameState>().setMentor(mentee.id, c.id);
+                  Navigator.of(sheetContext).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDrillPicker(BuildContext context, Player p) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            ListTile(
+              title: const Text('特訓ドリルを解除する'),
+              onTap: () {
+                context.read<GameState>().setDrillAttribute(p.id, null);
+                Navigator.of(sheetContext).pop();
+              },
+            ),
+            for (final key in AttributeKeys.all)
+              ListTile(
+                title: Text(AttributeKeys.labelOf(key)),
+                trailing: p.drillAttributeKey == key
+                    ? const Icon(Icons.check, color: Colors.deepPurple)
+                    : null,
+                onTap: () {
+                  context.read<GameState>().setDrillAttribute(p.id, key);
+                  Navigator.of(sheetContext).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }

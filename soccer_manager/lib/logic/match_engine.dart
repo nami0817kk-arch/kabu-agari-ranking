@@ -6,6 +6,7 @@ import '../models/team.dart';
 import '../models/match_result.dart';
 import '../models/weather.dart';
 import 'lineup_utils.dart';
+import 'training_engine.dart';
 
 /// この枚数の警告が貯まると次節出場停止になる(退場は即1試合出場停止)。
 const int yellowCardSuspensionThreshold = 5;
@@ -400,6 +401,9 @@ class MatchEngine {
     _growPositionFamiliarity(away, awayLineup);
     _updateMatchSharpness(home, homeLineup);
     _updateMatchSharpness(away, awayLineup);
+    for (final p in [...homeLineup, ...awayLineup]) {
+      TrainingEngine.growFromMatchExperience(p);
+    }
     // 出場停止の消化は既存の出場停止(前節以前に受けたもの)にのみ適用し、
     // その後で今節に新たに受けたカードを反映する。
     _advanceSuspensions(home, homeLineup);

@@ -369,6 +369,51 @@ class GameState extends ChangeNotifier {
     _persist();
   }
 
+  /// チームのトレーニング強度(軽め/通常/追い込み)を設定する。
+  void setTrainingIntensity(TrainingIntensity intensity) {
+    if (_save == null) return;
+    userTeam.trainingIntensity = intensity;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 選手にメンター(指導役のベテラン)を指名する。[minMentorAge]未満の選手や
+  /// 本人自身は指名できない。nullで解除する。
+  bool setMentor(String menteeId, String? mentorId) {
+    if (_save == null) return false;
+    final mentee = userTeam.players.firstWhere((p) => p.id == menteeId);
+    if (mentorId == null) {
+      mentee.mentorId = null;
+      notifyListeners();
+      _persist();
+      return true;
+    }
+    if (mentorId == menteeId) return false;
+    Player? mentor;
+    for (final p in userTeam.players) {
+      if (p.id == mentorId) {
+        mentor = p;
+        break;
+      }
+    }
+    if (mentor == null || mentor.age < TrainingEngine.minMentorAge) {
+      return false;
+    }
+    mentee.mentorId = mentorId;
+    notifyListeners();
+    _persist();
+    return true;
+  }
+
+  /// 選手のピンポイント特訓ドリル(重点的に伸ばす1属性)を設定する。nullで解除。
+  void setDrillAttribute(String playerId, String? attributeKey) {
+    if (_save == null) return;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    player.drillAttributeKey = attributeKey;
+    notifyListeners();
+    _persist();
+  }
+
   Future<void> runWeeklyTraining() async {
     if (_save == null) return;
     final infra = _save!.infrastructure;
@@ -376,6 +421,7 @@ class GameState extends ChangeNotifier {
       userTeam,
       headCoachLevel: infra.staffLevel(StaffRole.headCoach),
       trainingGroundLevel: infra.facilityLevel(FacilityType.trainingGround),
+      injuryFactor: _userInjuryFactor,
     );
     notifyListeners();
     await _persist();

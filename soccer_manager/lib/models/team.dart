@@ -19,6 +19,10 @@ class Team {
   /// 個別方針を設定していない選手に適用されるチーム既定のトレーニング方針。
   TrainingFocus defaultTrainingFocus;
 
+  /// トレーニングの強度(軽め/通常/追い込み)。成長速度と疲労・怪我リスクの
+  /// トレードオフを調整する。
+  TrainingIntensity trainingIntensity;
+
   /// プレッシングの強度（0-100）。高いほど守備が強まるが疲労が増えやすい。
   int pressing;
 
@@ -57,6 +61,7 @@ class Team {
     this.formation = Formation.f442,
     List<String>? startingXI,
     this.defaultTrainingFocus = TrainingFocus.rest,
+    this.trainingIntensity = TrainingIntensity.normal,
     this.pressing = 50,
     this.lineHeight = 50,
     this.width = 50,
@@ -108,6 +113,7 @@ class Team {
         'formation': formation.name,
         'startingXI': startingXI,
         'defaultTrainingFocus': defaultTrainingFocus.name,
+        'trainingIntensity': trainingIntensity.name,
         'pressing': pressing,
         'lineHeight': lineHeight,
         'width': width,
@@ -134,6 +140,10 @@ class Team {
             ? TrainingFocus.rest
             : TrainingFocus.values
                 .byName(json['defaultTrainingFocus'] as String),
+        trainingIntensity: json['trainingIntensity'] == null
+            ? TrainingIntensity.normal
+            : TrainingIntensity.values
+                .byName(json['trainingIntensity'] as String),
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
         width: json['width'] as int? ?? 50,
