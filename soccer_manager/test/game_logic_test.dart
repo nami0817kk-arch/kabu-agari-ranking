@@ -30,6 +30,7 @@ import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/club_infrastructure.dart';
 import 'package:soccer_manager/models/contract_negotiation.dart';
 import 'package:soccer_manager/models/cup.dart';
+import 'package:soccer_manager/models/enum_json.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/incoming_offer.dart';
 import 'package:soccer_manager/models/league.dart';
@@ -4377,5 +4378,95 @@ void main() {
     final names = NamePool.themedClubNames(LeagueTheme.spain, 60);
     expect(names.length, 60);
     expect(names.toSet().length, 60);
+  });
+
+  test(
+      'enumFromName falls back instead of crashing when a legacy save names '
+      'an enum value that no longer exists', () {
+    expect(enumFromName(Position.values, 'st', Position.gk), Position.st);
+    expect(enumFromName(Position.values, 'deleted_old_value', Position.gk),
+        Position.gk);
+    expect(enumFromName(Position.values, null, Position.gk), Position.gk);
+  });
+
+  test(
+      'Player.overall weighs goalkeeping attributes for a GK but not for '
+      'an outfield player', () {
+    final gk = PlayerGenerator.generateSquad(
+            id: 'gkteam', name: 'GK FC', strengthTier: 60)
+        .players
+        .firstWhere((p) => p.position == Position.gk);
+    gk.setAttributeValue(AttributeKeys.finishing, 1);
+    final beforeRaisingFinishing = gk.overall;
+    // フィニッシュのようなフィールドプレーヤー攻撃属性を上げても、
+    // GKのoverallはgoalkeeping系属性ベースなので変化しないはず。
+    gk.setAttributeValue(AttributeKeys.finishing, 99);
+    expect(gk.overall, beforeRaisingFinishing);
+
+    gk.setAttributeValue(AttributeKeys.reflexes, 1);
+    gk.setAttributeValue(AttributeKeys.handling, 1);
+    final beforeRaisingReflexes = gk.overall;
+    gk.setAttributeValue(AttributeKeys.reflexes, 99);
+    gk.setAttributeValue(AttributeKeys.handling, 99);
+    expect(gk.overall, greaterThan(beforeRaisingReflexes));
+  });
+
+  test(
+      'GameState.sellPlayer clears the departing player\'s captain/set-piece '
+      'role references instead of leaving dangling IDs', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final captain = team.players.first;
+    await gameState.setCaptain(captain.id);
+    team.penaltyTakerId = captain.id;
+    team.freeKickTakerId = captain.id;
+
+    final ok = await gameState.sellPlayer(captain.id);
+
+    expect(ok, isTrue);
+    expect(team.captainId, isNull);
+    expect(team.penaltyTakerId, isNull);
+    expect(team.freeKickTakerId, isNull);
+  });
+
+  test(
+      'CupEngine.createKnockout rejects fewer than 2 teams instead of '
+      'crashing with a RangeError deep inside bracket generation', () {
+    expect(
+      () => CupEngine.createKnockout(
+          type: CupType.domestic, name: 'テストカップ', teamIds: ['only-one']),
+      throwsArgumentError,
+    );
+  });
+
+  test(
+      'ContinentalCupEngine.create pads an odd-sized group with a bye and '
+      'excludes the bye from every generated match', () {
+    final cup =
+        ContinentalCupEngine.create(name: 'テスト大陸カップ', teamIds: ['a', 'b', 'c']);
+
+    expect(cup.groups.single.toSet(), {'a', 'b', 'c'});
+    expect(cup.groupMatches.length, 3); // 3チーム総当たり = 3試合
+    for (final m in cup.groupMatches) {
+      expect(m.homeTeamId, isNot(byeTeamId));
+      expect(m.awayTeamId, isNot(byeTeamId));
+    }
+  });
+
+  test(
+      'GameState.seasonProjection reports zero continental-qualify slots '
+      'once the user is relegated to the second division', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.save!.currentDivisionTier, 1);
+    for (final p in gameState.seasonProjection) {
+      expect(p.continentalProbability, greaterThanOrEqualTo(0.0));
+    }
+
+    gameState.save!.currentDivisionTier = 2;
+    for (final p in gameState.seasonProjection) {
+      expect(p.continentalProbability, 0.0);
+    }
   });
 }

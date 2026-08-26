@@ -4,6 +4,7 @@ import '../models/player.dart';
 import '../models/save_game.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../widgets/responsive_body.dart';
 
 /// リーグ全体(1部・2部)の若手選手をポテンシャル基準でランキング表示する画面。
 /// スカウティングの参考として、自クラブ以外の有望株にも目を向けられるようにする。
@@ -40,45 +41,48 @@ class YoungTalentScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('若手有望株ランキング')),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: top.length,
-        itemBuilder: (context, i) {
-          final entry = top[i];
-          final p = entry.player;
-          final isUserTeam = entry.team.id == save.userTeamId;
-          return Card(
-            margin: const EdgeInsets.symmetric(vertical: 4),
-            child: ListTile(
-              leading: CircleAvatar(child: Text('${i + 1}')),
-              title: Row(
-                children: [
-                  Flexible(
-                      child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                  if (isUserTeam) ...[
-                    const SizedBox(width: 6),
-                    const Icon(Icons.shield,
-                        size: 16, color: Colors.blueAccent),
+      body: ResponsiveBody(
+        child: ListView.builder(
+          padding: const EdgeInsets.all(12),
+          itemCount: top.length,
+          itemBuilder: (context, i) {
+            final entry = top[i];
+            final p = entry.player;
+            final isUserTeam = entry.team.id == save.userTeamId;
+            return Card(
+              margin: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                leading: CircleAvatar(child: Text('${i + 1}')),
+                title: Row(
+                  children: [
+                    Flexible(
+                        child: Text(p.name, overflow: TextOverflow.ellipsis)),
+                    if (isUserTeam) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.shield,
+                          size: 16, color: Colors.blueAccent),
+                    ],
                   ],
-                ],
+                ),
+                subtitle: Text(
+                    '${entry.team.name} / ${p.position.label} / ${p.age}歳'),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('POT ${p.potential}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.deepPurple)),
+                    Text('現在 ${p.overall}',
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey)),
+                  ],
+                ),
               ),
-              subtitle:
-                  Text('${entry.team.name} / ${p.position.label} / ${p.age}歳'),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('POT ${p.potential}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple)),
-                  Text('現在 ${p.overall}',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                ],
-              ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

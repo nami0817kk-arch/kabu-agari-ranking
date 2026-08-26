@@ -445,11 +445,13 @@ class GameState extends ChangeNotifier {
 
   /// スタッフ雇用・昇格の費用(万円)。上限レベルなら0を返す。
   int staffUpgradeCostFor(StaffRole role) {
+    if (_save == null) return 0;
     final lvl = _save!.infrastructure.staffLevel(role);
     return ClubInfrastructure.staffUpgradeCost(lvl);
   }
 
   int facilityUpgradeCostFor(FacilityType type) {
+    if (_save == null) return 0;
     final lvl = _save!.infrastructure.facilityLevel(type);
     return ClubInfrastructure.facilityUpgradeCost(lvl);
   }
@@ -657,6 +659,7 @@ class GameState extends ChangeNotifier {
   void applyTacticPreset(String name) {
     if (_save == null) return;
     final team = userTeam;
+    if (team.tacticPresets.isEmpty) return;
     final preset = team.tacticPresets.firstWhere((p) => p.name == name,
         orElse: () => team.tacticPresets.first);
     team.formation = preset.formation;
@@ -752,6 +755,22 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
+  /// 選手がチームを離れる際、キャプテンやセットプレー担当など個別の役割
+  /// 指名にその選手のIDが残ったままにならないよう解除する。あわせて、
+  /// その選手を対象にした契約交渉が進行中であれば破棄する。
+  void _clearPlayerRoleReferences(Team team, String playerId) {
+    if (team.captainId == playerId) team.captainId = null;
+    if (team.viceCaptainId == playerId) team.viceCaptainId = null;
+    if (team.penaltyTakerId == playerId) team.penaltyTakerId = null;
+    if (team.freeKickTakerId == playerId) team.freeKickTakerId = null;
+    if (team.cornerTakerId == playerId) team.cornerTakerId = null;
+    if (team.manMarkerId == playerId) team.manMarkerId = null;
+    if (team.setPieceDefenderId == playerId) team.setPieceDefenderId = null;
+    if (_save?.pendingContractNegotiation?.playerId == playerId) {
+      _save!.pendingContractNegotiation = null;
+    }
+  }
+
   Future<bool> sellPlayer(String playerId) async {
     if (_save == null) return false;
     if (!isTransferWindowOpen) return false;
@@ -762,6 +781,7 @@ class GameState extends ChangeNotifier {
     final sellPrice = (player.marketValue * 0.7).round();
     team.players.removeWhere((p) => p.id == playerId);
     team.startingXI.remove(playerId);
+    _clearPlayerRoleReferences(team, playerId);
     _save!.budget += sellPrice;
     notifyListeners();
     await _persist();
@@ -826,8 +846,21 @@ class GameState extends ChangeNotifier {
       return ContractOfferResult.walkedAway;
     }
     final negotiation = _save!.pendingContractNegotiation!;
-    final player =
-        userTeam.players.firstWhere((p) => p.id == negotiation.playerId);
+    Player? player;
+    for (final p in userTeam.players) {
+      if (p.id == negotiation.playerId) {
+        player = p;
+        break;
+      }
+    }
+    if (player == null) {
+      // 交渉相手が何らかの理由で既にチームを離れている(インポートされた
+      // セーブなど)場合は、交渉自体を破棄して安全に終了する。
+      _save!.pendingContractNegotiation = null;
+      notifyListeners();
+      await _persist();
+      return ContractOfferResult.walkedAway;
+    }
     final minAcceptable = ContractEngine.minimumAcceptableWage(player);
     if (wage >= minAcceptable) {
       final cost = ContractEngine.renewalCost(player) +
@@ -928,6 +961,9 @@ class GameState extends ChangeNotifier {
     player.loanBuyOptionFee = withBuyOption
         ? (player.marketValue * loanBuyOptionRatio).round()
         : null;
+    // 前クラブで設定されていた解放条項が残っていると、ローン中の選手が
+    // 自動移籍オファーの対象になってしまうため解除する。
+    player.releaseClause = null;
     userTeam.players.add(player);
     transferMarket.removeAt(idx);
     notifyListeners();
@@ -970,15 +1006,21 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
-  int get scoutCost => ScoutingEngine.scoutCostFor(
-      _save!.infrastructure.staffLevel(StaffRole.scout));
+  int get scoutCost => _save == null
+      ? 0
+      : ScoutingEngine.scoutCostFor(
+          _save!.infrastructure.staffLevel(StaffRole.scout));
 
-  int get maxYouthProspects => ScoutingEngine.maxProspectsFor(
-      _save!.infrastructure.facilityLevel(FacilityType.youthFacility));
+  int get maxYouthProspects => _save == null
+      ? 0
+      : ScoutingEngine.maxProspectsFor(
+          _save!.infrastructure.facilityLevel(FacilityType.youthFacility));
 
   /// スカウト網が一度に見つけてくる候補選手の人数(スカウトのレベルが高いほど広がる)。
-  int get scoutCandidateCount => ScoutingEngine.scoutCandidateCountFor(
-      _save!.infrastructure.staffLevel(StaffRole.scout));
+  int get scoutCandidateCount => _save == null
+      ? 0
+      : ScoutingEngine.scoutCandidateCountFor(
+          _save!.infrastructure.staffLevel(StaffRole.scout));
 
   void _refreshScoutCandidates() {
     if (_save == null) {
@@ -1200,6 +1242,7 @@ class GameState extends ChangeNotifier {
     _save!.incomingOffers.removeWhere((o) => o.playerId == offer.playerId);
     team.players.removeWhere((p) => p.id == offer.playerId);
     final wasStarter = team.startingXI.remove(offer.playerId);
+    _clearPlayerRoleReferences(team, offer.playerId);
     if (wasStarter) {
       LineupUtils.autoFill(team);
     }
@@ -1507,6 +1550,7 @@ class GameState extends ChangeNotifier {
 
   /// 観客動員率(0.0-1.0)。監督への信頼度と現在の順位に連動する(強豪・高信頼ほど満員に近づく)。
   double get userAttendanceFactor {
+    if (_save == null) return 0.0;
     final league = _save!.league;
     final standings = league.sortedStandings;
     final rank = standings.indexWhere((r) => r.teamId == _save!.userTeamId) + 1;
@@ -1520,8 +1564,10 @@ class GameState extends ChangeNotifier {
   }
 
   /// 自クラブのスタジアム収容人数。
-  int get stadiumCapacity => ClubInfrastructure.stadiumCapacity(
-      _save!.infrastructure.facilityLevel(FacilityType.stadium));
+  int get stadiumCapacity => _save == null
+      ? 0
+      : ClubInfrastructure.stadiumCapacity(
+          _save!.infrastructure.facilityLevel(FacilityType.stadium));
 
   /// 通常開催時に見込まれる観客動員数(収容人数 x 動員率)。
   int get expectedAttendance =>
@@ -1531,6 +1577,7 @@ class GameState extends ChangeNotifier {
   int? lastMatchAttendance;
 
   int weeklyIncomeFor(String teamId) {
+    if (_save == null) return 0;
     final league = _save!.league;
     final standings = league.sortedStandings;
     final rank = standings.indexWhere((r) => r.teamId == teamId) + 1;
@@ -1548,9 +1595,10 @@ class GameState extends ChangeNotifier {
     return matchdayIncome + sponsorIncome;
   }
 
-  int get weeklyWageBill =>
-      ContractEngine.weeklyWageBill(userTeam) +
-      _save!.infrastructure.totalStaffWeeklyWage;
+  int get weeklyWageBill => _save == null
+      ? 0
+      : ContractEngine.weeklyWageBill(userTeam) +
+          _save!.infrastructure.totalStaffWeeklyWage;
 
   /// 銀行から借り入れている融資一覧。
   List<BankLoan> get bankLoans => _save?.bankLoans ?? [];
@@ -1560,11 +1608,14 @@ class GameState extends ChangeNotifier {
       bankLoans.fold<int>(0, (s, l) => s + l.totalRemaining);
 
   /// 現在追加で借り入れ可能な上限額。スタジアムの規模と監督としての評価が高いほど拡大する。
-  int get maxLoanAmount => LoanEngine.maxBorrowable(
-        stadiumLevel: _save!.infrastructure.facilityLevel(FacilityType.stadium),
-        reputation: _save!.managerReputation,
-        outstandingDebt: outstandingLoanDebt,
-      );
+  int get maxLoanAmount => _save == null
+      ? 0
+      : LoanEngine.maxBorrowable(
+          stadiumLevel:
+              _save!.infrastructure.facilityLevel(FacilityType.stadium),
+          reputation: _save!.managerReputation,
+          outstandingDebt: outstandingLoanDebt,
+        );
 
   int _loanSeq = 0;
 
@@ -1928,6 +1979,8 @@ class GameState extends ChangeNotifier {
   List<TeamProjection> get seasonProjection => SeasonProjectionEngine.project(
         _save!.league,
         relegationCount: PromotionEngine.swapCount,
+        // 大陸カップ出場枠は1部の上位2チームのみ(2部は対象外)。
+        continentalQualifyCount: _save!.currentDivisionTier == 1 ? 2 : 0,
       );
 
   List<Team> get allTeamsForCups =>

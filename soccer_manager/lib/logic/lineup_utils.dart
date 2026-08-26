@@ -77,6 +77,22 @@ class LineupUtils {
 
     final leftovers = remainingByPosition.values.expand((l) => l).toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
+
+    // 空きスロットのうち、副ポジションとして合致する控えがいれば優先して
+    // 割り当てる(autoFillが副ポジション適性で選出した選手を、総合力順の
+    // 無関係なスロットに誤帰属させないため)。
+    for (int i = 0; i < assignments.length; i++) {
+      if (assignments[i] != null) continue;
+      final slotPos = slots[i];
+      final match = leftovers
+          .where((p) => p.secondaryPositions.contains(slotPos))
+          .toList();
+      if (match.isNotEmpty) {
+        assignments[i] = match.first;
+        leftovers.remove(match.first);
+      }
+    }
+
     for (int i = 0; i < assignments.length; i++) {
       if (assignments[i] == null && leftovers.isNotEmpty) {
         assignments[i] = leftovers.removeAt(0);

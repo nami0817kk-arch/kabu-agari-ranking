@@ -444,6 +444,7 @@ class PlayerDetailScreen extends StatelessWidget {
         ],
       ),
     );
+    controller.dispose();
   }
 
   void _showNegotiationResultSnackBar(

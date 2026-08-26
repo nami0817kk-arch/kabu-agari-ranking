@@ -1,3 +1,4 @@
+import 'enum_json.dart';
 import 'player.dart';
 
 /// シーズンベストイレブンの1枠分の記録。
@@ -5,6 +6,7 @@ class BestElevenEntry {
   final String playerId;
   final String playerName;
   final String teamName;
+  final String? teamId;
   final PositionGroup group;
   final double avgRating;
   final int appearances;
@@ -13,6 +15,7 @@ class BestElevenEntry {
     required this.playerId,
     required this.playerName,
     required this.teamName,
+    this.teamId,
     required this.group,
     required this.avgRating,
     required this.appearances,
@@ -22,6 +25,7 @@ class BestElevenEntry {
         'playerId': playerId,
         'playerName': playerName,
         'teamName': teamName,
+        'teamId': teamId,
         'group': group.name,
         'avgRating': avgRating,
         'appearances': appearances,
@@ -32,7 +36,9 @@ class BestElevenEntry {
         playerId: json['playerId'] as String,
         playerName: json['playerName'] as String,
         teamName: json['teamName'] as String,
-        group: PositionGroup.values.byName(json['group'] as String),
+        teamId: json['teamId'] as String?,
+        group: enumFromName(
+            PositionGroup.values, json['group'] as String?, PositionGroup.mid),
         avgRating: (json['avgRating'] as num).toDouble(),
         appearances: json['appearances'] as int,
       );

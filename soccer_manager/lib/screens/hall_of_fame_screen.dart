@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
+import '../widgets/responsive_body.dart';
 
 /// 高齢により正式に引退した選手(殿堂)の一覧画面。契約満了で単に自由契約に
 /// なった選手とは異なり、再契約はできない。
@@ -17,25 +18,27 @@ class HallOfFameScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('殿堂')),
-      body: legends.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.stars, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    const Text('まだ引退した選手はいません', textAlign: TextAlign.center),
-                  ],
+      body: ResponsiveBody(
+        child: legends.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.stars, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      const Text('まだ引退した選手はいません', textAlign: TextAlign.center),
+                    ],
+                  ),
                 ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: legends.length,
+                itemBuilder: (context, i) => _LegendCard(player: legends[i]),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: legends.length,
-              itemBuilder: (context, i) => _LegendCard(player: legends[i]),
-            ),
+      ),
     );
   }
 }

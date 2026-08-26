@@ -36,6 +36,7 @@ class BestElevenEngine {
           playerId: p.id,
           playerName: p.name,
           teamName: t.name,
+          teamId: t.id,
           group: p.position.group,
           avgRating: ratingSum[p.id]! / count,
           appearances: count,

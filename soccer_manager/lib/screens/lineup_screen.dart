@@ -514,6 +514,7 @@ class _TacticPresetsCard extends StatelessWidget {
         ],
       ),
     );
+    controller.dispose();
     if (name == null || name.isEmpty || !context.mounted) return;
     FeedbackService.tap();
     context.read<GameState>().saveTacticPreset(name);

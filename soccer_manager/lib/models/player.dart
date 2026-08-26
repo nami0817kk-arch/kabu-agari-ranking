@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'attributes.dart';
+import 'enum_json.dart';
 import 'training_focus.dart';
 
 /// Football Manager風の詳細ポジション（14種類）。
@@ -554,7 +555,20 @@ class Player {
         AttributeKeys.acceleration: 1,
       });
 
-  int get overall => ((attack + defense + technique + stamina) / 4).round();
+  /// ゴールキーピング(反応・ハイボール処理などの複合値)。GK以外にはあまり
+  /// 意味を持たないが、GKの総合力・市場価値を正しく反映するために必要。
+  int get goalkeeping => _weightedAverage({
+        AttributeKeys.reflexes: 3,
+        AttributeKeys.handling: 3,
+        AttributeKeys.oneOnOnes: 2,
+        AttributeKeys.aerialReach: 2,
+        AttributeKeys.commandOfArea: 1,
+        AttributeKeys.kicking: 1,
+      });
+
+  int get overall => position == Position.gk
+      ? ((goalkeeping * 2 + defense + stamina) / 4).round()
+      : ((attack + defense + technique + stamina) / 4).round();
 
   bool get isInjured => injuryWeeks > 0;
 
@@ -648,7 +662,8 @@ class Player {
       injuryWeeks: json['injuryWeeks'] as int? ?? 0,
       injuryType: json['injuryType'] == null
           ? null
-          : InjuryType.values.byName(json['injuryType'] as String),
+          : enumFromName(InjuryType.values, json['injuryType'] as String?,
+              InjuryType.bruise),
       injuryHistoryCounts: (json['injuryHistoryCounts'] as Map?)?.map(
             (k, v) => MapEntry(k as String, v as int),
           ) ??
@@ -659,12 +674,12 @@ class Player {
       careerGoals: json['careerGoals'] as int? ?? 0,
       individualFocus: json['individualFocus'] == null
           ? null
-          : TrainingFocus.values.byName(json['individualFocus'] as String),
+          : enumFromName(TrainingFocus.values,
+              json['individualFocus'] as String?, TrainingFocus.rest),
       wage: json['wage'] as int? ?? 20,
       contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
-      personality: json['personality'] == null
-          ? PlayerPersonality.balanced
-          : PlayerPersonality.values.byName(json['personality'] as String),
+      personality: enumFromName(PlayerPersonality.values,
+          json['personality'] as String?, PlayerPersonality.balanced),
       happiness: json['happiness'] as int? ?? 70,
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
@@ -672,16 +687,14 @@ class Player {
       releaseClause: json['releaseClause'] as int?,
       internationalDutyWeeksRemaining:
           json['internationalDutyWeeksRemaining'] as int? ?? 0,
-      duty: json['duty'] == null
-          ? PlayerDuty.support
-          : PlayerDuty.values.byName(json['duty'] as String),
+      duty: enumFromName(
+          PlayerDuty.values, json['duty'] as String?, PlayerDuty.support),
       isTransferListed: json['isTransferListed'] as bool? ?? false,
       loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
       loanedOutToClubName: json['loanedOutToClubName'] as String?,
       appearanceFee: json['appearanceFee'] as int? ?? 0,
-      role: json['role'] == null
-          ? PlayerRole.standard
-          : PlayerRole.values.byName(json['role'] as String),
+      role: enumFromName(
+          PlayerRole.values, json['role'] as String?, PlayerRole.standard),
       positionFamiliarity: (json['positionFamiliarity'] as Map?)?.map(
             (k, v) => MapEntry(k as String, v as int),
           ) ??

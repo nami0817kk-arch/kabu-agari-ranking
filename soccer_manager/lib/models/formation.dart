@@ -26,46 +26,86 @@ extension FormationInfo on Formation {
       case Formation.f442:
         return const [
           Position.gk,
-          Position.dr, Position.dc, Position.dc, Position.dl,
-          Position.mr, Position.mc, Position.mc, Position.ml,
-          Position.st, Position.st,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.mr,
+          Position.mc,
+          Position.mc,
+          Position.ml,
+          Position.st,
+          Position.st,
         ];
       case Formation.f433:
         return const [
           Position.gk,
-          Position.dr, Position.dc, Position.dc, Position.dl,
-          Position.mc, Position.mc, Position.mc,
-          Position.amr, Position.aml, Position.st,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.mc,
+          Position.mc,
+          Position.mc,
+          Position.amr,
+          Position.aml,
+          Position.st,
         ];
       case Formation.f4231:
         return const [
           Position.gk,
-          Position.dr, Position.dc, Position.dc, Position.dl,
-          Position.dm, Position.dm,
-          Position.amr, Position.amc, Position.aml,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.dm,
+          Position.dm,
+          Position.amr,
+          Position.amc,
+          Position.aml,
           Position.st,
         ];
       case Formation.f352:
         return const [
           Position.gk,
-          Position.dc, Position.dc, Position.dc,
-          Position.wbr, Position.mc, Position.mc, Position.mc, Position.wbl,
-          Position.st, Position.st,
+          Position.dc,
+          Position.dc,
+          Position.dc,
+          Position.wbr,
+          Position.mc,
+          Position.mc,
+          Position.mc,
+          Position.wbl,
+          Position.st,
+          Position.st,
         ];
       case Formation.f4141:
         return const [
           Position.gk,
-          Position.dr, Position.dc, Position.dc, Position.dl,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
           Position.dm,
-          Position.mr, Position.mc, Position.mc, Position.ml,
+          Position.mr,
+          Position.mc,
+          Position.mc,
+          Position.ml,
           Position.st,
         ];
       case Formation.f343:
         return const [
           Position.gk,
-          Position.dc, Position.dc, Position.dc,
-          Position.wbr, Position.mc, Position.mc, Position.wbl,
-          Position.amr, Position.aml, Position.st,
+          Position.dc,
+          Position.dc,
+          Position.dc,
+          Position.wbr,
+          Position.mc,
+          Position.mc,
+          Position.wbl,
+          Position.amr,
+          Position.aml,
+          Position.st,
         ];
     }
   }

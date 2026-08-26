@@ -105,7 +105,7 @@ final List<QuickAccessDestination> quickAccessDestinations = [
     builder: (_) => const BestElevenScreen(),
   ),
   QuickAccessDestination(
-    icon: Icons.stars,
+    icon: Icons.emoji_events,
     label: '殿堂',
     color: Colors.brown.shade700,
     builder: (_) => const HallOfFameScreen(),

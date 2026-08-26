@@ -131,7 +131,7 @@ class _StartScreenState extends State<StartScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               await context.read<GameState>().deleteSlot(slot.slot);
-              _refreshSlots();
+              if (mounted) _refreshSlots();
             },
             child: const Text('削除する'),
           ),

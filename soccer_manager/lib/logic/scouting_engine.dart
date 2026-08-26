@@ -10,19 +10,24 @@ class ScoutingEngine {
   static const int baseScoutCandidates = 5;
 
   /// スカウトのレベルが高いほど費用は下がる。
-  static int scoutCostFor(int scoutLevel) => (scoutCost - (scoutLevel - 1) * 20).clamp(150, scoutCost);
+  static int scoutCostFor(int scoutLevel) =>
+      (scoutCost - (scoutLevel - 1) * 20).clamp(150, scoutCost);
 
   /// ユース施設のレベルが高いほど昇格候補の受け入れ枠が増える。
-  static int maxProspectsFor(int youthFacilityLevel) => maxProspects + (youthFacilityLevel - 1);
+  static int maxProspectsFor(int youthFacilityLevel) =>
+      maxProspects + (youthFacilityLevel - 1);
 
   /// スカウトのレベルが高いほど、一度に閲覧できる候補選手(スカウト網)が広がる。
-  static int scoutCandidateCountFor(int scoutLevel) => baseScoutCandidates + (scoutLevel - 1);
+  static int scoutCandidateCountFor(int scoutLevel) =>
+      baseScoutCandidates + (scoutLevel - 1);
 
-  static Player _generateProspect({required int tierMin, required int tierMax}) {
+  static Player _generateProspect(
+      {required int tierMin, required int tierMax}) {
     final position = Position.values[_rng.nextInt(Position.values.length)];
     final tier = tierMin + _rng.nextInt(tierMax - tierMin + 1);
     final age = 16 + _rng.nextInt(4);
-    return PlayerGenerator.generate(position: position, strengthTier: tier, ageOverride: age);
+    return PlayerGenerator.generate(
+        position: position, strengthTier: tier, ageOverride: age);
   }
 
   /// シーズン終了時にアカデミーから無償で昇格候補が生まれる。ユースコーチのレベルが質を高める。

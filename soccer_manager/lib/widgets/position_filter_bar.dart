@@ -7,7 +7,8 @@ class PositionFilterBar extends StatelessWidget {
   final PositionGroup? value;
   final ValueChanged<PositionGroup?> onChanged;
 
-  const PositionFilterBar({super.key, required this.value, required this.onChanged});
+  const PositionFilterBar(
+      {super.key, required this.value, required this.onChanged});
 
   static String labelFor(PositionGroup? g) => switch (g) {
         null => 'すべて',

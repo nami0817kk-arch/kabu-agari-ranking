@@ -244,7 +244,7 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _confirmDelete(BuildContext context) {

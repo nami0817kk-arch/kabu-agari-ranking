@@ -203,6 +203,34 @@ final List<GlossaryEntry> glossaryEntries = [
     description: '契約更新時に一時金として支払う金額。性格ごとの賃金感応度に応じて要求されやすさが変わる。',
   ),
   const GlossaryEntry(
+    term: 'キャプテン/副キャプテン',
+    category: GlossaryCategory.tactics,
+    description:
+        'チームの主将・副将。キャプテンが出場している試合では規律が保たれ、カード(警告・退場)をやや受けにくくなる。統率力(リーダーシップ)が高い選手の指名が効果的。',
+  ),
+  const GlossaryEntry(
+    term: '出場停止',
+    category: GlossaryCategory.condition,
+    description:
+        '警告(イエローカード)の累積が一定枚数に達する、または退場(レッドカード)を受けると、その後の一定試合数は出場できなくなる。',
+  ),
+  const GlossaryEntry(
+    term: '移籍リスト登録',
+    category: GlossaryCategory.contractTransfer,
+    description: '登録すると他クラブからの獲得オファーが届きやすくなる(登録なしより高い確率で発生)。放出したい選手に活用できる。',
+  ),
+  const GlossaryEntry(
+    term: 'ローン(期限付き移籍)',
+    category: GlossaryCategory.contractTransfer,
+    description:
+        '一定期間だけ他クラブへ選手を貸し出す/借り受ける制度。ローン中の選手の週俸は貸出先が負担し、期間満了で自動的に元クラブへ復帰する。買取オプション付きなら期間中に完全移籍へ切り替えられる。',
+  ),
+  const GlossaryEntry(
+    term: '代表召集',
+    category: GlossaryCategory.condition,
+    description: '一定期間、代表チームの活動のため自クラブの試合に出場できなくなる。召集期間が明ければ通常通りチームに復帰する。',
+  ),
+  const GlossaryEntry(
     term: '監督への信頼度',
     category: GlossaryCategory.club,
     description: '理事会からの信頼度(0-100)。目標順位を下回る成績が続くと下がり、0になると解任される。',

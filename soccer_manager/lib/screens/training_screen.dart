@@ -206,7 +206,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
             if (candidates.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('28歳以上の選手がいないため指名できません',
+                child: Text('${TrainingEngine.minMentorAge}歳以上の選手がいないため指名できません',
                     style: TextStyle(color: Colors.grey)),
               ),
             for (final c in candidates)

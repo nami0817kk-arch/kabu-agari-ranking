@@ -19,7 +19,8 @@ class FixtureGenerator {
         final home = arr[i];
         final away = arr[n - 1 - i];
         if (home != '__BYE__' && away != '__BYE__') {
-          roundFixtures.add(Fixture(matchday: r + 1, homeTeamId: home, awayTeamId: away));
+          roundFixtures.add(
+              Fixture(matchday: r + 1, homeTeamId: home, awayTeamId: away));
         }
       }
       firstLeg.add(roundFixtures);

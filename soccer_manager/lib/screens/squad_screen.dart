@@ -323,33 +323,51 @@ class _SquadScreenState extends State<SquadScreen> {
                                 ],
                                 if (p.isLoan) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.swap_horiz,
-                                      size: 16, color: Colors.indigo),
+                                  const Tooltip(
+                                    message: 'ローン加入中',
+                                    child: Icon(Icons.swap_horiz,
+                                        size: 16, color: Colors.indigo),
+                                  ),
                                 ],
                                 if (p.wantsTransfer) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.sentiment_dissatisfied,
-                                      size: 16, color: Colors.redAccent),
+                                  const Tooltip(
+                                    message: '移籍を希望している',
+                                    child: Icon(Icons.sentiment_dissatisfied,
+                                        size: 16, color: Colors.redAccent),
+                                  ),
                                 ],
                                 if (p.isOnInternationalDuty) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.flag,
-                                      size: 16, color: Colors.blueAccent),
+                                  const Tooltip(
+                                    message: '代表召集中',
+                                    child: Icon(Icons.flag,
+                                        size: 16, color: Colors.blueAccent),
+                                  ),
                                 ],
                                 if (p.isSuspended) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.block,
-                                      size: 16, color: Colors.redAccent),
+                                  const Tooltip(
+                                    message: '出場停止中',
+                                    child: Icon(Icons.block,
+                                        size: 16, color: Colors.redAccent),
+                                  ),
                                 ],
                                 if (p.isLoanedOut) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.flight_takeoff,
-                                      size: 16, color: Colors.deepPurple),
+                                  const Tooltip(
+                                    message: 'ローンで放出中',
+                                    child: Icon(Icons.flight_takeoff,
+                                        size: 16, color: Colors.deepPurple),
+                                  ),
                                 ],
                                 if (p.isTransferListed) ...[
                                   const SizedBox(width: 6),
-                                  const Icon(Icons.sell_outlined,
-                                      size: 16, color: Colors.orange),
+                                  const Tooltip(
+                                    message: '移籍リストに登録済み',
+                                    child: Icon(Icons.sell_outlined,
+                                        size: 16, color: Colors.orange),
+                                  ),
                                 ],
                               ],
                             ),

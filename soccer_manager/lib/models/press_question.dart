@@ -4,7 +4,10 @@ class PressOption {
   final int confidenceDelta;
   final int moraleDelta;
 
-  PressOption({required this.label, required this.confidenceDelta, required this.moraleDelta});
+  PressOption(
+      {required this.label,
+      required this.confidenceDelta,
+      required this.moraleDelta});
 
   Map<String, dynamic> toJson() => {
         'label': label,
@@ -33,6 +36,8 @@ class PressQuestion {
 
   factory PressQuestion.fromJson(Map<String, dynamic> json) => PressQuestion(
         prompt: json['prompt'] as String,
-        options: (json['options'] as List).map((e) => PressOption.fromJson(e as Map<String, dynamic>)).toList(),
+        options: (json['options'] as List)
+            .map((e) => PressOption.fromJson(e as Map<String, dynamic>))
+            .toList(),
       );
 }

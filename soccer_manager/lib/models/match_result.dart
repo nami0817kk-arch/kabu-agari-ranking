@@ -1,3 +1,4 @@
+import 'enum_json.dart';
 import 'weather.dart';
 
 enum MatchEventType { goal, chance, yellowCard, redCard }
@@ -34,7 +35,8 @@ class MatchEvent {
         teamId: json['teamId'] as String,
         scorerName: json['scorerName'] as String?,
         scorerId: json['scorerId'] as String?,
-        type: MatchEventType.values.byName(json['type'] as String? ?? 'goal'),
+        type: enumFromName(MatchEventType.values, json['type'] as String?,
+            MatchEventType.goal),
       );
 }
 
@@ -95,8 +97,7 @@ class MatchResult {
               (k, v) => MapEntry(k as String, (v as num).toDouble()),
             ) ??
             {},
-        weather: json['weather'] == null
-            ? Weather.clear
-            : Weather.values.byName(json['weather'] as String),
+        weather: enumFromName(
+            Weather.values, json['weather'] as String?, Weather.clear),
       );
 }

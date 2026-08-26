@@ -17,24 +17,3 @@ extension PositionGroupColor on PositionGroup {
     }
   }
 }
-
-/// ポジション別カラーで彩色した円形アバター。
-class PositionAvatar extends StatelessWidget {
-  final Position position;
-  final bool highlighted;
-
-  const PositionAvatar({super.key, required this.position, this.highlighted = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = position.group.color;
-    return CircleAvatar(
-      backgroundColor: color.withValues(alpha: highlighted ? 1 : 0.16),
-      foregroundColor: highlighted ? Colors.white : color,
-      child: Text(
-        position.label,
-        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-      ),
-    );
-  }
-}

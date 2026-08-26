@@ -54,23 +54,57 @@ class AttributeKeys {
   static const reflexes = 'reflexes';
 
   static const technical = [
-    corners, crossing, dribbling, finishing, firstTouch, freeKick, heading,
-    longShots, longThrows, marking, passing, penalties, tackling, technique,
+    corners,
+    crossing,
+    dribbling,
+    finishing,
+    firstTouch,
+    freeKick,
+    heading,
+    longShots,
+    longThrows,
+    marking,
+    passing,
+    penalties,
+    tackling,
+    technique,
   ];
 
   static const mental = [
-    aggression, anticipation, bravery, composure, concentration, decisions,
-    determination, flair, leadership, offTheBall, positioning, teamwork,
-    vision, workRate,
+    aggression,
+    anticipation,
+    bravery,
+    composure,
+    concentration,
+    decisions,
+    determination,
+    flair,
+    leadership,
+    offTheBall,
+    positioning,
+    teamwork,
+    vision,
+    workRate,
   ];
 
   static const physical = [
-    acceleration, agility, balance, jumpingReach, naturalFitness, pace,
-    stamina, strength,
+    acceleration,
+    agility,
+    balance,
+    jumpingReach,
+    naturalFitness,
+    pace,
+    stamina,
+    strength,
   ];
 
   static const goalkeeping = [
-    aerialReach, commandOfArea, handling, kicking, oneOnOnes, reflexes,
+    aerialReach,
+    commandOfArea,
+    handling,
+    kicking,
+    oneOnOnes,
+    reflexes,
   ];
 
   static const all = [...technical, ...mental, ...physical, ...goalkeeping];

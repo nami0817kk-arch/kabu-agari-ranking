@@ -5,6 +5,7 @@ import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/position_colors.dart';
 import '../widgets/position_filter_bar.dart';
+import '../widgets/responsive_body.dart';
 
 /// シーズンごとに選出されたベストイレブン(GK1・DF4・MF4・FW2)の履歴を表示する画面。
 class BestElevenScreen extends StatelessWidget {
@@ -15,30 +16,35 @@ class BestElevenScreen extends StatelessWidget {
     final gameState = context.watch<GameState>();
     final history = gameState.bestElevenHistory;
     final clubName = gameState.userTeam.name;
+    final userTeamId = gameState.save!.userTeamId;
 
     return Scaffold(
       appBar: AppBar(title: const Text('シーズンベストイレブン')),
-      body: history.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.groups, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    const Text('まだ記録がありません(シーズン終了時に確定します)',
-                        textAlign: TextAlign.center),
-                  ],
+      body: ResponsiveBody(
+        child: history.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.groups, size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      const Text('まだ記録がありません(シーズン終了時に確定します)',
+                          textAlign: TextAlign.center),
+                    ],
+                  ),
                 ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: history.length,
+                itemBuilder: (context, i) => _BestElevenCard(
+                    seasonEleven: history[i],
+                    clubName: clubName,
+                    userTeamId: userTeamId),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              itemBuilder: (context, i) =>
-                  _BestElevenCard(seasonEleven: history[i], clubName: clubName),
-            ),
+      ),
     );
   }
 }
@@ -46,7 +52,11 @@ class BestElevenScreen extends StatelessWidget {
 class _BestElevenCard extends StatelessWidget {
   final SeasonBestEleven seasonEleven;
   final String clubName;
-  const _BestElevenCard({required this.seasonEleven, required this.clubName});
+  final String userTeamId;
+  const _BestElevenCard(
+      {required this.seasonEleven,
+      required this.clubName,
+      required this.userTeamId});
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +92,9 @@ class _BestElevenCard extends StatelessWidget {
                           child: Text(
                             '${e.playerName}（${e.teamName}）',
                             style: TextStyle(
-                              fontWeight: e.teamName == clubName
+                              fontWeight: (e.teamId != null
+                                      ? e.teamId == userTeamId
+                                      : e.teamName == clubName)
                                   ? FontWeight.bold
                                   : FontWeight.normal,
                             ),

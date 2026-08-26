@@ -5,6 +5,7 @@ import '../models/player.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/responsive_body.dart';
 
 class FinanceScreen extends StatelessWidget {
   const FinanceScreen({super.key});
@@ -27,97 +28,100 @@ class FinanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('クラブ経営')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('資金: ${save.budget}万円',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  Text('週間収入: +$income万円（観客動員・スポンサー収入込み）'),
-                  Text('週間人件費: -$wageBill万円（スタッフ週俸込み）'),
-                  if (loanRepayment > 0) Text('週間融資返済: -$loanRepayment万円'),
-                  const SizedBox(height: 8),
-                  _CashFlowBar(
-                      income: income, expenses: wageBill + loanRepayment),
-                  const SizedBox(height: 8),
-                  Text(
-                    '週間収支: ${net >= 0 ? '+' : ''}$net万円',
-                    style: TextStyle(
-                      color: net >= 0
-                          ? SemanticColors.positive(context)
-                          : SemanticColors.negative(context),
-                      fontWeight: FontWeight.bold,
+      body: ResponsiveBody(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('資金: ${save.budget}万円',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    Text('週間収入: +$income万円（観客動員・スポンサー収入込み）'),
+                    Text('週間人件費: -$wageBill万円（スタッフ週俸込み）'),
+                    if (loanRepayment > 0) Text('週間融資返済: -$loanRepayment万円'),
+                    const SizedBox(height: 8),
+                    _CashFlowBar(
+                        income: income, expenses: wageBill + loanRepayment),
+                    const SizedBox(height: 8),
+                    Text(
+                      '週間収支: ${net >= 0 ? '+' : ''}$net万円',
+                      style: TextStyle(
+                        color: net >= 0
+                            ? SemanticColors.positive(context)
+                            : SemanticColors.negative(context),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text('資金調達（銀行融資）', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _LoanSection(gameState: gameState),
-          const SizedBox(height: 16),
-          Text('スポンサー契約', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          _SponsorSection(gameState: gameState),
-          if (save.pendingInstallments.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text('分割払い残金', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final inst in save.pendingInstallments)
-              Card(
-                margin: const EdgeInsets.only(bottom: 6),
-                child: ListTile(
-                  title: Text(inst.description),
-                  subtitle: Text('残り${inst.weeksRemaining}週'),
-                  trailing: Text('-${inst.weeklyAmount}万円/週'),
+                  ],
                 ),
               ),
-          ],
-          if (loanPlayers.isNotEmpty) ...[
+            ),
             const SizedBox(height: 16),
-            Text('ローン加入中の選手', style: Theme.of(context).textTheme.titleMedium),
+            Text('資金調達（銀行融資）', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            for (final p in loanPlayers)
+            _LoanSection(gameState: gameState),
+            const SizedBox(height: 16),
+            Text('スポンサー契約', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _SponsorSection(gameState: gameState),
+            if (save.pendingInstallments.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text('分割払い残金', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final inst in save.pendingInstallments)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    title: Text(inst.description),
+                    subtitle: Text('残り${inst.weeksRemaining}週'),
+                    trailing: Text('-${inst.weeklyAmount}万円/週'),
+                  ),
+                ),
+            ],
+            if (loanPlayers.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text('ローン加入中の選手', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              for (final p in loanPlayers)
+                Card(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  child: ListTile(
+                    title: Text(p.name),
+                    subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
+                    trailing: Text('残り${p.loanWeeksRemaining}週'),
+                  ),
+                ),
+            ],
+            const SizedBox(height: 16),
+            Text('契約状況（残り週数が少ない順）',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final p in sortedByExpiry)
               Card(
                 margin: const EdgeInsets.only(bottom: 6),
                 child: ListTile(
                   title: Text(p.name),
                   subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
-                  trailing: Text('残り${p.loanWeeksRemaining}週'),
-                ),
-              ),
-          ],
-          const SizedBox(height: 16),
-          Text('契約状況（残り週数が少ない順）',
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          for (final p in sortedByExpiry)
-            Card(
-              margin: const EdgeInsets.only(bottom: 6),
-              child: ListTile(
-                title: Text(p.name),
-                subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
-                trailing: Text(
-                  '残り${p.contractWeeksRemaining}週',
-                  style: TextStyle(
-                    color: p.contractWeeksRemaining <= 4
-                        ? SemanticColors.negative(context)
-                        : null,
-                    fontWeight:
-                        p.contractWeeksRemaining <= 4 ? FontWeight.bold : null,
+                  trailing: Text(
+                    '残り${p.contractWeeksRemaining}週',
+                    style: TextStyle(
+                      color: p.contractWeeksRemaining <= 4
+                          ? SemanticColors.negative(context)
+                          : null,
+                      fontWeight: p.contractWeeksRemaining <= 4
+                          ? FontWeight.bold
+                          : null,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -248,7 +252,7 @@ class _LoanSection extends StatelessWidget {
               subtitle: Text(
                   '残り${loan.weeksRemaining}週 / 返済総額残り${loan.totalRemaining}万円'),
               trailing: Text('-${loan.weeklyRepayment}万円/週',
-                  style: const TextStyle(color: Colors.redAccent)),
+                  style: TextStyle(color: SemanticColors.negative(context))),
             ),
           ),
         Card(

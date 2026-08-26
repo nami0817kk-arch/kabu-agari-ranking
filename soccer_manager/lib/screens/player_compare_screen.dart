@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/player_face_avatar.dart';
 
 /// 自クラブの選手2名を選び、能力値を並べて比較する画面。
@@ -100,7 +101,7 @@ class _CompareRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final leftWins = lowerIsBetter ? left < right : left > right;
     final rightWins = lowerIsBetter ? right < left : right > left;
-    final winColor = Colors.green.shade600;
+    final winColor = SemanticColors.positive(context);
 
     Widget valueText(int value, bool wins) => Text(
           '$value',

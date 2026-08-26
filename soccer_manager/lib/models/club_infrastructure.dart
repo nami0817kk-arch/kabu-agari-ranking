@@ -43,14 +43,16 @@ class ClubInfrastructure {
     Map<StaffRole, int>? staffLevels,
     Map<FacilityType, int>? facilityLevels,
   })  : staffLevels = staffLevels ?? {for (final r in StaffRole.values) r: 1},
-        facilityLevels = facilityLevels ?? {for (final f in FacilityType.values) f: 1};
+        facilityLevels =
+            facilityLevels ?? {for (final f in FacilityType.values) f: 1};
 
   int staffLevel(StaffRole role) => staffLevels[role] ?? 1;
   int facilityLevel(FacilityType type) => facilityLevels[type] ?? 1;
 
   static int staffUpgradeCost(int currentLevel) => 250 * currentLevel;
   static int staffWeeklyWage(int level) => level * 20;
-  static int facilityUpgradeCost(int currentLevel) => 500 * currentLevel * currentLevel;
+  static int facilityUpgradeCost(int currentLevel) =>
+      500 * currentLevel * currentLevel;
 
   /// スタジアムのレベルに応じた収容人数。
   static int stadiumCapacity(int level) => 12000 + (level - 1) * 6000;
@@ -86,7 +88,8 @@ class ClubInfrastructure {
         for (final r in StaffRole.values) r: (staffJson?[r.name] as int?) ?? 1,
       },
       facilityLevels: {
-        for (final f in FacilityType.values) f: (facilityJson?[f.name] as int?) ?? 1,
+        for (final f in FacilityType.values)
+          f: (facilityJson?[f.name] as int?) ?? 1,
       },
     );
   }

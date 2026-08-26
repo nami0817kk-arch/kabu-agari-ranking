@@ -5,8 +5,16 @@ class SponsorEngine {
   static final Random _rng = Random();
 
   static const _names = [
-    '蒼海銀行', '白鷺自動車', '紅葉飲料', '北斗テック', '旭丘保険',
-    '常盤エナジー', '朝霧食品', '東雲航空', '潮風モビリティ', '若鮎製薬',
+    '蒼海銀行',
+    '白鷺自動車',
+    '紅葉飲料',
+    '北斗テック',
+    '旭丘保険',
+    '常盤エナジー',
+    '朝霧食品',
+    '東雲航空',
+    '潮風モビリティ',
+    '若鮎製薬',
   ];
 
   /// チームの総合力に応じたスポンサー候補を3件生成する。
@@ -15,9 +23,15 @@ class SponsorEngine {
     final base = 40 + overallRating.clamp(0, 99);
     final shuffled = ([..._names]..shuffle(_rng)).take(3).toList();
     return [
-      SponsorDeal(name: shuffled[0], weeklyIncome: (base * 0.8).round(), weeksRemaining: 30),
+      SponsorDeal(
+          name: shuffled[0],
+          weeklyIncome: (base * 0.8).round(),
+          weeksRemaining: 30),
       SponsorDeal(name: shuffled[1], weeklyIncome: base, weeksRemaining: 20),
-      SponsorDeal(name: shuffled[2], weeklyIncome: (base * 1.3).round(), weeksRemaining: 12),
+      SponsorDeal(
+          name: shuffled[2],
+          weeklyIncome: (base * 1.3).round(),
+          weeksRemaining: 12),
     ];
   }
 }

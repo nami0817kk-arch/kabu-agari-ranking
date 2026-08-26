@@ -1,3 +1,4 @@
+import 'enum_json.dart';
 import 'formation.dart';
 import 'player.dart';
 import 'tactic_preset.dart';
@@ -154,14 +155,10 @@ class Team {
         startingXI:
             (json['startingXI'] as List?)?.map((e) => e as String).toList() ??
                 [],
-        defaultTrainingFocus: json['defaultTrainingFocus'] == null
-            ? TrainingFocus.rest
-            : TrainingFocus.values
-                .byName(json['defaultTrainingFocus'] as String),
-        trainingIntensity: json['trainingIntensity'] == null
-            ? TrainingIntensity.normal
-            : TrainingIntensity.values
-                .byName(json['trainingIntensity'] as String),
+        defaultTrainingFocus: enumFromName(TrainingFocus.values,
+            json['defaultTrainingFocus'] as String?, TrainingFocus.rest),
+        trainingIntensity: enumFromName(TrainingIntensity.values,
+            json['trainingIntensity'] as String?, TrainingIntensity.normal),
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
         width: json['width'] as int? ?? 50,

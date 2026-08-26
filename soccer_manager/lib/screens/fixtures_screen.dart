@@ -173,7 +173,7 @@ class FixturesScreen extends StatelessWidget {
                     final team =
                         league.teams.firstWhere((t) => t.id == p.teamId);
                     final isUser = p.teamId == userTeamId;
-                    return Container(
+                    final tile = Container(
                       color: isUser
                           ? Theme.of(context)
                               .colorScheme
@@ -214,6 +214,12 @@ class FixturesScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                    );
+                    if (!isUser) return tile;
+                    return Semantics(
+                      label: '自クラブ。${i + 1}位予測: ${team.name}、'
+                          '予測勝点 ${p.avgFinalPoints.toStringAsFixed(1)}',
+                      child: ExcludeSemantics(child: tile),
                     );
                   },
                 ),
@@ -262,7 +268,7 @@ class _StandingsTab extends StatelessWidget {
                   : i >= relegationStart
                       ? SemanticColors.negative(context)
                       : null;
-              return Container(
+              final row = Container(
                 decoration: BoxDecoration(
                   color: isUser
                       ? Theme.of(context)
@@ -300,6 +306,12 @@ class _StandingsTab extends StatelessWidget {
                   trailing: Text('${r.points}pt',
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
+              );
+              if (!isUser) return row;
+              return Semantics(
+                label: '自クラブ。${i + 1}位: ${team.name}、'
+                    '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}、${r.points}pt',
+                child: ExcludeSemantics(child: row),
               );
             },
           ),
@@ -490,7 +502,7 @@ class _MatchdayList extends StatelessWidget {
             f.homeTeamId == userTeamId || f.awayTeamId == userTeamId;
         final isDerby = context.read<GameState>().isRivalFixture(f);
         final result = f.result;
-        return Container(
+        final row = Container(
           color: isUserMatch
               ? Theme.of(context)
                   .colorScheme
@@ -542,6 +554,12 @@ class _MatchdayList extends StatelessWidget {
               ],
             ),
           ),
+        );
+        if (!isUserMatch) return row;
+        return Semantics(
+          label: '自クラブの試合。${home.name} vs ${away.name}、'
+              '${result == null ? '未消化' : '${result.homeGoals} - ${result.awayGoals}'}',
+          child: ExcludeSemantics(child: row),
         );
       },
     );

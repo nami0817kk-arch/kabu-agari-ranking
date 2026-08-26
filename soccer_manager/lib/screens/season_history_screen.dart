@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/season_record.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
+import '../widgets/responsive_body.dart';
 
 /// シーズンごとの最終成績(順位・勝敗・昇降格・カップ優勝歴)を振り返る画面。
 class SeasonHistoryScreen extends StatelessWidget {
@@ -14,27 +16,30 @@ class SeasonHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('シーズン成績アーカイブ')),
-      body: history.isEmpty
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.history, size: 64, color: Colors.grey.shade400),
-                    const SizedBox(height: 12),
-                    const Text('まだ記録がありません(シーズン終了時に確定します)',
-                        textAlign: TextAlign.center),
-                  ],
+      body: ResponsiveBody(
+        child: history.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.history,
+                          size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 12),
+                      const Text('まだ記録がありません(シーズン終了時に確定します)',
+                          textAlign: TextAlign.center),
+                    ],
+                  ),
                 ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: history.length,
+                itemBuilder: (context, i) =>
+                    _SeasonRecordCard(record: history[i]),
               ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              itemBuilder: (context, i) =>
-                  _SeasonRecordCard(record: history[i]),
-            ),
+      ),
     );
   }
 }
@@ -60,9 +65,9 @@ class _SeasonRecordCard extends StatelessWidget {
                 if (record.wonLeague)
                   const _Badge(label: '優勝', color: Colors.amber),
                 if (record.promoted)
-                  _Badge(label: '昇格', color: Colors.green.shade600),
+                  _Badge(label: '昇格', color: SemanticColors.positive(context)),
                 if (record.relegated)
-                  const _Badge(label: '降格', color: Colors.redAccent),
+                  _Badge(label: '降格', color: SemanticColors.negative(context)),
               ],
             ),
             const SizedBox(height: 4),

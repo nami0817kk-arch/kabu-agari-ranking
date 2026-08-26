@@ -39,16 +39,25 @@ class ContinentalCupEngine {
     return ContinentalCup(name: name, groups: groups, groupMatches: matches);
   }
 
+  /// 総当たり(circle method)。組の人数が奇数の場合は不戦(BYE)枠を
+  /// 挟んで偶数扱いにし、BYEが絡む組み合わせだけ除外する
+  /// (FixtureGenerator.generateDoubleRoundRobinと同じ考え方)。
   static List<CupMatch> _groupRoundRobin(List<String> teamIds) {
-    final n = teamIds.length;
-    final arr = List<String>.from(teamIds);
+    final ids = List<String>.from(teamIds);
+    final hasBye = ids.length.isOdd;
+    if (hasBye) ids.add(byeTeamId);
+
+    final n = ids.length;
+    final arr = List<String>.from(ids);
     final rounds = n - 1;
     final half = n ~/ 2;
     final matches = <CupMatch>[];
     for (int r = 0; r < rounds; r++) {
       for (int i = 0; i < half; i++) {
-        matches.add(CupMatch(
-            round: r + 1, homeTeamId: arr[i], awayTeamId: arr[n - 1 - i]));
+        final home = arr[i];
+        final away = arr[n - 1 - i];
+        if (home == byeTeamId || away == byeTeamId) continue;
+        matches.add(CupMatch(round: r + 1, homeTeamId: home, awayTeamId: away));
       }
       final last = arr.removeLast();
       arr.insert(1, last);
@@ -110,9 +119,16 @@ class ContinentalCupEngine {
       qualifiers.add(standings.take(2).map((r) => r.teamId).toList());
     }
     if (qualifiers.length < 2) return;
+    // 各組の1位を、隣の組(添字+1、末尾は先頭へ循環)の2位とクロスで
+    // 組み合わせる。組数が2の場合は従来通りの組み合わせになる。
+    final groupCount = qualifiers.length;
     final semis = <CupTie>[
-      CupTie(round: 1, teamAId: qualifiers[0][0], teamBId: qualifiers[1][1]),
-      CupTie(round: 1, teamAId: qualifiers[1][0], teamBId: qualifiers[0][1]),
+      for (int g = 0; g < groupCount; g++)
+        CupTie(
+          round: 1,
+          teamAId: qualifiers[g][0],
+          teamBId: qualifiers[(g + 1) % groupCount][1],
+        ),
     ];
     cup.knockoutRounds.add(semis);
   }

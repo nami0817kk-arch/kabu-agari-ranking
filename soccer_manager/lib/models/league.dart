@@ -1,4 +1,5 @@
 import 'team.dart';
+import 'enum_json.dart';
 import 'match_result.dart';
 import 'weather.dart';
 
@@ -36,7 +37,8 @@ class Fixture {
             : MatchResult.fromJson(json['result'] as Map<String, dynamic>),
         weather: json['weather'] == null
             ? null
-            : Weather.values.byName(json['weather'] as String),
+            : enumFromName(
+                Weather.values, json['weather'] as String?, Weather.clear),
       );
 }
 

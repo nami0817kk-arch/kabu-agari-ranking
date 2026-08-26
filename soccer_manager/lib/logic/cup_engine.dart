@@ -18,6 +18,9 @@ class CupEngine {
       {required CupType type,
       required String name,
       required List<String> teamIds}) {
+    if (teamIds.length < 2) {
+      throw ArgumentError.value(teamIds, 'teamIds', 'ノックアウト方式のカップには最低2チーム必要です');
+    }
     final shuffled = [...teamIds]..shuffle(_rng);
     int size = 1;
     while (size < shuffled.length) {

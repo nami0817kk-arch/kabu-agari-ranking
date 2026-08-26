@@ -1,4 +1,5 @@
 import '../models/match_result.dart';
+import 'enum_json.dart';
 
 /// カップ戦の不在(不戦勝)を表す仮想チームID。
 const String byeTeamId = '__BYE__';
@@ -65,9 +66,16 @@ class Cup {
   /// 優勝報酬(賞金・信頼度)を既に付与済みかどうか。二重付与を防ぐためのフラグ。
   bool rewardClaimed;
 
-  Cup({required this.type, required this.name, required this.rounds, this.rewardClaimed = false});
+  Cup(
+      {required this.type,
+      required this.name,
+      required this.rounds,
+      this.rewardClaimed = false});
 
-  bool get isComplete => rounds.isNotEmpty && rounds.last.length == 1 && rounds.last.first.winnerId != null;
+  bool get isComplete =>
+      rounds.isNotEmpty &&
+      rounds.last.length == 1 &&
+      rounds.last.first.winnerId != null;
 
   String? get championId => isComplete ? rounds.last.first.winnerId : null;
 
@@ -82,14 +90,16 @@ class Cup {
     return null;
   }
 
-  bool involvesTeam(String teamId) =>
-      rounds.any((round) => round.any((m) => m.homeTeamId == teamId || m.awayTeamId == teamId));
+  bool involvesTeam(String teamId) => rounds.any((round) =>
+      round.any((m) => m.homeTeamId == teamId || m.awayTeamId == teamId));
 
   /// このカップにおけるチームの最終成績(敗退ラウンド、または優勝)。まだ参加/敗退していなければnull。
   bool isEliminated(String teamId) {
     for (final round in rounds) {
       for (final m in round) {
-        if ((m.homeTeamId == teamId || m.awayTeamId == teamId) && m.winnerId != null && m.winnerId != teamId) {
+        if ((m.homeTeamId == teamId || m.awayTeamId == teamId) &&
+            m.winnerId != null &&
+            m.winnerId != teamId) {
           return true;
         }
       }
@@ -105,10 +115,13 @@ class Cup {
       };
 
   factory Cup.fromJson(Map<String, dynamic> json) => Cup(
-        type: CupType.values.byName(json['type'] as String),
+        type: enumFromName(
+            CupType.values, json['type'] as String?, CupType.domestic),
         name: json['name'] as String,
         rounds: (json['rounds'] as List)
-            .map((r) => (r as List).map((m) => CupMatch.fromJson(m as Map<String, dynamic>)).toList())
+            .map((r) => (r as List)
+                .map((m) => CupMatch.fromJson(m as Map<String, dynamic>))
+                .toList())
             .toList(),
         rewardClaimed: json['rewardClaimed'] as bool? ?? false,
       );

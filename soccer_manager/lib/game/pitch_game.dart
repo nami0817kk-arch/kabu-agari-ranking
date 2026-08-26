@@ -35,7 +35,8 @@ class PitchGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     _lastMinute = startMinute - 1;
-    add(RectangleComponent(size: size, paint: Paint()..color = const Color(0xFF2E7D32)));
+    add(RectangleComponent(
+        size: size, paint: Paint()..color = const Color(0xFF2E7D32)));
     add(RectangleComponent(
       position: Vector2(size.x / 2 - 1, 0),
       size: Vector2(2, size.y),
@@ -65,7 +66,8 @@ class PitchGame extends FlameGame {
     if (_finished) return;
     _elapsed += dt;
     final span = endMinute - startMinute;
-    final progressMinute = (startMinute + (_elapsed / durationSeconds * span)).clamp(startMinute, endMinute);
+    final progressMinute = (startMinute + (_elapsed / durationSeconds * span))
+        .clamp(startMinute, endMinute);
     final minuteFloor = progressMinute.floor();
     if (minuteFloor > _lastMinute) {
       _lastMinute = minuteFloor;
@@ -76,7 +78,8 @@ class PitchGame extends FlameGame {
     final y = size.y / 2 + cos(_elapsed * 0.9) * (size.y / 2 - 16);
     _ball.position = Vector2(x, y);
 
-    while (_eventIndex < events.length && events[_eventIndex].minute <= progressMinute) {
+    while (_eventIndex < events.length &&
+        events[_eventIndex].minute <= progressMinute) {
       onEvent(events[_eventIndex]);
       _eventIndex++;
     }

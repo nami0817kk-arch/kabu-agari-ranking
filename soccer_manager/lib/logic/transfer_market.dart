@@ -11,7 +11,8 @@ class TransferMarket {
     for (int i = 0; i < count; i++) {
       final position = Position.values[_rng.nextInt(Position.values.length)];
       final tier = 40 + _rng.nextInt(45);
-      players.add(PlayerGenerator.generate(position: position, strengthTier: tier));
+      players.add(
+          PlayerGenerator.generate(position: position, strengthTier: tier));
     }
     return players;
   }

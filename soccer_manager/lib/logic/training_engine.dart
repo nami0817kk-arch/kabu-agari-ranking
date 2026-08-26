@@ -101,24 +101,28 @@ class TrainingEngine {
         p.fatigue = (p.fatigue + (12 * intensityFactor).round()).clamp(0, 100);
         break;
       case TrainingFocus.defense:
-        final primary = (p.position.group == PositionGroup.def ||
-                p.position.group == PositionGroup.gk)
-            ? 0.5
-            : 0.15;
-        for (final k in [
-          AttributeKeys.tackling,
-          AttributeKeys.marking,
-          AttributeKeys.positioning,
-          AttributeKeys.anticipation,
-        ]) {
-          _grow(p, k, primary * effectiveGrowth);
-        }
-        for (final k in [
-          AttributeKeys.passing,
-          AttributeKeys.firstTouch,
-          AttributeKeys.technique
-        ]) {
-          _grow(p, k, 0.2 * effectiveGrowth);
+        if (p.position.group == PositionGroup.gk) {
+          // GKはタックル/マーキングではなく、ゴールキーピング系の能力を伸ばす。
+          for (final k in AttributeKeys.goalkeeping) {
+            _grow(p, k, 0.5 * effectiveGrowth);
+          }
+        } else {
+          final primary = p.position.group == PositionGroup.def ? 0.5 : 0.15;
+          for (final k in [
+            AttributeKeys.tackling,
+            AttributeKeys.marking,
+            AttributeKeys.positioning,
+            AttributeKeys.anticipation,
+          ]) {
+            _grow(p, k, primary * effectiveGrowth);
+          }
+          for (final k in [
+            AttributeKeys.passing,
+            AttributeKeys.firstTouch,
+            AttributeKeys.technique
+          ]) {
+            _grow(p, k, 0.2 * effectiveGrowth);
+          }
         }
         p.fatigue = (p.fatigue + (12 * intensityFactor).round()).clamp(0, 100);
         break;

@@ -33,12 +33,14 @@ class AwardsEngine {
 
     String? topScorerName;
     String? topScorerTeamName;
+    String? topScorerTeamId;
     if (topScorerId != null) {
       for (final t in league.teams) {
         for (final p in t.players) {
           if (p.id == topScorerId) {
             topScorerName = p.name;
             topScorerTeamName = t.name;
+            topScorerTeamId = t.id;
           }
         }
       }
@@ -51,6 +53,7 @@ class AwardsEngine {
     // 対象外になる)ため、対象は全所属選手とする。
     String? mvpName;
     String? mvpTeamName;
+    String? mvpTeamId;
     double bestScore = -1;
     for (final t in league.teams) {
       for (final p in t.players) {
@@ -59,6 +62,7 @@ class AwardsEngine {
           bestScore = score;
           mvpName = p.name;
           mvpTeamName = t.name;
+          mvpTeamId = t.id;
         }
       }
     }
@@ -67,9 +71,11 @@ class AwardsEngine {
       season: season,
       topScorerName: topScorerName,
       topScorerTeamName: topScorerTeamName,
+      topScorerTeamId: topScorerTeamId,
       topScorerGoals: topScorerGoals,
       mvpName: mvpName,
       mvpTeamName: mvpTeamName,
+      mvpTeamId: mvpTeamId,
     );
   }
 

@@ -79,15 +79,22 @@ class _FacePainter extends CustomPainter {
 
     final skinPaint = Paint()..color = skin;
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.12, h * 0.52), width: w * 0.14, height: h * 0.18),
+      Rect.fromCenter(
+          center: Offset(w * 0.12, h * 0.52),
+          width: w * 0.14,
+          height: h * 0.18),
       skinPaint,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.88, h * 0.52), width: w * 0.14, height: h * 0.18),
+      Rect.fromCenter(
+          center: Offset(w * 0.88, h * 0.52),
+          width: w * 0.14,
+          height: h * 0.18),
       skinPaint,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(w * 0.5, h * 0.54), width: w * 0.86, height: h * 0.92),
+      Rect.fromCenter(
+          center: Offset(w * 0.5, h * 0.54), width: w * 0.86, height: h * 0.92),
       skinPaint,
     );
 
@@ -95,7 +102,10 @@ class _FacePainter extends CustomPainter {
     switch (hairStyle) {
       case 2: // 短髪(サイド刈り上げ)
         canvas.drawArc(
-          Rect.fromCenter(center: Offset(w * 0.5, h * 0.42), width: w * 0.9, height: h * 0.7),
+          Rect.fromCenter(
+              center: Offset(w * 0.5, h * 0.42),
+              width: w * 0.9,
+              height: h * 0.7),
           pi,
           pi,
           true,
@@ -104,13 +114,17 @@ class _FacePainter extends CustomPainter {
         break;
       case 1: // サイド分け
         canvas.drawArc(
-          Rect.fromCenter(center: Offset(w * 0.5, h * 0.4), width: w * 0.92, height: h * 0.82),
+          Rect.fromCenter(
+              center: Offset(w * 0.5, h * 0.4),
+              width: w * 0.92,
+              height: h * 0.82),
           pi,
           pi,
           true,
           hairPaint,
         );
-        canvas.drawRect(Rect.fromLTWH(w * 0.06, h * 0.3, w * 0.28, h * 0.14), hairPaint);
+        canvas.drawRect(
+            Rect.fromLTWH(w * 0.06, h * 0.3, w * 0.28, h * 0.14), hairPaint);
         break;
       case 3: // くせ毛・ボリューム
         for (double t = 0; t <= 1; t += 0.14) {
@@ -122,7 +136,10 @@ class _FacePainter extends CustomPainter {
         break;
       default: // 0: 坊主・薄毛気味
         canvas.drawArc(
-          Rect.fromCenter(center: Offset(w * 0.5, h * 0.4), width: w * 0.9, height: h * 0.6),
+          Rect.fromCenter(
+              center: Offset(w * 0.5, h * 0.4),
+              width: w * 0.9,
+              height: h * 0.6),
           pi,
           pi,
           true,
@@ -134,8 +151,10 @@ class _FacePainter extends CustomPainter {
       ..color = hair
       ..strokeWidth = h * 0.035
       ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(w * 0.32, h * 0.46), Offset(w * 0.42, h * 0.44), browPaint);
-    canvas.drawLine(Offset(w * 0.58, h * 0.44), Offset(w * 0.68, h * 0.46), browPaint);
+    canvas.drawLine(
+        Offset(w * 0.32, h * 0.46), Offset(w * 0.42, h * 0.44), browPaint);
+    canvas.drawLine(
+        Offset(w * 0.58, h * 0.44), Offset(w * 0.68, h * 0.46), browPaint);
 
     final eyePaint = Paint()..color = const Color(0xFF2B2B2B);
     canvas.drawCircle(Offset(w * 0.37, h * 0.52), w * 0.045, eyePaint);
@@ -145,7 +164,8 @@ class _FacePainter extends CustomPainter {
       ..color = const Color(0xFF000000).withValues(alpha: 0.18)
       ..style = PaintingStyle.stroke
       ..strokeWidth = h * 0.02;
-    canvas.drawLine(Offset(w * 0.5, h * 0.54), Offset(w * 0.5, h * 0.64), nosePaint);
+    canvas.drawLine(
+        Offset(w * 0.5, h * 0.54), Offset(w * 0.5, h * 0.64), nosePaint);
 
     final mouthPaint = Paint()
       ..color = const Color(0xFF7A3B3B)
@@ -168,5 +188,6 @@ class _FacePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FacePainter oldDelegate) => oldDelegate.seed != seed;
+  bool shouldRepaint(covariant _FacePainter oldDelegate) =>
+      oldDelegate.seed != seed;
 }
