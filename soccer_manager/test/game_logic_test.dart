@@ -38,6 +38,7 @@ import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/team.dart';
+import 'package:soccer_manager/models/team_talk.dart';
 import 'package:soccer_manager/models/weather.dart';
 import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/transfer_screen.dart';
@@ -3889,5 +3890,328 @@ void main() {
     final loanedOut = countStaminaGrowthsWithHeadCoach(true);
     final notLoanedOut = countStaminaGrowthsWithHeadCoach(false);
     expect(notLoanedOut, greaterThan(loanedOut));
+  });
+
+  test(
+      'GameState.giveTeamTalk moves starters\' morale by an amount scaled by '
+      'their personality\'s result sensitivity', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    for (final p in team.players) {
+      p.morale = 50;
+      p.personality = PlayerPersonality.professional;
+    }
+    final ambitious =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    ambitious.personality = PlayerPersonality.ambitious;
+
+    gameState.giveTeamTalk(TeamTalkTone.encouraging);
+
+    final professionalStarter = team.players.firstWhere(
+        (p) => team.startingXI.contains(p.id) && p.id != ambitious.id);
+    // 野心家(結果感応度1.4)はプロフェッショナル(0.7)より変動幅が大きい。
+    expect(ambitious.morale - 50, greaterThan(professionalStarter.morale - 50));
+    // ベンチ外の選手には影響しない。
+    final benched =
+        team.players.firstWhere((p) => !team.startingXI.contains(p.id));
+    expect(benched.morale, 50);
+  });
+
+  test('GameState tactical assignment setters store the chosen player IDs',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final a = team.players[0];
+    final b = team.players[1];
+
+    gameState.setManMarker(a.id);
+    expect(team.manMarkerId, a.id);
+    gameState.setManMarker(null);
+    expect(team.manMarkerId, isNull);
+
+    gameState.setSetPieceDefender(b.id);
+    expect(team.setPieceDefenderId, b.id);
+
+    expect(team.timeWastingMode, isFalse);
+    gameState.setTimeWastingMode(true);
+    expect(team.timeWastingMode, isTrue);
+  });
+
+  test(
+      'MatchEngine.markedTargetId returns the target team\'s key player only '
+      'when the marking team\'s marker is actually in the lineup', () {
+    final marker = Player(
+        id: 'marker',
+        name: 'Marker',
+        age: 25,
+        position: Position.dc,
+        potential: 70);
+    final markingTeam =
+        Team(id: 'a', name: 'A', players: [marker], manMarkerId: marker.id);
+    final weakKey = Player(
+        id: 'weak',
+        name: 'Weak',
+        age: 25,
+        position: Position.st,
+        potential: 60);
+    final strongKey = Player(
+        id: 'strong',
+        name: 'Strong',
+        age: 25,
+        position: Position.st,
+        potential: 90);
+    for (final k in AttributeKeys.all) {
+      strongKey.setAttributeValue(k, 90);
+    }
+    final targetLineup = [weakKey, strongKey];
+
+    expect(MatchEngine.markedTargetId(markingTeam, [marker], targetLineup),
+        strongKey.id);
+    // マーカーが出場していない(負傷などで先発に含まれない)場合はnull。
+    expect(MatchEngine.markedTargetId(markingTeam, [], targetLineup), isNull);
+    // マンマークを指名していないチームはnull。
+    final noMarkerTeam = Team(id: 'b', name: 'B', players: [marker]);
+    expect(MatchEngine.markedTargetId(noMarkerTeam, [marker], targetLineup),
+        isNull);
+  });
+
+  test(
+      'MatchEngine.applySetPieceDefense reduces the score probability when '
+      'the defending team fields a skilled set-piece defender', () {
+    final defender = Player(
+        id: 'defender',
+        name: 'Defender',
+        age: 25,
+        position: Position.dc,
+        potential: 70);
+    defender.setAttributeValue(AttributeKeys.heading, 95);
+    defender.setAttributeValue(AttributeKeys.jumpingReach, 95);
+    final defendingTeam = Team(
+        id: 'a',
+        name: 'A',
+        players: [defender],
+        setPieceDefenderId: defender.id);
+    final reduced =
+        MatchEngine.applySetPieceDefense(0.4, defendingTeam, [defender]);
+    expect(reduced, lessThan(0.4));
+
+    final noDefenderTeam = Team(id: 'b', name: 'B', players: [defender]);
+    final unchanged =
+        MatchEngine.applySetPieceDefense(0.4, noDefenderTeam, [defender]);
+    expect(unchanged, 0.4);
+  });
+
+  test('MatchEngine.applyHalfTimeFatigue raises fatigue for both lineups', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    for (final p in [...home.players, ...away.players]) {
+      p.fatigue = 0;
+    }
+
+    MatchEngine.applyHalfTimeFatigue(home: home, away: away);
+
+    for (final p in MatchEngine.lineupOf(home) + MatchEngine.lineupOf(away)) {
+      expect(p.fatigue, greaterThan(0));
+    }
+  });
+
+  test(
+      'timeWastingMode reduces average fatigue gain from a match compared to '
+      'normal play', () {
+    double averageFatigueGain(bool timeWasting) {
+      var total = 0;
+      const trials = 150;
+      for (int i = 0; i < trials; i++) {
+        final home = PlayerGenerator.generateSquad(
+            id: 'home', name: 'Home FC', strengthTier: 60);
+        final away = PlayerGenerator.generateSquad(
+            id: 'away', name: 'Away FC', strengthTier: 60);
+        LineupUtils.autoFill(home);
+        LineupUtils.autoFill(away);
+        home.timeWastingMode = timeWasting;
+        for (final p in home.players) {
+          p.fatigue = 0;
+        }
+        MatchEngine.applyPostMatchEffects(home: home, away: away);
+        for (final p in MatchEngine.lineupOf(home)) {
+          total += p.fatigue;
+        }
+      }
+      return total / trials;
+    }
+
+    final withTimeWasting = averageFatigueGain(true);
+    final normal = averageFatigueGain(false);
+    expect(withTimeWasting, lessThan(normal));
+  });
+
+  test(
+      'CupEngine.decidePenaltyWinner favors the team with sharper penalty '
+      'takers, even at equal overall rating and equal goalkeeper ability', () {
+    Team buildTeam(String id, {required bool strongKickers}) {
+      final players = List.generate(
+        11,
+        (i) => Player(
+            id: '$id$i',
+            name: '$id$i',
+            age: 25,
+            position: i == 0 ? Position.gk : Position.st,
+            potential: 70),
+      );
+      for (final p in players) {
+        for (final k in AttributeKeys.all) {
+          p.setAttributeValue(k, 60);
+        }
+      }
+      // 自チームのGK能力は両チームで揃え、キッカーの精度差のみが
+      // 結果を左右するようにする(片方のGKだけ強くすると相殺されて
+      // 効果量が小さくなり、統計テストがフレーキーになるため)。
+      players.first.setAttributeValue(AttributeKeys.oneOnOnes, 60);
+      if (strongKickers) {
+        for (final p in players.skip(1)) {
+          p.setAttributeValue(AttributeKeys.penalties, 95);
+          p.setAttributeValue(AttributeKeys.composure, 95);
+        }
+      } else {
+        for (final p in players.skip(1)) {
+          p.setAttributeValue(AttributeKeys.penalties, 20);
+          p.setAttributeValue(AttributeKeys.composure, 20);
+        }
+      }
+      final team = Team(id: id, name: id, players: players);
+      LineupUtils.autoFill(team);
+      return team;
+    }
+
+    final sharp = buildTeam('sharp', strongKickers: true);
+    final dull = buildTeam('dull', strongKickers: false);
+
+    var sharpWins = 0;
+    const trials = 300;
+    for (int i = 0; i < trials; i++) {
+      if (CupEngine.decidePenaltyWinner(sharp, dull) == sharp.id) sharpWins++;
+    }
+    expect(sharpWins, greaterThan(trials ~/ 2));
+  });
+
+  test(
+      'MatchEngine._rollInjuries (via applyPostMatchEffects) assigns an '
+      'injury type and records injury history, and low natural fitness '
+      'leads to more injuries than high natural fitness', () {
+    int countInjured(int naturalFitness) {
+      var injured = 0;
+      const trials = 300;
+      for (int i = 0; i < trials; i++) {
+        final home = PlayerGenerator.generateSquad(
+            id: 'home', name: 'Home FC', strengthTier: 60);
+        final away = PlayerGenerator.generateSquad(
+            id: 'away', name: 'Away FC', strengthTier: 60);
+        LineupUtils.autoFill(home);
+        LineupUtils.autoFill(away);
+        for (final p in home.players) {
+          p.fatigue = 90;
+          p.setAttributeValue(AttributeKeys.naturalFitness, naturalFitness);
+        }
+        // lineupOf()は負傷者を除外するため、判定対象は適用前に確定させる
+        // (適用後に取り直すと今負傷した選手自身が除外されてしまう)。
+        final matchLineup = MatchEngine.lineupOf(home);
+        MatchEngine.applyPostMatchEffects(home: home, away: away);
+        for (final p in matchLineup) {
+          if (p.injuryWeeks > 0) injured++;
+        }
+      }
+      return injured;
+    }
+
+    final lowFitnessInjuries = countInjured(1);
+    final highFitnessInjuries = countInjured(99);
+    expect(lowFitnessInjuries, greaterThan(highFitnessInjuries));
+
+    // 実際に負傷した選手には種類が記録され、履歴にも積み上がる。
+    final home = PlayerGenerator.generateSquad(
+        id: 'home', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    for (final p in home.players) {
+      p.fatigue = 95;
+      p.setAttributeValue(AttributeKeys.naturalFitness, 1);
+    }
+    Player? injuredPlayer;
+    for (int i = 0; i < 50 && injuredPlayer == null; i++) {
+      MatchEngine.applyPostMatchEffects(home: home, away: away);
+      for (final p in home.players) {
+        if (p.injuryWeeks > 0) {
+          injuredPlayer = p;
+          break;
+        }
+      }
+    }
+    expect(injuredPlayer, isNotNull);
+    expect(injuredPlayer!.injuryType, isNotNull);
+    expect(injuredPlayer.injuryHistoryCounts[injuredPlayer.injuryType!.name],
+        greaterThan(0));
+  });
+
+  test(
+      'higher homeAdvantageFactor leads to more home goals over many '
+      'simulated halves, all else being equal', () {
+    // 対戦カードを固定した上で同一カードをfactor違いで繰り返し試行し、
+    // スカッド生成自体のばらつきが効果検証のノイズにならないようにする。
+    // homeAdvantageFactorの効果自体が僅かなため(1試合平均で数%程度)、
+    // 有意な差を安定して検出するには十分な試行回数が必要
+    // (事前計測でn=8000程度ならz値5〜8と十分な余裕がある)。
+    const cardCount = 50;
+    const trialsPerCard = 160;
+    final cards = List.generate(cardCount, (i) {
+      final home = PlayerGenerator.generateSquad(
+          id: 'home$i', name: 'Home FC $i', strengthTier: 60);
+      final away = PlayerGenerator.generateSquad(
+          id: 'away$i', name: 'Away FC $i', strengthTier: 60);
+      LineupUtils.autoFill(home);
+      LineupUtils.autoFill(away);
+      return (home: home, away: away);
+    });
+
+    int totalHomeGoals(double factor) {
+      var total = 0;
+      for (final card in cards) {
+        for (int i = 0; i < trialsPerCard; i++) {
+          final result = MatchEngine.simulateMinutes(
+              home: card.home,
+              away: card.away,
+              startMinute: 1,
+              endMinute: 90,
+              homeAdvantageFactor: factor);
+          total += result.homeGoals;
+        }
+      }
+      return total;
+    }
+
+    final highAdvantage = totalHomeGoals(1.09);
+    final lowAdvantage = totalHomeGoals(1.03);
+    expect(highAdvantage, greaterThan(lowAdvantage));
+  });
+
+  test('ScoutReportEngine.generateFor exposes the key player\'s ID', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    final report =
+        ScoutReportEngine.generateFor(opponent: away, userTeam: home);
+    expect(report.keyPlayerId, isNotNull);
+    expect(MatchEngine.lineupOf(away).map((p) => p.id),
+        contains(report.keyPlayerId));
   });
 }

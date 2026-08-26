@@ -19,6 +19,7 @@ import '../models/season_award.dart';
 import '../models/season_record.dart';
 import '../models/sponsor.dart';
 import '../models/tactic_preset.dart';
+import '../models/team_talk.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
@@ -554,6 +555,47 @@ class GameState extends ChangeNotifier {
   void setCornerTaker(String? playerId) {
     if (_save == null) return;
     userTeam.cornerTakerId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 相手のセットプレー(CK・FK)を守る担当選手を指名する。
+  void setSetPieceDefender(String? playerId) {
+    if (_save == null) return;
+    userTeam.setPieceDefenderId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 次の自チームの試合で相手のキープレイヤーにマンマークを付ける
+  /// 自チームの選手を指名する。
+  void setManMarker(String? playerId) {
+    if (_save == null) return;
+    userTeam.manMarkerId = playerId;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 逃げ切りモードの有効・無効を切り替える。有効時は自チームの攻撃力が
+  /// やや下がる代わりに守備が安定し、疲労蓄積も抑えられる。
+  void setTimeWastingMode(bool enabled) {
+    if (_save == null) return;
+    userTeam.timeWastingMode = enabled;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 試合前・ハーフタイムの檄。トーンに応じて先発イレブンの士気を変動
+  /// させる。性格ごとの結果感応度(resultSensitivity)が大きい選手ほど
+  /// 変動幅が大きい。
+  void giveTeamTalk(TeamTalkTone tone) {
+    if (_save == null) return;
+    final base = tone.baseMoraleDelta;
+    for (final p
+        in userTeam.players.where((p) => userTeam.startingXI.contains(p.id))) {
+      final delta = (base * p.personality.resultSensitivity).round();
+      p.morale = (p.morale + delta).clamp(0, 100);
+    }
     notifyListeners();
     _persist();
   }
@@ -1535,6 +1577,17 @@ class GameState extends ChangeNotifier {
   double _injuryFactorFor(String teamId) =>
       teamId == _save!.userTeamId ? _userInjuryFactor : 1.0;
 
+  /// ホームアドバンテージ係数。自クラブが主催する試合は実際の観客動員率
+  /// (収容人数に対する割合)に応じて変動する(満員に近いほど大きい)。
+  /// 他クラブの主催試合は観客動員を管理していないため既定値のまま。
+  double _homeAdvantageFor(String homeTeamId) {
+    if (_save == null || homeTeamId != _save!.userTeamId) return 1.06;
+    final capacity = stadiumCapacity;
+    final ratio =
+        capacity <= 0 ? 0.0 : (expectedAttendance / capacity).clamp(0.0, 1.0);
+    return 1.03 + 0.06 * ratio;
+  }
+
   // ---- ハーフタイム対応の試合進行(自クラブの試合のみ) ----
   Fixture? _liveFixture;
   HalfResult? _liveFirstHalf;
@@ -1578,6 +1631,7 @@ class GameState extends ChangeNotifier {
           p.injuryWeeks -= 1;
           if (p.injuryWeeks == 0) {
             p.matchSharpness = min(p.matchSharpness, 40);
+            p.injuryType = null;
           }
         }
       }
@@ -1679,10 +1733,17 @@ class GameState extends ChangeNotifier {
             away: away,
             startMinute: 1,
             endMinute: 45,
-            weather: weather);
+            weather: weather,
+            homeAdvantageFactor: _homeAdvantageFor(home.id));
+        MatchEngine.applyHalfTimeFatigue(
+            home: home, away: away, weather: weather);
       } else {
         f.result = MatchEngine.simulate(
-            home: home, away: away, matchday: md, weather: weather);
+            home: home,
+            away: away,
+            matchday: md,
+            weather: weather,
+            homeAdvantageFactor: _homeAdvantageFor(home.id));
       }
     }
 
@@ -1735,7 +1796,8 @@ class GameState extends ChangeNotifier {
         away: away,
         startMinute: 46,
         endMinute: 90,
-        weather: weather);
+        weather: weather,
+        homeAdvantageFactor: _homeAdvantageFor(home.id));
     final allEvents = [..._liveFirstHalf!.events, ...second.events];
     final homeGoals = _liveFirstHalf!.homeGoals + second.homeGoals;
     final awayGoals = _liveFirstHalf!.awayGoals + second.awayGoals;

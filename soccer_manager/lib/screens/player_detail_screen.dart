@@ -146,7 +146,9 @@ class PlayerDetailScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '負傷中（あと${p.injuryWeeks}週は出場不可）',
+                p.injuryType == null
+                    ? '負傷中（あと${p.injuryWeeks}週は出場不可）'
+                    : '${p.injuryType!.label}で負傷中（あと${p.injuryWeeks}週は出場不可）',
                 style: const TextStyle(
                     color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),

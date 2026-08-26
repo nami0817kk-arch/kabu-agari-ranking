@@ -1,6 +1,8 @@
 import 'dart:math';
+import '../models/attributes.dart';
 import '../models/cup.dart';
 import '../models/match_result.dart';
+import '../models/player.dart';
 import '../models/team.dart';
 import 'match_engine.dart';
 import 'weather_engine.dart';
@@ -50,11 +52,49 @@ class CupEngine {
     return cup;
   }
 
-  /// 引き分け時のPK戦勝者を総合力による重み付き抽選で決める。
+  /// 引き分け時のPK戦勝者を、チーム総合力に加えてキッカーのPK精度・冷静さと
+  /// 相手GKの一対一対応力を反映した重み付き抽選で決める。
   static String decidePenaltyWinner(Team home, Team away) {
-    final total = home.overallRating + away.overallRating;
-    if (total <= 0) return _rng.nextBool() ? home.id : away.id;
-    return _rng.nextInt(total) < home.overallRating ? home.id : away.id;
+    final homeStrength = _shootoutStrength(home, away);
+    final awayStrength = _shootoutStrength(away, home);
+    final totalMilli = ((homeStrength + awayStrength) * 1000).round();
+    if (totalMilli <= 0) return _rng.nextBool() ? home.id : away.id;
+    return _rng.nextInt(totalMilli) < (homeStrength * 1000).round()
+        ? home.id
+        : away.id;
+  }
+
+  /// PK戦における[attacking]チームの強さ。チーム総合力を基準に、
+  /// キッカー役(フィールドプレーヤー)のPK精度・冷静さと、相手GKの
+  /// 一対一対応力による減点を加味する。
+  static double _shootoutStrength(Team attacking, Team defending) {
+    final outfield = MatchEngine.lineupOf(attacking)
+        .where((p) => p.position.group != PositionGroup.gk)
+        .toList();
+    final kickerSkill = outfield.isEmpty
+        ? 50.0
+        : outfield.fold<double>(
+                0,
+                (s, p) =>
+                    s +
+                    p.attributeValue(AttributeKeys.penalties) * 0.7 +
+                    p.attributeValue(AttributeKeys.composure) * 0.3) /
+            outfield.length;
+
+    final defendingGk = MatchEngine.lineupOf(defending)
+        .where((p) => p.position.group == PositionGroup.gk)
+        .toList();
+    final gkSkill = defendingGk.isEmpty
+        ? 50.0
+        : defendingGk
+                .map((p) => p.attributeValue(AttributeKeys.oneOnOnes))
+                .reduce((a, b) => a + b) /
+            defendingGk.length;
+
+    final strength = attacking.overallRating +
+        (kickerSkill - 50) * 0.6 -
+        (gkSkill - 50) * 0.4;
+    return strength.clamp(1, 200);
   }
 
   /// カップの次の未消化試合を1試合消化する。試合結果を返す(BYE戦は既に消化済みなのでnullを返す)。

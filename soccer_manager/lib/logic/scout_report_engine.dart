@@ -12,6 +12,7 @@ class ScoutReport {
   final int opponentStamina;
   final List<String> strengths;
   final List<String> weaknesses;
+  final String? keyPlayerId;
   final String? keyPlayerName;
   final String? keyPlayerDetail;
   final String recommendation;
@@ -25,6 +26,7 @@ class ScoutReport {
     required this.opponentStamina,
     required this.strengths,
     required this.weaknesses,
+    required this.keyPlayerId,
     required this.keyPlayerName,
     required this.keyPlayerDetail,
     required this.recommendation,
@@ -38,7 +40,8 @@ class ScoutReportEngine {
     return (total / players.length).round();
   }
 
-  static ScoutReport generateFor({required Team opponent, required Team userTeam}) {
+  static ScoutReport generateFor(
+      {required Team opponent, required Team userTeam}) {
     final oppLineup = MatchEngine.lineupOf(opponent);
     final userLineup = MatchEngine.lineupOf(userTeam);
 
@@ -93,8 +96,11 @@ class ScoutReportEngine {
       opponentStamina: oppStamina,
       strengths: strengths,
       weaknesses: weaknesses,
+      keyPlayerId: keyPlayer?.id,
       keyPlayerName: keyPlayer?.name,
-      keyPlayerDetail: keyPlayer == null ? null : '${keyPlayer.position.label} / 総合 ${keyPlayer.overall}',
+      keyPlayerDetail: keyPlayer == null
+          ? null
+          : '${keyPlayer.position.label} / 総合 ${keyPlayer.overall}',
       recommendation: recommendation,
     );
   }

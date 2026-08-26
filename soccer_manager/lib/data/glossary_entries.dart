@@ -238,4 +238,50 @@ final List<GlossaryEntry> glossaryEntries = [
     category: GlossaryCategory.tactics,
     description: 'プレーの速さ(0-100)。高いほど攻撃力が上がるが、疲労が溜まりやすくなる。',
   ),
+  const GlossaryEntry(
+    term: 'メンター',
+    category: GlossaryCategory.condition,
+    description:
+        '若手選手に付ける指導役のベテラン選手(28歳以上)。メンティーの成長率にボーナスが付き、メンター自身も指導のやりがいから士気が少し上がる。',
+  ),
+  const GlossaryEntry(
+    term: '特訓ドリル',
+    category: GlossaryCategory.condition,
+    description: 'チーム/個別のトレーニング方針とは別に、特定の1能力値を狙い撃ちで伸ばす個別設定。',
+  ),
+  const GlossaryEntry(
+    term: '練習強度',
+    category: GlossaryCategory.condition,
+    description: '軽め/通常/追い込みの3段階。強くするほど成長速度が上がる代わりに、疲労の蓄積と練習中の怪我リスクが増す。',
+  ),
+  const GlossaryEntry(
+    term: 'チームトーク',
+    category: GlossaryCategory.condition,
+    description:
+        '試合前・ハーフタイムに監督が飛ばす檄。鼓舞する/冷静に指示する/叱咤するの3トーンがあり、先発イレブンの士気を変動させる。効果の大きさは選手の性格による結果感応度で変わる。',
+  ),
+  const GlossaryEntry(
+    term: 'マンマーク',
+    category: GlossaryCategory.tactics,
+    description:
+        'スカウティングレポートで判明した相手のキープレイヤーに、自チームの選手(DF・MF)を専任でマークさせる指示。マーカーが出場している間、相手キープレイヤーの攻撃力への貢献を抑えられる。',
+  ),
+  const GlossaryEntry(
+    term: '守備セットプレー担当',
+    category: GlossaryCategory.tactics,
+    description:
+        '相手のコーナーキック・フリーキックを守る担当選手。ヘディング・ジャンプ力が高いほど、相手のセットプレー由来のチャンスの質を下げられる。',
+  ),
+  const GlossaryEntry(
+    term: '逃げ切りモード',
+    category: GlossaryCategory.tactics,
+    description:
+        '有効にすると自チームの攻撃力がやや下がる代わりに守備が安定し、疲労の蓄積も抑えられる。リードした終盤の時間の使い方として使う。',
+  ),
+  const GlossaryEntry(
+    term: '負傷の種類',
+    category: GlossaryCategory.condition,
+    description:
+        '打撲(1-2週)・肉離れ(2-5週)・靭帯損傷(4-10週)の3種類があり、療養期間が異なる。基礎体力(naturalFitness)が高いほど負傷しにくく、同じ種類の負傷を繰り返すと再発しやすくなる。',
+  ),
 ];

@@ -347,6 +347,39 @@ class _SetPieceTakersCard extends StatelessWidget {
                 context.read<GameState>().setCornerTaker(id);
               },
             ),
+            const Divider(height: 24),
+            Text('守備セットプレー担当', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            const Text('相手のCK・FKの得点確率を、ヘディング・ジャンプ力に応じて下げる。',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const SizedBox(width: 40, child: Text('守備')),
+                Expanded(
+                  child: DropdownButton<String?>(
+                    isExpanded: true,
+                    value: team.setPieceDefenderId,
+                    hint: const Text('未指名'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                          value: null, child: Text('未指名')),
+                      for (final p in players)
+                        DropdownMenuItem<String?>(
+                          value: p.id,
+                          child: Text(
+                              '${p.name}（空中戦 ${(p.attributeValue(AttributeKeys.heading) + p.attributeValue(AttributeKeys.jumpingReach)) ~/ 2}）',
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (id) {
+                      FeedbackService.tap();
+                      context.read<GameState>().setSetPieceDefender(id);
+                    },
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),

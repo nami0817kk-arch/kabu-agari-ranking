@@ -176,6 +176,9 @@ class TrainingEngine {
         injuryFactor;
     if (_rng.nextDouble() < chance) {
       p.injuryWeeks = (p.injuryWeeks + 1 + _rng.nextInt(2)).clamp(1, 3);
+      p.injuryType = InjuryType.muscle;
+      p.injuryHistoryCounts[InjuryType.muscle.name] =
+          (p.injuryHistoryCounts[InjuryType.muscle.name] ?? 0) + 1;
     }
   }
 

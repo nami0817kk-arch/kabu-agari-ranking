@@ -46,6 +46,22 @@ class Team {
   String? freeKickTakerId;
   String? cornerTakerId;
 
+  /// 相手の攻撃時の要注意選手(キープレイヤー)にマンマークを付ける自チームの
+  /// 選手ID(未指名の場合はnull)。マーク対象は試合ごとにスカウティングレポートの
+  /// キープレイヤーとして動的に決まる。マーカーが出場している間、相手キー
+  /// プレイヤーの攻撃力への貢献が抑えられる。
+  String? manMarkerId;
+
+  /// 相手のセットプレー(コーナーキック・フリーキック)を守る担当の選手ID
+  /// (未指名の場合はnull)。指名されていて出場している場合、ヘディング・
+  /// ジャンプ力に応じて相手のセットプレー由来のチャンスの質を下げる。
+  String? setPieceDefenderId;
+
+  /// 逃げ切りモード。有効にすると自チームの攻撃力がやや下がる代わりに
+  /// 守備が安定し、時間を使うぶん疲労の蓄積も抑えられる。リードした
+  /// 終盤の采配として使う想定。
+  bool timeWastingMode;
+
   /// 保存済みの戦術プリセット(最大[maxTacticPresets]件)。
   List<TacticPreset> tacticPresets;
 
@@ -71,6 +87,9 @@ class Team {
     this.penaltyTakerId,
     this.freeKickTakerId,
     this.cornerTakerId,
+    this.manMarkerId,
+    this.setPieceDefenderId,
+    this.timeWastingMode = false,
     List<TacticPreset>? tacticPresets,
     Map<String, List<String>>? depthChartOrder,
   })  : startingXI = startingXI ?? [],
@@ -123,6 +142,9 @@ class Team {
         'penaltyTakerId': penaltyTakerId,
         'freeKickTakerId': freeKickTakerId,
         'cornerTakerId': cornerTakerId,
+        'manMarkerId': manMarkerId,
+        'setPieceDefenderId': setPieceDefenderId,
+        'timeWastingMode': timeWastingMode,
         'tacticPresets': tacticPresets.map((t) => t.toJson()).toList(),
         'depthChartOrder': depthChartOrder,
         'players': players.map((p) => p.toJson()).toList(),
@@ -153,6 +175,9 @@ class Team {
         penaltyTakerId: json['penaltyTakerId'] as String?,
         freeKickTakerId: json['freeKickTakerId'] as String?,
         cornerTakerId: json['cornerTakerId'] as String?,
+        manMarkerId: json['manMarkerId'] as String?,
+        setPieceDefenderId: json['setPieceDefenderId'] as String?,
+        timeWastingMode: json['timeWastingMode'] as bool? ?? false,
         tacticPresets: (json['tacticPresets'] as List?)
                 ?.map((e) => TacticPreset.fromJson(e as Map<String, dynamic>))
                 .toList() ??

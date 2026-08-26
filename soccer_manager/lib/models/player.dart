@@ -6,6 +6,24 @@ import 'training_focus.dart';
 /// Football Manager風の詳細ポジション（14種類）。
 enum Position { gk, dr, dc, dl, wbr, wbl, dm, mr, mc, ml, amr, amc, aml, st }
 
+/// 負傷の種類。種類ごとに典型的な療養期間が異なる。
+enum InjuryType { bruise, muscle, ligament }
+
+extension InjuryTypeInfo on InjuryType {
+  String get label => switch (this) {
+        InjuryType.bruise => '打撲',
+        InjuryType.muscle => '肉離れ',
+        InjuryType.ligament => '靭帯損傷',
+      };
+
+  /// 典型的な療養期間(週)の範囲。
+  (int min, int max) get durationRange => switch (this) {
+        InjuryType.bruise => (1, 2),
+        InjuryType.muscle => (2, 5),
+        InjuryType.ligament => (4, 10),
+      };
+}
+
 /// 大分類（GK/DEF/MID/ATT）。試合シミュレーションの攻撃力・守備力算出や
 /// トレーニング成長率の判定など、粗い分類で十分な処理に用いる。
 enum PositionGroup { gk, def, mid, att }
@@ -332,6 +350,12 @@ class Player {
   int morale;
   int injuryWeeks;
 
+  /// 現在負傷している場合の負傷の種類(負傷していない場合はnull)。
+  InjuryType? injuryType;
+
+  /// 過去に負ったことのある負傷の種類ごとの回数。再負傷のリスク判定に使う。
+  Map<String, int> injuryHistoryCounts;
+
   /// 現在の累積警告数(退場したリセットされる)。[yellowCardSuspensionThreshold]枚
   /// 貯まると次節出場停止になり0にリセットされる。
   int yellowCards;
@@ -425,6 +449,8 @@ class Player {
     this.fatigue = 0,
     this.morale = 75,
     this.injuryWeeks = 0,
+    this.injuryType,
+    Map<String, int>? injuryHistoryCounts,
     this.yellowCards = 0,
     this.suspendedMatches = 0,
     this.careerAppearances = 0,
@@ -451,7 +477,8 @@ class Player {
     this.drillAttributeKey,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50},
-        positionFamiliarity = positionFamiliarity ?? {};
+        positionFamiliarity = positionFamiliarity ?? {},
+        injuryHistoryCounts = injuryHistoryCounts ?? {};
 
   /// このポジション（主・副とも）を無理なくこなせるか。
   bool canPlay(Position pos) =>
@@ -568,6 +595,8 @@ class Player {
         'fatigue': fatigue,
         'morale': morale,
         'injuryWeeks': injuryWeeks,
+        'injuryType': injuryType?.name,
+        'injuryHistoryCounts': injuryHistoryCounts,
         'yellowCards': yellowCards,
         'suspendedMatches': suspendedMatches,
         'careerAppearances': careerAppearances,
@@ -617,6 +646,13 @@ class Player {
       fatigue: json['fatigue'] as int? ?? 0,
       morale: json['morale'] as int? ?? 75,
       injuryWeeks: json['injuryWeeks'] as int? ?? 0,
+      injuryType: json['injuryType'] == null
+          ? null
+          : InjuryType.values.byName(json['injuryType'] as String),
+      injuryHistoryCounts: (json['injuryHistoryCounts'] as Map?)?.map(
+            (k, v) => MapEntry(k as String, v as int),
+          ) ??
+          {},
       yellowCards: json['yellowCards'] as int? ?? 0,
       suspendedMatches: json['suspendedMatches'] as int? ?? 0,
       careerAppearances: json['careerAppearances'] as int? ?? 0,

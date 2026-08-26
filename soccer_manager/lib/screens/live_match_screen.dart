@@ -7,6 +7,7 @@ import '../game/pitch_game.dart';
 import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../models/team_talk.dart';
 import '../models/weather.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
@@ -339,6 +340,33 @@ class _HalfTimePanel extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey)),
               ],
             ),
+          ),
+          const Divider(height: 32),
+          Text('檄を飛ばす', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text('先発イレブンの士気を変動させる。選手の性格によって効果は変わる。',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final tone in TeamTalkTone.values)
+                Tooltip(
+                  message: tone.description,
+                  child: OutlinedButton(
+                    onPressed: () => gameState.giveTeamTalk(tone),
+                    child: Text(tone.label),
+                  ),
+                ),
+            ],
+          ),
+          const Divider(height: 32),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('逃げ切りモード'),
+            subtitle: const Text('攻撃力がやや下がる代わりに守備が安定し、疲労蓄積も抑えられる。'),
+            value: team.timeWastingMode,
+            onChanged: (v) => gameState.setTimeWastingMode(v),
           ),
           const Divider(height: 32),
           Text('戦術指示', style: Theme.of(context).textTheme.titleMedium),
