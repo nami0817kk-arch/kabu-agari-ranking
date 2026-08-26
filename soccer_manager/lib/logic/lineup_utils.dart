@@ -9,25 +9,36 @@ class LineupUtils {
   /// 残りの中で総合力が最も高い選手で埋める。
   static void autoFill(Team team) {
     final formation = team.formation;
-    final available =
-        team.players.where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut).toList();
+    final available = team.players
+        .where((p) =>
+            !p.isInjured &&
+            !p.isOnInternationalDuty &&
+            !p.isLoanedOut &&
+            !p.isSuspended)
+        .toList();
     final used = <Player>{};
 
     List<Player> candidatesFor(Position slot) {
-      final exact = available.where((p) => !used.contains(p) && p.position == slot).toList();
+      final exact = available
+          .where((p) => !used.contains(p) && p.position == slot)
+          .toList();
       if (exact.isNotEmpty) return exact;
-      final secondary =
-          available.where((p) => !used.contains(p) && p.secondaryPositions.contains(slot)).toList();
+      final secondary = available
+          .where(
+              (p) => !used.contains(p) && p.secondaryPositions.contains(slot))
+          .toList();
       if (secondary.isNotEmpty) return secondary;
-      final sameGroup =
-          available.where((p) => !used.contains(p) && p.position.group == slot.group).toList();
+      final sameGroup = available
+          .where((p) => !used.contains(p) && p.position.group == slot.group)
+          .toList();
       if (sameGroup.isNotEmpty) return sameGroup;
       return available.where((p) => !used.contains(p)).toList();
     }
 
     final xi = <Player>[];
     for (final slot in formation.slots) {
-      final candidates = candidatesFor(slot)..sort((a, b) => b.overall.compareTo(a.overall));
+      final candidates = candidatesFor(slot)
+        ..sort((a, b) => b.overall.compareTo(a.overall));
       if (candidates.isEmpty) continue;
       final chosen = candidates.first;
       used.add(chosen);

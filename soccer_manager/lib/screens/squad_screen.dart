@@ -120,6 +120,10 @@ class _SquadScreenState extends State<SquadScreen> {
             _LegendRow(
                 icon: Icons.flag, color: Colors.blueAccent, label: '代表召集中'),
             _LegendRow(
+                icon: Icons.block,
+                color: Colors.redAccent,
+                label: '出場停止中(警告累積または退場)'),
+            _LegendRow(
                 icon: Icons.flight_takeoff,
                 color: Colors.deepPurple,
                 label: '他クラブへローン放出中'),
@@ -281,6 +285,11 @@ class _SquadScreenState extends State<SquadScreen> {
                                 const Icon(Icons.flag,
                                     size: 16, color: Colors.blueAccent),
                               ],
+                              if (p.isSuspended) ...[
+                                const SizedBox(width: 6),
+                                const Icon(Icons.block,
+                                    size: 16, color: Colors.redAccent),
+                              ],
                               if (p.isLoanedOut) ...[
                                 const SizedBox(width: 6),
                                 const Icon(Icons.flight_takeoff,
@@ -296,12 +305,15 @@ class _SquadScreenState extends State<SquadScreen> {
                           subtitle: Text(
                             p.isInjured
                                 ? '負傷中（あと${p.injuryWeeks}週）'
-                                : p.isOnInternationalDuty
-                                    ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
-                                    : p.isLoanedOut
-                                        ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
-                                        : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}',
+                                : p.isSuspended
+                                    ? '出場停止（あと${p.suspendedMatches}試合）'
+                                    : p.isOnInternationalDuty
+                                        ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                                        : p.isLoanedOut
+                                            ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
+                                            : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}',
                             style: (p.isInjured ||
+                                    p.isSuspended ||
                                     p.isOnInternationalDuty ||
                                     p.isLoanedOut)
                                 ? const TextStyle(color: Colors.redAccent)

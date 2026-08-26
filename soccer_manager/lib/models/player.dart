@@ -114,7 +114,13 @@ extension PlayerDutyInfo on PlayerDuty {
 }
 
 /// 選手の性格。不満度(happiness)の変動しやすさや移籍希望の出やすさに影響する。
-enum PlayerPersonality { professional, balanced, ambitious, temperamental, loyal }
+enum PlayerPersonality {
+  professional,
+  balanced,
+  ambitious,
+  temperamental,
+  loyal
+}
 
 extension PlayerPersonalityInfo on PlayerPersonality {
   String get label {
@@ -244,6 +250,14 @@ class Player {
   int morale;
   int injuryWeeks;
 
+  /// 現在の累積警告数(退場したリセットされる)。[yellowCardSuspensionThreshold]枚
+  /// 貯まると次節出場停止になり0にリセットされる。
+  int yellowCards;
+
+  /// 出場停止の残り試合数(0なら出場停止でない)。退場は即1試合、
+  /// 警告累積は[yellowCardSuspensionThreshold]枚で1試合の出場停止。
+  int suspendedMatches;
+
   /// 個別のトレーニング方針。nullの場合はチームの既定方針に従う。
   TrainingFocus? individualFocus;
 
@@ -299,6 +313,8 @@ class Player {
     this.fatigue = 0,
     this.morale = 75,
     this.injuryWeeks = 0,
+    this.yellowCards = 0,
+    this.suspendedMatches = 0,
     this.individualFocus,
     this.wage = 20,
     this.contractWeeksRemaining = 20,
@@ -317,7 +333,8 @@ class Player {
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
 
   /// このポジション（主・副とも）を無理なくこなせるか。
-  bool canPlay(Position pos) => position == pos || secondaryPositions.contains(pos);
+  bool canPlay(Position pos) =>
+      position == pos || secondaryPositions.contains(pos);
 
   /// 不満度が性格ごとの閾値を下回り、移籍を希望しているかどうか。
   bool get wantsTransfer => happiness < personality.transferRequestThreshold;
@@ -382,6 +399,8 @@ class Player {
 
   bool get isInjured => injuryWeeks > 0;
 
+  bool get isSuspended => suspendedMatches > 0;
+
   bool get isOnInternationalDuty => internationalDutyWeeksRemaining > 0;
 
   /// 他クラブへローン放出中で、自クラブの試合には出場できない状態かどうか。
@@ -417,6 +436,8 @@ class Player {
         'fatigue': fatigue,
         'morale': morale,
         'injuryWeeks': injuryWeeks,
+        'yellowCards': yellowCards,
+        'suspendedMatches': suspendedMatches,
         'individualFocus': individualFocus?.name,
         'wage': wage,
         'contractWeeksRemaining': contractWeeksRemaining,
@@ -436,7 +457,10 @@ class Player {
   factory Player.fromJson(Map<String, dynamic> json) {
     final rawAttributes = json['attributes'] as Map<String, dynamic>?;
     final attributes = rawAttributes != null
-        ? {for (final k in AttributeKeys.all) k: (rawAttributes[k] as int?) ?? 50}
+        ? {
+            for (final k in AttributeKeys.all)
+              k: (rawAttributes[k] as int?) ?? 50
+          }
         : _migrateLegacyAttributes(json);
 
     return Player(
@@ -453,6 +477,8 @@ class Player {
       fatigue: json['fatigue'] as int? ?? 0,
       morale: json['morale'] as int? ?? 75,
       injuryWeeks: json['injuryWeeks'] as int? ?? 0,
+      yellowCards: json['yellowCards'] as int? ?? 0,
+      suspendedMatches: json['suspendedMatches'] as int? ?? 0,
       individualFocus: json['individualFocus'] == null
           ? null
           : TrainingFocus.values.byName(json['individualFocus'] as String),
@@ -465,8 +491,11 @@ class Player {
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
       releaseClause: json['releaseClause'] as int?,
-      internationalDutyWeeksRemaining: json['internationalDutyWeeksRemaining'] as int? ?? 0,
-      duty: json['duty'] == null ? PlayerDuty.support : PlayerDuty.values.byName(json['duty'] as String),
+      internationalDutyWeeksRemaining:
+          json['internationalDutyWeeksRemaining'] as int? ?? 0,
+      duty: json['duty'] == null
+          ? PlayerDuty.support
+          : PlayerDuty.values.byName(json['duty'] as String),
       isTransferListed: json['isTransferListed'] as bool? ?? false,
       loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
       loanedOutToClubName: json['loanedOutToClubName'] as String?,

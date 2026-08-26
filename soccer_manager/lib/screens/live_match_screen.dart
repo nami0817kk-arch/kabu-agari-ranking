@@ -427,6 +427,7 @@ class _StartingPlayerTile extends StatelessWidget {
         .where((p) =>
             !p.isInjured &&
             !p.isOnInternationalDuty &&
+            !p.isSuspended &&
             !team.startingXI.contains(p.id))
         .where((p) =>
             p.position == out.position ||

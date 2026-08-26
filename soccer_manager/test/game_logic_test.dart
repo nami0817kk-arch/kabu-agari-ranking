@@ -222,6 +222,90 @@ void main() {
     expect(result.awayGoals, greaterThanOrEqualTo(0));
   });
 
+  test('MatchEngine.lineupOf excludes suspended players from the starting XI',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'susp', name: 'Suspend FC', strengthTier: 60);
+    LineupUtils.autoFill(team);
+    final suspended =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    suspended.suspendedMatches = 1;
+
+    final lineup = MatchEngine.lineupOf(team);
+
+    expect(lineup.any((p) => p.id == suspended.id), isFalse);
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects only counts down suspensions for '
+      'players who actually sat the match out', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    // 出場停止中でスタメン対象外の選手(前節までに受けた出場停止): 今節を
+    // 消化したので1減るはず。
+    final benched =
+        home.players.firstWhere((p) => !home.startingXI.contains(p.id));
+    benched.suspendedMatches = 2;
+    // 今節に退場処分を受けるスタメン選手: 今節はまだ出場するので、退場の
+    // 出場停止は今節では消化されず、次節から適用されるはず(据え置きで1)。
+    final justSentOff =
+        home.players.firstWhere((p) => home.startingXI.contains(p.id));
+
+    MatchEngine.applyPostMatchEffects(
+      home: home,
+      away: away,
+      events: [
+        MatchEvent(
+          minute: 10,
+          teamId: home.id,
+          scorerName: justSentOff.name,
+          scorerId: justSentOff.id,
+          type: MatchEventType.redCard,
+        ),
+      ],
+    );
+
+    expect(benched.suspendedMatches, 1);
+    expect(justSentOff.suspendedMatches, 1);
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects suspends a player once yellow cards '
+      'reach the threshold, and resets the counter', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home2', name: 'Home FC 2', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away2', name: 'Away FC 2', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+
+    final player =
+        home.players.firstWhere((p) => home.startingXI.contains(p.id));
+    player.yellowCards = yellowCardSuspensionThreshold - 1;
+
+    MatchEngine.applyPostMatchEffects(
+      home: home,
+      away: away,
+      events: [
+        MatchEvent(
+          minute: 20,
+          teamId: home.id,
+          scorerName: player.name,
+          scorerId: player.id,
+          type: MatchEventType.yellowCard,
+        ),
+      ],
+    );
+
+    expect(player.yellowCards, 0);
+    expect(player.suspendedMatches, 1);
+  });
+
   test('GameState.scoutProspect deducts budget and adds a youth prospect',
       () async {
     final gameState = GameState();

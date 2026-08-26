@@ -112,6 +112,15 @@ class PlayerDetailScreen extends StatelessWidget {
                     color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),
             ),
+          if (p.isSuspended)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '出場停止中（あと${p.suspendedMatches}試合は出場不可）',
+                style: const TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold),
+              ),
+            ),
           if (p.isOnInternationalDuty)
             Padding(
               padding: const EdgeInsets.only(top: 8),

@@ -271,7 +271,8 @@ class _PitchView extends StatelessWidget {
       BuildContext context, Position slotPosition, Player? current) {
     final gameState = context.read<GameState>();
     final candidates = team.players
-        .where((p) => !p.isInjured && !p.isOnInternationalDuty)
+        .where(
+            (p) => !p.isInjured && !p.isOnInternationalDuty && !p.isSuspended)
         .where((p) => p.id != current?.id)
         .where((p) =>
             p.position == slotPosition ||
@@ -478,8 +479,10 @@ class _BenchTile extends StatelessWidget {
         .map((id) => team.players.firstWhere((pl) => pl.id == id))
         .where((pl) => pl.position == p.position)
         .length;
-    final canAdd =
-        !p.isInjured && !p.isOnInternationalDuty && currentInPosition < quota;
+    final canAdd = !p.isInjured &&
+        !p.isOnInternationalDuty &&
+        !p.isSuspended &&
+        currentInPosition < quota;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
@@ -489,11 +492,13 @@ class _BenchTile extends StatelessWidget {
         subtitle: Text(
           p.isInjured
               ? '負傷中（あと${p.injuryWeeks}週）'
-              : p.isOnInternationalDuty
-                  ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
-                  : '${p.age}歳 / 総合 ${p.overall}'
-                      '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
-          style: (p.isInjured || p.isOnInternationalDuty)
+              : p.isSuspended
+                  ? '出場停止（あと${p.suspendedMatches}試合）'
+                  : p.isOnInternationalDuty
+                      ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                      : '${p.age}歳 / 総合 ${p.overall}'
+                          '${p.secondaryPositions.isEmpty ? '' : ' / 対応: ${p.secondaryPositions.map((s) => s.label).join(', ')}'}',
+          style: (p.isInjured || p.isOnInternationalDuty || p.isSuspended)
               ? const TextStyle(color: Colors.redAccent)
               : null,
         ),

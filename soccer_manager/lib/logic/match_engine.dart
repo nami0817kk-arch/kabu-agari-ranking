@@ -5,19 +5,24 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../models/match_result.dart';
 
+/// この枚数の警告が貯まると次節出場停止になる(退場は即1試合出場停止)。
+const int yellowCardSuspensionThreshold = 5;
+
 /// 分単位区間([MatchEngine.simulateMinutes])1回分のスコア・イベント。
 class HalfResult {
   final int homeGoals;
   final int awayGoals;
   final List<MatchEvent> events;
 
-  const HalfResult({required this.homeGoals, required this.awayGoals, required this.events});
+  const HalfResult(
+      {required this.homeGoals, required this.awayGoals, required this.events});
 }
 
 class MatchEngine {
   static final Random _rng = Random();
 
-  static double _condition(Player p) => (1 - p.fatigue / 250) * (0.85 + p.morale / 500);
+  static double _condition(Player p) =>
+      (1 - p.fatigue / 250) * (0.85 + p.morale / 500);
 
   /// 先発11人を解決する。未設定・不整合な場合は負傷者を除いた総合力上位11人で代用する。
   static List<Player> lineupOf(Team t) {
@@ -26,12 +31,21 @@ class MatchEngine {
       final lineup = t.startingXI
           .map((id) => byId[id])
           .whereType<Player>()
-          .where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut)
+          .where((p) =>
+              !p.isInjured &&
+              !p.isOnInternationalDuty &&
+              !p.isLoanedOut &&
+              !p.isSuspended)
           .toList();
       if (lineup.length >= 7) return lineup;
     }
-    final available =
-        t.players.where((p) => !p.isInjured && !p.isOnInternationalDuty && !p.isLoanedOut).toList()
+    final available = t.players
+        .where((p) =>
+            !p.isInjured &&
+            !p.isOnInternationalDuty &&
+            !p.isLoanedOut &&
+            !p.isSuspended)
+        .toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
     return available.take(11).toList();
   }
@@ -52,7 +66,9 @@ class MatchEngine {
 
   static double _attackPower(Team t, List<Player> lineup) {
     final relevant = lineup
-        .where((p) => p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid)
+        .where((p) =>
+            p.position.group == PositionGroup.att ||
+            p.position.group == PositionGroup.mid)
         .toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(
@@ -62,12 +78,18 @@ class MatchEngine {
     final lineFactor = 1 + (t.lineHeight - 50) / 400;
     final widthFactor = 1 + (t.width - 50) / 500;
     final tempoFactor = 1 + (t.tempo - 50) / 500;
-    return (total / relevant.length) * t.formation.attackBias * lineFactor * widthFactor * tempoFactor;
+    return (total / relevant.length) *
+        t.formation.attackBias *
+        lineFactor *
+        widthFactor *
+        tempoFactor;
   }
 
   static double _defensePower(Team t, List<Player> lineup) {
     final relevant = lineup
-        .where((p) => p.position.group == PositionGroup.def || p.position.group == PositionGroup.gk)
+        .where((p) =>
+            p.position.group == PositionGroup.def ||
+            p.position.group == PositionGroup.gk)
         .toList();
     if (relevant.isEmpty) return 40;
     final total = relevant.fold<double>(
@@ -77,12 +99,18 @@ class MatchEngine {
     final pressFactor = 1 + (t.pressing - 50) / 400;
     final lineRiskFactor = 1 + (50 - t.lineHeight) / 500;
     final widthRiskFactor = 1 - (t.width - 50) / 800;
-    return (total / relevant.length) * t.formation.defenseBias * pressFactor * lineRiskFactor * widthRiskFactor;
+    return (total / relevant.length) *
+        t.formation.defenseBias *
+        pressFactor *
+        lineRiskFactor *
+        widthRiskFactor;
   }
 
   static Player? _pickScorer(List<Player> lineup) {
     final candidates = lineup
-        .where((p) => p.position.group == PositionGroup.att || p.position.group == PositionGroup.mid)
+        .where((p) =>
+            p.position.group == PositionGroup.att ||
+            p.position.group == PositionGroup.mid)
         .toList();
     if (candidates.isEmpty) return lineup.isNotEmpty ? lineup.first : null;
     final total = candidates.fold<int>(0, (s, p) => s + p.attack);
@@ -99,7 +127,8 @@ class MatchEngine {
     final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
     final tempoFatigueFactor = 1 + (t.tempo - 50) / 300;
     for (final p in lineup) {
-      final gain = (12 + _rng.nextInt(8)) * pressFatigueFactor * tempoFatigueFactor;
+      final gain =
+          (12 + _rng.nextInt(8)) * pressFatigueFactor * tempoFatigueFactor;
       p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
     }
   }
@@ -157,7 +186,8 @@ class MatchEngine {
     int awayGoals = 0;
     final span = endMinute - startMinute + 1;
 
-    final totalChances = ((9 + _rng.nextInt(8)) * span / 90).round().clamp(1, 20);
+    final totalChances =
+        ((9 + _rng.nextInt(8)) * span / 90).round().clamp(1, 20);
     final minutesUsed = <int>{};
     for (int i = 0; i < totalChances; i++) {
       int minute = startMinute;
@@ -179,7 +209,11 @@ class MatchEngine {
       final scoreProb = (0.30 + diff / 220).clamp(0.08, 0.65);
       if (_rng.nextDouble() < scoreProb) {
         final scorer = _pickScorer(attackingLineup);
-        events.add(MatchEvent(minute: minute, teamId: attackingTeam.id, scorerName: scorer?.name, scorerId: scorer?.id));
+        events.add(MatchEvent(
+            minute: minute,
+            teamId: attackingTeam.id,
+            scorerName: scorer?.name,
+            scorerId: scorer?.id));
         if (isHomeChance) {
           homeGoals++;
         } else {
@@ -188,7 +222,11 @@ class MatchEngine {
       } else if (_rng.nextDouble() < 0.45) {
         // 得点には至らなかった惜しいチャンスを実況として記録する。
         final shooter = _pickScorer(attackingLineup);
-        events.add(MatchEvent(minute: minute, teamId: attackingTeam.id, scorerName: shooter?.name, type: MatchEventType.chance));
+        events.add(MatchEvent(
+            minute: minute,
+            teamId: attackingTeam.id,
+            scorerName: shooter?.name,
+            type: MatchEventType.chance));
       }
     }
 
@@ -208,20 +246,27 @@ class MatchEngine {
         minute: minute,
         teamId: team.id,
         scorerName: target.name,
+        scorerId: target.id,
         type: isRed ? MatchEventType.redCard : MatchEventType.yellowCard,
       ));
+      // 警告・退場の累積処理は試合終了後にapplyPostMatchEffectsでまとめて行う
+      // (出場停止の消化判定より後に反映しないと、今節退場した選手の出場停止が
+      // 同じ試合の後処理で即座に解除されてしまうため)。
     }
 
     events.sort((a, b) => a.minute.compareTo(b.minute));
-    return HalfResult(homeGoals: homeGoals, awayGoals: awayGoals, events: events);
+    return HalfResult(
+        homeGoals: homeGoals, awayGoals: awayGoals, events: events);
   }
 
-  /// 試合終了後に一度だけ呼ぶ、疲労蓄積・負傷判定。
+  /// 試合終了後に一度だけ呼ぶ、疲労蓄積・負傷判定・出場停止の消化と新規カードの反映。
+  /// [events]はこの試合(前後半通し)で発生した全イベント。
   static void applyPostMatchEffects({
     required Team home,
     required Team away,
     double homeInjuryFactor = 1.0,
     double awayInjuryFactor = 1.0,
+    List<MatchEvent> events = const [],
   }) {
     final homeLineup = lineupOf(home);
     final awayLineup = lineupOf(away);
@@ -229,6 +274,48 @@ class MatchEngine {
     _applyFatigue(away, awayLineup);
     _rollInjuries(homeLineup, homeInjuryFactor);
     _rollInjuries(awayLineup, awayInjuryFactor);
+    // 出場停止の消化は既存の出場停止(前節以前に受けたもの)にのみ適用し、
+    // その後で今節に新たに受けたカードを反映する。
+    _advanceSuspensions(home, homeLineup);
+    _advanceSuspensions(away, awayLineup);
+    _applyCardAccumulation(home, away, events);
+  }
+
+  /// 出場停止選手のうち、今節の対象外だった(実際に1試合を消化した)選手だけ
+  /// 出場停止試合数を1減らす。今節新たに出場停止となった選手(今節は出場して
+  /// カードを受けた側)は対象外で、次節から出場停止が適用される。
+  static void _advanceSuspensions(Team t, List<Player> lineup) {
+    final lineupIds = lineup.map((p) => p.id).toSet();
+    for (final p in t.players) {
+      if (p.suspendedMatches > 0 && !lineupIds.contains(p.id)) {
+        p.suspendedMatches -= 1;
+      }
+    }
+  }
+
+  /// 今節発生した警告・退場イベントを選手の累積数に反映する。
+  static void _applyCardAccumulation(
+      Team home, Team away, List<MatchEvent> events) {
+    final byId = {
+      for (final p in [...home.players, ...away.players]) p.id: p,
+    };
+    for (final e in events) {
+      if (e.type != MatchEventType.yellowCard &&
+          e.type != MatchEventType.redCard) {
+        continue;
+      }
+      final target = byId[e.scorerId];
+      if (target == null) continue;
+      if (e.type == MatchEventType.redCard) {
+        target.suspendedMatches += 1;
+      } else {
+        target.yellowCards += 1;
+        if (target.yellowCards >= yellowCardSuspensionThreshold) {
+          target.yellowCards = 0;
+          target.suspendedMatches += 1;
+        }
+      }
+    }
   }
 
   /// 前半・後半をまとめて一括シミュレートする(CPU同士の試合・カップ戦など、
@@ -240,13 +327,16 @@ class MatchEngine {
     double homeInjuryFactor = 1.0,
     double awayInjuryFactor = 1.0,
   }) {
-    final first = simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
-    final second = simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
+    final first =
+        simulateMinutes(home: home, away: away, startMinute: 1, endMinute: 45);
+    final second =
+        simulateMinutes(home: home, away: away, startMinute: 46, endMinute: 90);
     applyPostMatchEffects(
       home: home,
       away: away,
       homeInjuryFactor: homeInjuryFactor,
       awayInjuryFactor: awayInjuryFactor,
+      events: [...first.events, ...second.events],
     );
 
     return MatchResult(
