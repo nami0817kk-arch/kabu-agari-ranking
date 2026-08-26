@@ -6,6 +6,8 @@ import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 
 enum TransferSortOption { overall, potential, marketValue, age }
 
@@ -115,12 +117,15 @@ class _TransferScreenState extends State<TransferScreen>
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildMarketTab(context, gameState, save, squadFull, players),
-          _buildFreeAgentTab(context, gameState, squadFull),
-        ],
+      drawer: const QuickAccessDrawer(),
+      body: ResponsiveBody(
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildMarketTab(context, gameState, save, squadFull, players),
+            _buildFreeAgentTab(context, gameState, squadFull),
+          ],
+        ),
       ),
     );
   }

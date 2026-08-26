@@ -6,6 +6,8 @@ import '../models/team.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 import 'player_compare_screen.dart';
 import 'player_detail_screen.dart';
 
@@ -192,6 +194,7 @@ class _SquadScreenState extends State<SquadScreen> {
           ),
         ],
       ),
+      drawer: const QuickAccessDrawer(),
       floatingActionButton: _compareMode && _selected.length == 2
           ? FloatingActionButton.extended(
               onPressed: () {
@@ -208,180 +211,184 @@ class _SquadScreenState extends State<SquadScreen> {
               label: const Text('比較する'),
             )
           : null,
-      body: Column(
-        children: [
-          if (!_compareMode) _SquadSummaryCard(team: team),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: PositionFilterBar(
-              value: _filterGroup,
-              onChanged: (g) => setState(() => _filterGroup = g),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) => setState(() => _query = v),
-              decoration: InputDecoration(
-                hintText: '選手名で検索',
-                prefixIcon: const Icon(Icons.search),
-                isDense: true,
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        tooltip: '検索をクリア',
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      ),
+      body: ResponsiveBody(
+        child: Column(
+          children: [
+            if (!_compareMode) _SquadSummaryCard(team: team),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+              child: PositionFilterBar(
+                value: _filterGroup,
+                onChanged: (g) => setState(() => _filterGroup = g),
               ),
             ),
-          ),
-          Expanded(
-            child: players.isEmpty
-                ? const Center(child: Text('該当する選手がいません'))
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    itemCount: players.length,
-                    itemBuilder: (context, i) {
-                      final p = players[i];
-                      final isStarting = team.startingXI.contains(p.id);
-                      final isSelected = _selected.contains(p.id);
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 4),
-                        child: ListTile(
-                          tileColor: isSelected
-                              ? Theme.of(context).colorScheme.secondaryContainer
-                              : isStarting
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withValues(alpha: 0.3)
-                                  : null,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          leading: _compareMode
-                              ? Checkbox(
-                                  value: isSelected,
-                                  onChanged: (_) => _toggleSelected(p.id))
-                              : PlayerFaceAvatar(
-                                  playerId: p.id,
-                                  position: p.position,
-                                  size: 40,
-                                  highlighted: isStarting),
-                          title: Row(
-                            children: [
-                              Flexible(
-                                  child: Text(p.name,
-                                      overflow: TextOverflow.ellipsis)),
-                              if (team.captainId == p.id) ...[
-                                const SizedBox(width: 6),
-                                Tooltip(
-                                  message: 'キャプテン',
-                                  child: CircleAvatar(
-                                    radius: 8,
-                                    backgroundColor: Colors.amber.shade700,
-                                    child: const Text('C',
-                                        style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                              ],
-                              if (team.viceCaptainId == p.id) ...[
-                                const SizedBox(width: 6),
-                                const Tooltip(
-                                  message: '副キャプテン',
-                                  child: CircleAvatar(
-                                    radius: 8,
-                                    backgroundColor: Colors.blueGrey,
-                                    child: Text('VC',
-                                        style: TextStyle(
-                                            fontSize: 8,
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold)),
-                                  ),
-                                ),
-                              ],
-                              if (p.isLoan) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.swap_horiz,
-                                    size: 16, color: Colors.indigo),
-                              ],
-                              if (p.wantsTransfer) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.sentiment_dissatisfied,
-                                    size: 16, color: Colors.redAccent),
-                              ],
-                              if (p.isOnInternationalDuty) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.flag,
-                                    size: 16, color: Colors.blueAccent),
-                              ],
-                              if (p.isSuspended) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.block,
-                                    size: 16, color: Colors.redAccent),
-                              ],
-                              if (p.isLoanedOut) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.flight_takeoff,
-                                    size: 16, color: Colors.deepPurple),
-                              ],
-                              if (p.isTransferListed) ...[
-                                const SizedBox(width: 6),
-                                const Icon(Icons.sell_outlined,
-                                    size: 16, color: Colors.orange),
-                              ],
-                            ],
-                          ),
-                          subtitle: Text(
-                            p.isInjured
-                                ? '負傷中（あと${p.injuryWeeks}週）'
-                                : p.isSuspended
-                                    ? '出場停止（あと${p.suspendedMatches}試合）'
-                                    : p.isOnInternationalDuty
-                                        ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
-                                        : p.isLoanedOut
-                                            ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
-                                            : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
-                                                '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}',
-                            style: (p.isInjured ||
-                                    p.isSuspended ||
-                                    p.isOnInternationalDuty ||
-                                    p.isLoanedOut)
-                                ? const TextStyle(color: Colors.redAccent)
-                                : null,
-                          ),
-                          trailing: _compareMode
-                              ? Text('${p.overall}',
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium)
-                              : p.fatigue > 70
-                                  ? const Icon(Icons.battery_alert,
-                                      color: Colors.orange)
-                                  : Text('${p.overall}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium),
-                          onTap: _compareMode
-                              ? () => _toggleSelected(p.id)
-                              : () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                        builder: (_) =>
-                                            PlayerDetailScreen(playerId: p.id)),
-                                  ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  hintText: '選手名で検索',
+                  prefixIcon: const Icon(Icons.search),
+                  isDense: true,
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.clear),
+                          tooltip: '検索をクリア',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _query = '');
+                          },
                         ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: players.isEmpty
+                  ? const Center(child: Text('該当する選手がいません'))
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: players.length,
+                      itemBuilder: (context, i) {
+                        final p = players[i];
+                        final isStarting = team.startingXI.contains(p.id);
+                        final isSelected = _selected.contains(p.id);
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          child: ListTile(
+                            tileColor: isSelected
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .secondaryContainer
+                                : isStarting
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .primaryContainer
+                                        .withValues(alpha: 0.3)
+                                    : null,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            leading: _compareMode
+                                ? Checkbox(
+                                    value: isSelected,
+                                    onChanged: (_) => _toggleSelected(p.id))
+                                : PlayerFaceAvatar(
+                                    playerId: p.id,
+                                    position: p.position,
+                                    size: 40,
+                                    highlighted: isStarting),
+                            title: Row(
+                              children: [
+                                Flexible(
+                                    child: Text(p.name,
+                                        overflow: TextOverflow.ellipsis)),
+                                if (team.captainId == p.id) ...[
+                                  const SizedBox(width: 6),
+                                  Tooltip(
+                                    message: 'キャプテン',
+                                    child: CircleAvatar(
+                                      radius: 8,
+                                      backgroundColor: Colors.amber.shade700,
+                                      child: const Text('C',
+                                          style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ],
+                                if (team.viceCaptainId == p.id) ...[
+                                  const SizedBox(width: 6),
+                                  const Tooltip(
+                                    message: '副キャプテン',
+                                    child: CircleAvatar(
+                                      radius: 8,
+                                      backgroundColor: Colors.blueGrey,
+                                      child: Text('VC',
+                                          style: TextStyle(
+                                              fontSize: 8,
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                ],
+                                if (p.isLoan) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.swap_horiz,
+                                      size: 16, color: Colors.indigo),
+                                ],
+                                if (p.wantsTransfer) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.sentiment_dissatisfied,
+                                      size: 16, color: Colors.redAccent),
+                                ],
+                                if (p.isOnInternationalDuty) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.flag,
+                                      size: 16, color: Colors.blueAccent),
+                                ],
+                                if (p.isSuspended) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.block,
+                                      size: 16, color: Colors.redAccent),
+                                ],
+                                if (p.isLoanedOut) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.flight_takeoff,
+                                      size: 16, color: Colors.deepPurple),
+                                ],
+                                if (p.isTransferListed) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.sell_outlined,
+                                      size: 16, color: Colors.orange),
+                                ],
+                              ],
+                            ),
+                            subtitle: Text(
+                              p.isInjured
+                                  ? '負傷中（あと${p.injuryWeeks}週）'
+                                  : p.isSuspended
+                                      ? '出場停止（あと${p.suspendedMatches}試合）'
+                                      : p.isOnInternationalDuty
+                                          ? '代表召集中（あと${p.internationalDutyWeeksRemaining}週）'
+                                          : p.isLoanedOut
+                                              ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
+                                              : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
+                                                  '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}',
+                              style: (p.isInjured ||
+                                      p.isSuspended ||
+                                      p.isOnInternationalDuty ||
+                                      p.isLoanedOut)
+                                  ? const TextStyle(color: Colors.redAccent)
+                                  : null,
+                            ),
+                            trailing: _compareMode
+                                ? Text('${p.overall}',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium)
+                                : p.fatigue > 70
+                                    ? const Icon(Icons.battery_alert,
+                                        color: Colors.orange)
+                                    : Text('${p.overall}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium),
+                            onTap: _compareMode
+                                ? () => _toggleSelected(p.id)
+                                : () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                          builder: (_) => PlayerDetailScreen(
+                                              playerId: p.id)),
+                                    ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

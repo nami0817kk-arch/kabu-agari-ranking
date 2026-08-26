@@ -7,6 +7,8 @@ import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/club_emblem.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 
 /// 大陸カップ出場資格が得られる順位(GameState.startNextSeasonの`finalRank <= 2`と一致)。
 const int _continentalQualifyCount = 2;
@@ -42,11 +44,14 @@ class FixturesScreen extends StatelessWidget {
             ),
           ],
         ),
-        body: TabBarView(
-          children: [
-            _StandingsTab(league: league, userTeamId: userTeamId),
-            _ScheduleTab(league: league, userTeamId: userTeamId),
-          ],
+        drawer: const QuickAccessDrawer(),
+        body: ResponsiveBody(
+          child: TabBarView(
+            children: [
+              _StandingsTab(league: league, userTeamId: userTeamId),
+              _ScheduleTab(league: league, userTeamId: userTeamId),
+            ],
+          ),
         ),
       ),
     );

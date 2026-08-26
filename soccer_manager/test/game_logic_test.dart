@@ -42,6 +42,7 @@ import 'package:soccer_manager/models/weather.dart';
 import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/transfer_screen.dart';
 import 'package:soccer_manager/screens/young_talent_screen.dart';
+import 'package:soccer_manager/screens/youth_screen.dart';
 import 'package:soccer_manager/state/game_state.dart';
 import 'package:soccer_manager/widgets/formation_layout.dart';
 
@@ -3482,5 +3483,85 @@ void main() {
 
     expect(injured.injuryWeeks, 0);
     expect(injured.matchSharpness, lessThanOrEqualTo(40));
+  });
+
+  test(
+      'Team.depthChartFor sorts by overall by default and honors a manual '
+      'override, self-healing when players leave or join', () {
+    Player make(String id, int overall) {
+      final p = Player(
+          id: id, name: id, age: 20, position: Position.mc, potential: 70);
+      for (final key in AttributeKeys.all) {
+        p.setAttributeValue(key, overall);
+      }
+      return p;
+    }
+
+    final a = make('a', 60);
+    final b = make('b', 80);
+    final c = make('c', 70);
+    final team = Team(id: 't', name: 'T', players: [a, b, c]);
+
+    expect(team.depthChartFor(Position.mc).map((p) => p.id), ['b', 'c', 'a']);
+
+    team.depthChartOrder[Position.mc.name] = ['a', 'b', 'c'];
+    expect(team.depthChartFor(Position.mc).map((p) => p.id), ['a', 'b', 'c']);
+
+    team.players = [a, c];
+    expect(team.depthChartFor(Position.mc).map((p) => p.id), ['a', 'c']);
+
+    final d = make('d', 90);
+    team.players = [a, c, d];
+    expect(team.depthChartFor(Position.mc).map((p) => p.id), ['a', 'c', 'd']);
+  });
+
+  test('GameState.reorderDepthChart moves a player to the given index',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    final gks = team.depthChartFor(Position.gk).map((p) => p.id).toList();
+    if (gks.length < 2) return;
+
+    gameState.reorderDepthChart(Position.gk, 0, 1);
+
+    final reordered = team.depthChartFor(Position.gk).map((p) => p.id);
+    expect(reordered.first, gks[1]);
+    expect(reordered.elementAt(1), gks[0]);
+  });
+
+  test('YouthScreen.filterAndSort filters by search query and sorts', () {
+    Player make(String id, {required int age, required int potential}) {
+      final p = Player(
+          id: id,
+          name: id,
+          age: age,
+          position: Position.mc,
+          potential: potential);
+      for (final key in AttributeKeys.all) {
+        p.setAttributeValue(key, 50);
+      }
+      return p;
+    }
+
+    final young = make('young', age: 17, potential: 90);
+    final old = make('old', age: 25, potential: 55);
+    final all = [old, young];
+
+    expect(YouthScreen.filterAndSort(all, sort: YouthSortOption.age).first.id,
+        'young');
+    expect(
+        YouthScreen.filterAndSort(all, sort: YouthSortOption.potential)
+            .first
+            .id,
+        'young');
+    expect(
+        YouthScreen.filterAndSort(all, sort: YouthSortOption.wonderkidGap)
+            .first
+            .id,
+        'young');
+
+    final searched = YouthScreen.filterAndSort(all, query: 'young');
+    expect(searched.map((p) => p.id), ['young']);
   });
 }

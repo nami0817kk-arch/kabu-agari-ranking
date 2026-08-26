@@ -45,6 +45,10 @@ class Team {
   /// 保存済みの戦術プリセット(最大[maxTacticPresets]件)。
   List<TacticPreset> tacticPresets;
 
+  /// デプスチャートの手動並び替え結果(Position.name → 選手IDの優先順)。
+  /// 未設定のポジションは総合力順で自動表示する。
+  Map<String, List<String>> depthChartOrder;
+
   Team({
     required this.id,
     required this.name,
@@ -63,13 +67,38 @@ class Team {
     this.freeKickTakerId,
     this.cornerTakerId,
     List<TacticPreset>? tacticPresets,
+    Map<String, List<String>>? depthChartOrder,
   })  : startingXI = startingXI ?? [],
-        tacticPresets = tacticPresets ?? [];
+        tacticPresets = tacticPresets ?? [],
+        depthChartOrder = depthChartOrder ?? {};
 
   int get overallRating {
     if (players.isEmpty) return 0;
     final sum = players.fold<int>(0, (s, p) => s + p.overall);
     return (sum / players.length).round();
+  }
+
+  /// 指定ポジションを主戦場とする選手を、控え順(デプスチャート)の順で返す。
+  /// 手動で並び替えた順序があればそれを優先し、未設定なら総合力の高い順。
+  /// 並び替え後にチームを離れた選手は自動的に除外され、新加入者は
+  /// 総合力順で末尾に追加される。
+  List<Player> depthChartFor(Position position) {
+    final owned = players.where((p) => p.position == position).toList();
+    final overrideIds = depthChartOrder[position.name];
+    if (overrideIds == null) {
+      owned.sort((a, b) => b.overall.compareTo(a.overall));
+      return owned;
+    }
+    final byId = {for (final p in owned) p.id: p};
+    final ordered = <Player>[];
+    for (final id in overrideIds) {
+      final p = byId.remove(id);
+      if (p != null) ordered.add(p);
+    }
+    final remaining = byId.values.toList()
+      ..sort((a, b) => b.overall.compareTo(a.overall));
+    ordered.addAll(remaining);
+    return ordered;
   }
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +118,7 @@ class Team {
         'freeKickTakerId': freeKickTakerId,
         'cornerTakerId': cornerTakerId,
         'tacticPresets': tacticPresets.map((t) => t.toJson()).toList(),
+        'depthChartOrder': depthChartOrder,
         'players': players.map((p) => p.toJson()).toList(),
       };
 
@@ -117,6 +147,11 @@ class Team {
                 ?.map((e) => TacticPreset.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        depthChartOrder: (json['depthChartOrder'] as Map?)?.map(
+              (k, v) => MapEntry(
+                  k as String, (v as List).map((e) => e as String).toList()),
+            ) ??
+            {},
         players: (json['players'] as List)
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),

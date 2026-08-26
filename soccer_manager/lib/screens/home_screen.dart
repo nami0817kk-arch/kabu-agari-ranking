@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../data/quick_access_destinations.dart';
 import '../models/formation.dart';
 import '../models/incoming_offer.dart';
 import '../models/league.dart';
@@ -10,24 +11,13 @@ import '../services/feedback_service.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
-import 'awards_screen.dart';
-import 'best_eleven_screen.dart';
-import 'club_screen.dart';
-import 'cup_screen.dart';
-import 'hall_of_fame_screen.dart';
-import 'finance_screen.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 import 'live_match_screen.dart';
-import 'manager_career_screen.dart';
 import 'match_screen.dart';
-import 'settings_screen.dart';
 import 'scout_report_screen.dart';
-import 'season_history_screen.dart';
 import 'start_screen.dart';
-import 'training_screen.dart';
-import 'transfer_screen.dart';
-import 'young_talent_screen.dart';
 import 'youth_intake_screen.dart';
-import 'youth_screen.dart';
 
 /// 移籍オファーを選手ごとにグループ化し、各グループ内は金額の高い順に並べる
 /// (複数クラブが競合している場合、最高額が先頭に来る)。
@@ -71,435 +61,363 @@ class HomeScreen extends StatelessWidget {
       label: 'シーズンを更新しています…',
       child: Scaffold(
         appBar: AppBar(title: Text(save.clubName)),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        drawer: const QuickAccessDrawer(),
+        body: ResponsiveBody(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                              '${gameState.leagueDisplayName} シーズン${league.season}',
+                              style: Theme.of(context).textTheme.titleMedium),
+                          Chip(label: Text(userTeam.formation.label)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text('目標: ${save.boardTargetRank}位以内',
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              LayoutBuilder(
+                builder: (context, constraints) => GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: constraints.maxWidth > 500 ? 3 : 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 2.1,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                            '${gameState.leagueDisplayName} シーズン${league.season}',
-                            style: Theme.of(context).textTheme.titleMedium),
-                        Chip(label: Text(userTeam.formation.label)),
-                      ],
+                    _StatTile(
+                      icon: Icons.emoji_events,
+                      label: '順位',
+                      value: '$userRank / ${standings.length}',
+                      color: Colors.amber.shade800,
                     ),
-                    const SizedBox(height: 4),
-                    Text('目標: ${save.boardTargetRank}位以内',
-                        style: TextStyle(color: scheme.onSurfaceVariant)),
+                    _StatTile(
+                      icon: Icons.account_balance_wallet,
+                      label: '資金',
+                      value: '${save.budget}万円',
+                      sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
+                      color: net >= 0
+                          ? SemanticColors.positive(context)
+                          : SemanticColors.negative(context),
+                    ),
+                    _StatTile(
+                      icon: Icons.bar_chart,
+                      label: '平均総合力',
+                      value: '${userTeam.overallRating}',
+                      color: Colors.blue.shade700,
+                    ),
+                    _StatTile(
+                      icon: Icons.shield,
+                      label: '監督への信頼度',
+                      value: '${save.confidence}',
+                      progress: save.confidence / 100,
+                      color: save.confidence <= 25
+                          ? Colors.redAccent
+                          : Colors.teal.shade700,
+                    ),
+                    _StatTile(
+                      icon: Icons.star,
+                      label: '監督としての評価',
+                      value: '${gameState.managerReputation}',
+                      progress: gameState.managerReputation / 100,
+                      color: Colors.deepPurple,
+                    ),
+                    _StatTile(
+                      icon: Icons.groups,
+                      label: '観客動員',
+                      value:
+                          '${gameState.lastMatchAttendance ?? gameState.expectedAttendance}人',
+                      sub: '収容人数 ${gameState.stadiumCapacity}人',
+                      color: Colors.brown.shade600,
+                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 4),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 2.1,
-              children: [
-                _StatTile(
-                  icon: Icons.emoji_events,
-                  label: '順位',
-                  value: '$userRank / ${standings.length}',
-                  color: Colors.amber.shade800,
-                ),
-                _StatTile(
-                  icon: Icons.account_balance_wallet,
-                  label: '資金',
-                  value: '${save.budget}万円',
-                  sub: '週収支 ${net >= 0 ? '+' : ''}$net万円',
-                  color: net >= 0
-                      ? SemanticColors.positive(context)
-                      : SemanticColors.negative(context),
-                ),
-                _StatTile(
-                  icon: Icons.bar_chart,
-                  label: '平均総合力',
-                  value: '${userTeam.overallRating}',
-                  color: Colors.blue.shade700,
-                ),
-                _StatTile(
-                  icon: Icons.shield,
-                  label: '監督への信頼度',
-                  value: '${save.confidence}',
-                  progress: save.confidence / 100,
-                  color: save.confidence <= 25
-                      ? Colors.redAccent
-                      : Colors.teal.shade700,
-                ),
-                _StatTile(
-                  icon: Icons.star,
-                  label: '監督としての評価',
-                  value: '${gameState.managerReputation}',
-                  progress: gameState.managerReputation / 100,
-                  color: Colors.deepPurple,
-                ),
-                _StatTile(
-                  icon: Icons.groups,
-                  label: '観客動員',
-                  value:
-                      '${gameState.lastMatchAttendance ?? gameState.expectedAttendance}人',
-                  sub: '収容人数 ${gameState.stadiumCapacity}人',
-                  color: Colors.brown.shade600,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (gameState.pendingBoardReviewMessage != null)
-              Card(
-                color: Colors.indigo.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.gavel, color: Colors.indigo.shade700),
-                          const SizedBox(width: 8),
-                          Text('シーズン中盤 理事会レビュー',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(color: Colors.indigo.shade900)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(gameState.pendingBoardReviewMessage!),
-                      const SizedBox(height: 8),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {
-                            FeedbackService.tap();
-                            gameState.dismissBoardReview();
-                          },
-                          child: const Text('了解した'),
+              const SizedBox(height: 12),
+              if (gameState.pendingBoardReviewMessage != null)
+                Card(
+                  color: Colors.indigo.shade50,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.gavel, color: Colors.indigo.shade700),
+                            const SizedBox(width: 8),
+                            Text('シーズン中盤 理事会レビュー',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(color: Colors.indigo.shade900)),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (gameState.pendingPressConference != null)
-              _PressConferenceCard(gameState: gameState),
-            if (gameState.pendingJobOfferTeam != null)
-              _JobOfferCard(gameState: gameState),
-            if (gameState.pendingSuperCup != null)
-              _SuperCupCard(gameState: gameState),
-            if (gameState.pendingYouthIntake.isNotEmpty)
-              Card(
-                color: scheme.secondaryContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.emoji_people),
-                  title: const Text('ユースインテーク'),
-                  subtitle: Text(
-                      '${gameState.pendingYouthIntake.length}名の新人候補が加入を待っています'),
-                  trailing: FilledButton(
-                    onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) => const YouthIntakeScreen())),
-                    child: const Text('選抜する'),
-                  ),
-                ),
-              ),
-            if (gameState.incomingOffers.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('移籍オファー',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      for (final entry in _groupOffersByPlayer(gameState))
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (entry.length > 1)
-                                Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Text(
-                                    '${entry.first.playerName}に競合オファー',
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange.shade800),
-                                  ),
-                                ),
-                              for (int i = 0; i < entry.length; i++)
-                                Row(
-                                  children: [
-                                    if (entry.length > 1 && i == 0)
-                                      const Padding(
-                                        padding: EdgeInsets.only(right: 4),
-                                        child: Icon(Icons.star,
-                                            size: 14, color: Colors.amber),
-                                      ),
-                                    Expanded(
-                                        child: Text(
-                                            '${entry[i].buyerClubName}が${entry[i].playerName}に${entry[i].amount}万円')),
-                                    TextButton(
-                                      onPressed: () {
-                                        FeedbackService.tap();
-                                        gameState
-                                            .declineIncomingOffer(entry[i].id);
-                                      },
-                                      child: const Text('拒否'),
-                                    ),
-                                    FilledButton(
-                                      onPressed: !gameState.isTransferWindowOpen
-                                          ? null
-                                          : () {
-                                              FeedbackService.success();
-                                              gameState.acceptIncomingOffer(
-                                                  entry[i].id);
-                                            },
-                                      child: const Text('承諾'),
-                                    ),
-                                  ],
-                                ),
-                            ],
+                        const SizedBox(height: 8),
+                        Text(gameState.pendingBoardReviewMessage!),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              FeedbackService.tap();
+                              gameState.dismissBoardReview();
+                            },
+                            child: const Text('了解した'),
                           ),
                         ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            if (!seasonComplete && save.friendlies.any((f) => f.result == null))
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('親善試合',
-                          style: Theme.of(context).textTheme.titleSmall),
-                      for (int i = 0; i < save.friendlies.length; i++)
-                        if (save.friendlies[i].result == null)
+              if (gameState.pendingPressConference != null)
+                _PressConferenceCard(gameState: gameState),
+              if (gameState.pendingJobOfferTeam != null)
+                _JobOfferCard(gameState: gameState),
+              if (gameState.pendingSuperCup != null)
+                _SuperCupCard(gameState: gameState),
+              if (gameState.pendingYouthIntake.isNotEmpty)
+                Card(
+                  color: scheme.secondaryContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.emoji_people),
+                    title: const Text('ユースインテーク'),
+                    subtitle: Text(
+                        '${gameState.pendingYouthIntake.length}名の新人候補が加入を待っています'),
+                    trailing: FilledButton(
+                      onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const YouthIntakeScreen())),
+                      child: const Text('選抜する'),
+                    ),
+                  ),
+                ),
+              if (gameState.incomingOffers.isNotEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('移籍オファー',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        for (final entry in _groupOffersByPlayer(gameState))
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                    child: Text(_fixtureLabel(
-                                        league, save.friendlies[i]))),
-                                OutlinedButton(
-                                  onPressed: () => _playFriendly(context, i),
-                                  child: const Text('開催'),
-                                ),
-                              ],
-                            ),
-                          ),
-                    ],
-                  ),
-                ),
-              ),
-            if (seasonComplete)
-              Card(
-                color: scheme.primaryContainer,
-                child: ListTile(
-                  leading: const Icon(Icons.flag),
-                  title: const Text('シーズン終了！'),
-                  subtitle: Text('最終順位: $userRank位'),
-                  trailing: FilledButton(
-                    onPressed: () => _startNextSeason(context),
-                    child: const Text('次のシーズンへ'),
-                  ),
-                ),
-              )
-            else if (next != null)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          ClubEmblem(
-                            teamId: next.homeTeamId == userTeam.id
-                                ? next.awayTeamId
-                                : next.homeTeamId,
-                            teamName: league.teams
-                                .firstWhere((t) =>
-                                    t.id ==
-                                    (next.homeTeamId == userTeam.id
-                                        ? next.awayTeamId
-                                        : next.homeTeamId))
-                                .name,
-                            size: 40,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Text('第${next.matchday}節'),
-                                    if (gameState.isRivalFixture(next)) ...[
-                                      const SizedBox(width: 6),
-                                      const Chip(
-                                        label: Text('ダービー',
-                                            style: TextStyle(fontSize: 11)),
-                                        backgroundColor: Colors.redAccent,
-                                        labelStyle:
-                                            TextStyle(color: Colors.white),
-                                        visualDensity: VisualDensity.compact,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
+                                if (entry.length > 1)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: Text(
+                                      '${entry.first.playerName}に競合オファー',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange.shade800),
+                                    ),
+                                  ),
+                                for (int i = 0; i < entry.length; i++)
+                                  Row(
+                                    children: [
+                                      if (entry.length > 1 && i == 0)
+                                        const Padding(
+                                          padding: EdgeInsets.only(right: 4),
+                                          child: Icon(Icons.star,
+                                              size: 14, color: Colors.amber),
+                                        ),
+                                      Expanded(
+                                          child: Text(
+                                              '${entry[i].buyerClubName}が${entry[i].playerName}に${entry[i].amount}万円')),
+                                      TextButton(
+                                        onPressed: () {
+                                          FeedbackService.tap();
+                                          gameState.declineIncomingOffer(
+                                              entry[i].id);
+                                        },
+                                        child: const Text('拒否'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: !gameState
+                                                .isTransferWindowOpen
+                                            ? null
+                                            : () {
+                                                FeedbackService.success();
+                                                gameState.acceptIncomingOffer(
+                                                    entry[i].id);
+                                              },
+                                        child: const Text('承諾'),
                                       ),
                                     ],
-                                  ],
-                                ),
-                                Text(_fixtureLabel(league, next),
-                                    style: const TextStyle(color: Colors.grey)),
+                                  ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () => _playMatch(context),
-                        child: const Text('試合を行う'),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          TextButton(
-                            onPressed: () => _quickSimNextMatch(context, next),
-                            child: const Text('結果だけ見る',
-                                style: TextStyle(fontSize: 12)),
-                          ),
-                          TextButton(
-                            onPressed: () => _showScoutReport(context, next),
-                            child: const Text('偵察レポート',
-                                style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
+              if (!seasonComplete &&
+                  save.friendlies.any((f) => f.result == null))
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('親善試合',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        for (int i = 0; i < save.friendlies.length; i++)
+                          if (save.friendlies[i].result == null)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                      child: Text(_fixtureLabel(
+                                          league, save.friendlies[i]))),
+                                  OutlinedButton(
+                                    onPressed: () => _playFriendly(context, i),
+                                    child: const Text('開催'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (seasonComplete)
+                Card(
+                  color: scheme.primaryContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.flag),
+                    title: const Text('シーズン終了！'),
+                    subtitle: Text('最終順位: $userRank位'),
+                    trailing: FilledButton(
+                      onPressed: () => _startNextSeason(context),
+                      child: const Text('次のシーズンへ'),
+                    ),
+                  ),
+                )
+              else if (next != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            ClubEmblem(
+                              teamId: next.homeTeamId == userTeam.id
+                                  ? next.awayTeamId
+                                  : next.homeTeamId,
+                              teamName: league.teams
+                                  .firstWhere((t) =>
+                                      t.id ==
+                                      (next.homeTeamId == userTeam.id
+                                          ? next.awayTeamId
+                                          : next.homeTeamId))
+                                  .name,
+                              size: 40,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text('第${next.matchday}節'),
+                                      if (gameState.isRivalFixture(next)) ...[
+                                        const SizedBox(width: 6),
+                                        const Chip(
+                                          label: Text('ダービー',
+                                              style: TextStyle(fontSize: 11)),
+                                          backgroundColor: Colors.redAccent,
+                                          labelStyle:
+                                              TextStyle(color: Colors.white),
+                                          visualDensity: VisualDensity.compact,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  Text(_fixtureLabel(league, next),
+                                      style:
+                                          const TextStyle(color: Colors.grey)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton(
+                          onPressed: () => _playMatch(context),
+                          child: const Text('試合を行う'),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            TextButton(
+                              onPressed: () =>
+                                  _quickSimNextMatch(context, next),
+                              child: const Text('結果だけ見る',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                            TextButton(
+                              onPressed: () => _showScoutReport(context, next),
+                              child: const Text('偵察レポート',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text('クラブ運営', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              LayoutBuilder(
+                builder: (context, constraints) => GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: constraints.maxWidth > 500 ? 3 : 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childAspectRatio: 1.5,
+                  children: [
+                    for (final dest in quickAccessDestinations)
+                      _ActionTile(
+                        icon: dest.icon,
+                        label: dest.label,
+                        color: dest.color,
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: dest.builder)),
+                      ),
+                  ],
+                ),
               ),
-            const SizedBox(height: 16),
-            Text('クラブ運営', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.5,
-              children: [
-                _ActionTile(
-                  icon: Icons.fitness_center,
-                  label: 'トレーニング',
-                  color: Colors.deepOrange.shade400,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const TrainingScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.swap_horiz,
-                  label: '移籍市場',
-                  color: Colors.indigo.shade400,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const TransferScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.emoji_people,
-                  label: 'ユース・スカウト',
-                  color: Colors.teal.shade400,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const YouthScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.account_balance,
-                  label: 'クラブ経営',
-                  color: Colors.brown.shade400,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FinanceScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.apartment,
-                  label: '施設・スタッフ',
-                  color: Colors.blueGrey.shade400,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ClubScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.emoji_events,
-                  label: 'カップ戦',
-                  color: Colors.purple.shade400,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const CupScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.military_tech,
-                  label: '個人タイトル',
-                  color: Colors.amber.shade700,
-                  onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AwardsScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.workspace_premium,
-                  label: '監督キャリア',
-                  color: Colors.indigo.shade700,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const ManagerCareerScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.settings,
-                  label: '設定',
-                  color: Colors.blueGrey.shade700,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SettingsScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.stars,
-                  label: '若手ランキング',
-                  color: Colors.deepPurple.shade400,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const YoungTalentScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.history,
-                  label: 'シーズン成績',
-                  color: Colors.teal.shade700,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const SeasonHistoryScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.groups,
-                  label: 'ベストイレブン',
-                  color: Colors.orange.shade700,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const BestElevenScreen())),
-                ),
-                _ActionTile(
-                  icon: Icons.stars,
-                  label: '殿堂',
-                  color: Colors.brown.shade700,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const HallOfFameScreen())),
-                ),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

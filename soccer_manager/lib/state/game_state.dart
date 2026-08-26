@@ -577,6 +577,20 @@ class GameState extends ChangeNotifier {
     _persist();
   }
 
+  /// デプスチャート(ポジション別控え順)を手動で入れ替える。
+  /// [oldIndex]/[newIndex]は`ReorderableListView.onReorderItem`から渡される
+  /// 値をそのまま使う想定(newIndexは削除後の挿入位置に調整済み)。
+  void reorderDepthChart(Position position, int oldIndex, int newIndex) {
+    if (_save == null) return;
+    final team = userTeam;
+    final current = team.depthChartFor(position).map((p) => p.id).toList();
+    final id = current.removeAt(oldIndex);
+    current.insert(newIndex, id);
+    team.depthChartOrder[position.name] = current;
+    notifyListeners();
+    _persist();
+  }
+
   void autoFillStartingXI() {
     if (_save == null) return;
     LineupUtils.autoFill(userTeam);

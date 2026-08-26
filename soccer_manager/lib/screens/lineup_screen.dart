@@ -11,9 +11,35 @@ import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/formation_layout.dart';
 import '../widgets/player_face_avatar.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 
 class LineupScreen extends StatelessWidget {
   const LineupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('スタメン・戦術'),
+          bottom: const TabBar(tabs: [Tab(text: 'フォーメーション'), Tab(text: '戦術')]),
+        ),
+        drawer: const QuickAccessDrawer(),
+        body: const ResponsiveBody(
+          child: TabBarView(
+            children: [_FormationTab(), _TacticsTab()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// スタメン編成・ピッチ表示・ベンチを扱うタブ。「誰が、どこで出るか」に集中する。
+class _FormationTab extends StatelessWidget {
+  const _FormationTab();
 
   @override
   Widget build(BuildContext context) {
@@ -25,192 +51,191 @@ class LineupScreen extends StatelessWidget {
         .toList()
       ..sort((a, b) => a.position.index.compareTo(b.position.index));
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('スタメン・戦術')),
-      body: ListView(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                const Text('フォーメーション: '),
-                const SizedBox(width: 8),
-                DropdownButton<Formation>(
-                  value: formation,
-                  items: Formation.values
-                      .map((f) =>
-                          DropdownMenuItem(value: f, child: Text(f.label)))
-                      .toList(),
-                  onChanged: (f) {
-                    if (f != null) {
-                      FeedbackService.tap();
-                      context.read<GameState>().setFormation(f);
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                Chip(
-                  label: Text('攻撃 x${formation.attackBias.toStringAsFixed(2)}'),
-                  visualDensity: VisualDensity.compact,
-                ),
-                const SizedBox(width: 4),
-                Chip(
-                  label:
-                      Text('守備 x${formation.defenseBias.toStringAsFixed(2)}'),
-                  visualDensity: VisualDensity.compact,
-                ),
-                const Spacer(),
-                Text('${team.startingXI.length}/11'),
-              ],
-            ),
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              const Text('フォーメーション: '),
+              const SizedBox(width: 8),
+              DropdownButton<Formation>(
+                value: formation,
+                items: Formation.values
+                    .map(
+                        (f) => DropdownMenuItem(value: f, child: Text(f.label)))
+                    .toList(),
+                onChanged: (f) {
+                  if (f != null) {
+                    FeedbackService.tap();
+                    context.read<GameState>().setFormation(f);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('攻撃 x${formation.attackBias.toStringAsFixed(2)}'),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 4),
+              Chip(
+                label: Text('守備 x${formation.defenseBias.toStringAsFixed(2)}'),
+                visualDensity: VisualDensity.compact,
+              ),
+              const Spacer(),
+              Text('${team.startingXI.length}/11'),
+            ],
           ),
-          if (gameState.rotationSuggestions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: _RotationSuggestionsCard(
-                  suggestions: gameState.rotationSuggestions),
-            ),
+        ),
+        if (gameState.rotationSuggestions.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: _RotationSuggestionsCard(
+                suggestions: gameState.rotationSuggestions),
+          ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              OutlinedButton(
+                onPressed: () {
+                  FeedbackService.tap();
+                  context.read<GameState>().autoFillStartingXI();
+                },
+                child: const Text('自動編成'),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('選手をタップして入れ替え',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: AspectRatio(
+            aspectRatio: 0.72,
+            child: _PitchView(team: team, formation: formation),
+          ),
+        ),
+        const Divider(height: 32),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
+        ),
+        for (final p in bench) _BenchTile(playerId: p.id),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+}
+
+/// 各種スライダー・セットプレー担当・戦術プリセット・デプスチャートを扱う
+/// タブ。「どう戦うか」に集中する。
+class _TacticsTab extends StatelessWidget {
+  const _TacticsTab();
+
+  @override
+  Widget build(BuildContext context) {
+    final team = context.watch<GameState>().userTeam;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        const SizedBox(width: 90, child: Text('プレッシング')),
-                        Expanded(
-                          child: Slider(
-                            value: team.pressing.toDouble(),
-                            min: 0,
-                            max: 100,
-                            divisions: 10,
-                            label: '${team.pressing}',
-                            onChanged: (v) => context
-                                .read<GameState>()
-                                .setPressing(v.round()),
-                          ),
-                        ),
-                        SizedBox(width: 32, child: Text('${team.pressing}')),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const SizedBox(width: 90, child: Text('ライン高さ')),
-                        Expanded(
-                          child: Slider(
-                            value: team.lineHeight.toDouble(),
-                            min: 0,
-                            max: 100,
-                            divisions: 10,
-                            label: '${team.lineHeight}',
-                            onChanged: (v) => context
-                                .read<GameState>()
-                                .setLineHeight(v.round()),
-                          ),
-                        ),
-                        SizedBox(width: 32, child: Text('${team.lineHeight}')),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const SizedBox(width: 90, child: Text('攻撃の幅')),
-                        Expanded(
-                          child: Slider(
-                            value: team.width.toDouble(),
-                            min: 0,
-                            max: 100,
-                            divisions: 10,
-                            label: '${team.width}',
-                            onChanged: (v) =>
-                                context.read<GameState>().setWidth(v.round()),
-                          ),
-                        ),
-                        SizedBox(width: 32, child: Text('${team.width}')),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        const SizedBox(width: 90, child: Text('テンポ')),
-                        Expanded(
-                          child: Slider(
-                            value: team.tempo.toDouble(),
-                            min: 0,
-                            max: 100,
-                            divisions: 10,
-                            label: '${team.tempo}',
-                            onChanged: (v) =>
-                                context.read<GameState>().setTempo(v.round()),
-                          ),
-                        ),
-                        SizedBox(width: 32, child: Text('${team.tempo}')),
-                      ],
-                    ),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。\n'
-                        '幅を広げると攻撃力が増すが中央の守備が薄くなる。テンポを上げると攻撃的だが疲労が増えやすい。',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                    const SizedBox(width: 90, child: Text('プレッシング')),
+                    Expanded(
+                      child: Slider(
+                        value: team.pressing.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.pressing}',
+                        onChanged: (v) =>
+                            context.read<GameState>().setPressing(v.round()),
                       ),
                     ),
+                    SizedBox(width: 32, child: Text('${team.pressing}')),
                   ],
                 ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _SetPieceTakersCard(team: team),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _TacticPresetsCard(team: team),
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                OutlinedButton(
-                  onPressed: () {
-                    FeedbackService.tap();
-                    context.read<GameState>().autoFillStartingXI();
-                  },
-                  child: const Text('自動編成'),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('ライン高さ')),
+                    Expanded(
+                      child: Slider(
+                        value: team.lineHeight.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.lineHeight}',
+                        onChanged: (v) =>
+                            context.read<GameState>().setLineHeight(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.lineHeight}')),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text('選手をタップして入れ替え',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('攻撃の幅')),
+                    Expanded(
+                      child: Slider(
+                        value: team.width.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.width}',
+                        onChanged: (v) =>
+                            context.read<GameState>().setWidth(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.width}')),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const SizedBox(width: 90, child: Text('テンポ')),
+                    Expanded(
+                      child: Slider(
+                        value: team.tempo.toDouble(),
+                        min: 0,
+                        max: 100,
+                        divisions: 10,
+                        label: '${team.tempo}',
+                        onChanged: (v) =>
+                            context.read<GameState>().setTempo(v.round()),
+                      ),
+                    ),
+                    SizedBox(width: 32, child: Text('${team.tempo}')),
+                  ],
+                ),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'プレッシングは守備を高めるが疲労が増えやすい。ラインを上げると攻撃的になるが裏を突かれやすい。\n'
+                    '幅を広げると攻撃力が増すが中央の守備が薄くなる。テンポを上げると攻撃的だが疲労が増えやすい。',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: AspectRatio(
-              aspectRatio: 0.72,
-              child: _PitchView(team: team, formation: formation),
-            ),
-          ),
-          const Divider(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _DepthChartSection(team: team),
-          ),
-          const Divider(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
-          ),
-          for (final p in bench) _BenchTile(playerId: p.id),
-          const SizedBox(height: 16),
-        ],
-      ),
+        ),
+        const SizedBox(height: 8),
+        _SetPieceTakersCard(team: team),
+        const SizedBox(height: 8),
+        _TacticPresetsCard(team: team),
+        const SizedBox(height: 8),
+        _DepthChartSection(team: team),
+      ],
     );
   }
 }
@@ -468,21 +493,17 @@ class _TacticPresetsCard extends StatelessWidget {
 }
 
 /// ポジションごとの控え順(デプスチャート)を一覧表示するセクション。
-/// 各ポジションを主戦場とする選手を総合力順に並べ、出場できない状態の
-/// 選手にはその理由を添える。
+/// 既定では主戦場とする選手を総合力順に並べるが、ドラッグして手動で
+/// 控え順を入れ替えることもできる(入れ替えた順序はセーブデータに保存される)。
 class _DepthChartSection extends StatelessWidget {
   final Team team;
   const _DepthChartSection({required this.team});
 
   @override
   Widget build(BuildContext context) {
-    final byPosition = <Position, List<Player>>{};
-    for (final p in team.players) {
-      byPosition.putIfAbsent(p.position, () => []).add(p);
-    }
-    for (final list in byPosition.values) {
-      list.sort((a, b) => b.overall.compareTo(a.overall));
-    }
+    final positions = Position.values
+        .where((pos) => team.players.any((p) => p.position == pos))
+        .toList();
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -490,24 +511,53 @@ class _DepthChartSection extends StatelessWidget {
         tilePadding: EdgeInsets.zero,
         title: Text('デプスチャート(ポジション別控え順)',
             style: Theme.of(context).textTheme.titleSmall),
+        subtitle: const Text('ドラッグハンドルで控え順を入れ替えられます',
+            style: TextStyle(fontSize: 11, color: Colors.grey)),
         children: [
-          for (final pos in Position.values)
-            if ((byPosition[pos] ?? []).isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(pos.fullLabel,
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.bold)),
-                    for (int i = 0; i < byPosition[pos]!.length; i++)
-                      _DepthChartPlayerRow(
-                          rank: i + 1, player: byPosition[pos]![i]),
-                  ],
-                ),
+          for (final pos in positions)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(pos.fullLabel,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold)),
+                  _DepthChartReorderableList(team: team, position: pos),
+                ],
               ),
+            ),
         ],
+      ),
+    );
+  }
+}
+
+class _DepthChartReorderableList extends StatelessWidget {
+  final Team team;
+  final Position position;
+  const _DepthChartReorderableList(
+      {required this.team, required this.position});
+
+  @override
+  Widget build(BuildContext context) {
+    final players = team.depthChartFor(position);
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      itemCount: players.length,
+      onReorderItem: (oldIndex, newIndex) {
+        FeedbackService.tap();
+        context
+            .read<GameState>()
+            .reorderDepthChart(position, oldIndex, newIndex);
+      },
+      itemBuilder: (context, i) => _DepthChartPlayerRow(
+        key: ValueKey(players[i].id),
+        rank: i + 1,
+        player: players[i],
+        index: i,
       ),
     );
   }
@@ -516,7 +566,13 @@ class _DepthChartSection extends StatelessWidget {
 class _DepthChartPlayerRow extends StatelessWidget {
   final int rank;
   final Player player;
-  const _DepthChartPlayerRow({required this.rank, required this.player});
+  final int index;
+  const _DepthChartPlayerRow({
+    super.key,
+    required this.rank,
+    required this.player,
+    required this.index,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -541,9 +597,16 @@ class _DepthChartPlayerRow extends StatelessWidget {
                 style: const TextStyle(fontSize: 12)),
           ),
           if (unavailable != null)
-            Text(unavailable,
-                style: TextStyle(
-                    fontSize: 11, color: SemanticColors.negative(context))),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(unavailable,
+                  style: TextStyle(
+                      fontSize: 11, color: SemanticColors.negative(context))),
+            ),
+          ReorderableDragStartListener(
+            index: index,
+            child: const Icon(Icons.drag_handle, size: 16, color: Colors.grey),
+          ),
         ],
       ),
     );
