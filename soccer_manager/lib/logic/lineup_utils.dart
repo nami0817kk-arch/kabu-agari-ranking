@@ -46,4 +46,55 @@ class LineupUtils {
     }
     team.startingXI = xi.map((p) => p.id).toList();
   }
+
+  /// スタメン11人をフォーメーションのスロット順に割り当てる。
+  /// 完全一致がいない枠(グループ代用など)は残りの先発から総合力順に補う。
+  /// スタメン画面のピッチ表示と、試合エンジンのポジション適性判定の
+  /// 両方から共通で使う。
+  static List<Player?> resolveSlotAssignments(Team team) {
+    final byId = {for (final p in team.players) p.id: p};
+    final startingPlayers =
+        team.startingXI.map((id) => byId[id]).whereType<Player>().toList();
+
+    final remainingByPosition = <Position, List<Player>>{};
+    for (final p in startingPlayers) {
+      remainingByPosition.putIfAbsent(p.position, () => []).add(p);
+    }
+    for (final list in remainingByPosition.values) {
+      list.sort((a, b) => b.overall.compareTo(a.overall));
+    }
+
+    final slots = team.formation.slots;
+    final assignments = <Player?>[];
+    for (final slotPos in slots) {
+      final list = remainingByPosition[slotPos];
+      if (list != null && list.isNotEmpty) {
+        assignments.add(list.removeAt(0));
+      } else {
+        assignments.add(null);
+      }
+    }
+
+    final leftovers = remainingByPosition.values.expand((l) => l).toList()
+      ..sort((a, b) => b.overall.compareTo(a.overall));
+    for (int i = 0; i < assignments.length; i++) {
+      if (assignments[i] == null && leftovers.isNotEmpty) {
+        assignments[i] = leftovers.removeAt(0);
+      }
+    }
+    return assignments;
+  }
+
+  /// [resolveSlotAssignments]の結果を、選手ID→実際に配置されたスロットの
+  /// ポジションのマップに変換する。
+  static Map<String, Position> assignedSlotByPlayerId(Team team) {
+    final assignments = resolveSlotAssignments(team);
+    final slots = team.formation.slots;
+    final map = <String, Position>{};
+    for (int i = 0; i < assignments.length; i++) {
+      final p = assignments[i];
+      if (p != null) map[p.id] = slots[i];
+    }
+    return map;
+  }
 }

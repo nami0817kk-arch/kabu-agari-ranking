@@ -1,6 +1,10 @@
 import 'formation.dart';
 import 'player.dart';
+import 'tactic_preset.dart';
 import 'training_focus.dart';
+
+/// 保存できる戦術プリセットの上限数。
+const int maxTacticPresets = 5;
 
 class Team {
   final String id;
@@ -38,6 +42,9 @@ class Team {
   String? freeKickTakerId;
   String? cornerTakerId;
 
+  /// 保存済みの戦術プリセット(最大[maxTacticPresets]件)。
+  List<TacticPreset> tacticPresets;
+
   Team({
     required this.id,
     required this.name,
@@ -55,7 +62,9 @@ class Team {
     this.penaltyTakerId,
     this.freeKickTakerId,
     this.cornerTakerId,
-  }) : startingXI = startingXI ?? [];
+    List<TacticPreset>? tacticPresets,
+  })  : startingXI = startingXI ?? [],
+        tacticPresets = tacticPresets ?? [];
 
   int get overallRating {
     if (players.isEmpty) return 0;
@@ -79,6 +88,7 @@ class Team {
         'penaltyTakerId': penaltyTakerId,
         'freeKickTakerId': freeKickTakerId,
         'cornerTakerId': cornerTakerId,
+        'tacticPresets': tacticPresets.map((t) => t.toJson()).toList(),
         'players': players.map((p) => p.toJson()).toList(),
       };
 
@@ -103,6 +113,10 @@ class Team {
         penaltyTakerId: json['penaltyTakerId'] as String?,
         freeKickTakerId: json['freeKickTakerId'] as String?,
         cornerTakerId: json['cornerTakerId'] as String?,
+        tacticPresets: (json['tacticPresets'] as List?)
+                ?.map((e) => TacticPreset.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
         players: (json['players'] as List)
             .map((e) => Player.fromJson(e as Map<String, dynamic>))
             .toList(),

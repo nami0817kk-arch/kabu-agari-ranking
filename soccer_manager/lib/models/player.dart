@@ -113,6 +113,88 @@ extension PlayerDutyInfo on PlayerDuty {
       };
 }
 
+/// 選手のプレースタイル(ロール)。デューティ(攻守の重心)とは別に、
+/// どの能力値を活かしたプレーを得意とするかを表す。役割に適した能力値が
+/// 高いほど攻撃/守備への貢献度にボーナスが、低いと逆にペナルティがかかる。
+enum PlayerRole {
+  standard,
+  sweeperKeeper,
+  ballPlayingDefender,
+  stopper,
+  playmaker,
+  boxToBox,
+  poacher,
+  targetMan,
+}
+
+extension PlayerRoleInfo on PlayerRole {
+  String get label => switch (this) {
+        PlayerRole.standard => '標準',
+        PlayerRole.sweeperKeeper => 'スイーパーキーパー',
+        PlayerRole.ballPlayingDefender => 'ビルドアップCB',
+        PlayerRole.stopper => 'ストッパー',
+        PlayerRole.playmaker => 'プレーメイカー',
+        PlayerRole.boxToBox => 'ボックストゥボックス',
+        PlayerRole.poacher => 'ポーチャー',
+        PlayerRole.targetMan => 'ターゲットマン',
+      };
+
+  String get description => switch (this) {
+        PlayerRole.standard => '特定のプレースタイルを指定しない',
+        PlayerRole.sweeperKeeper => 'キック・ハンドリングを活かしたビルドアップ参加型のGK',
+        PlayerRole.ballPlayingDefender => 'パス・視野を活かして後方から組み立てるCB',
+        PlayerRole.stopper => 'タックル・積極性を活かして潰しにかかるCB',
+        PlayerRole.playmaker => 'パス・視野で崩しの起点となるMF',
+        PlayerRole.boxToBox => 'スタミナ・運動量で攻守にわたって働くMF',
+        PlayerRole.poacher => 'フィニッシュ・オフザボールで得点を狙うFW',
+        PlayerRole.targetMan => 'ヘディング・強さを活かした起点となるFW',
+      };
+
+  /// このロールを選択できるポジション大分類(standardは全ポジション共通)。
+  List<PositionGroup> get allowedGroups => switch (this) {
+        PlayerRole.standard => PositionGroup.values,
+        PlayerRole.sweeperKeeper => [PositionGroup.gk],
+        PlayerRole.ballPlayingDefender || PlayerRole.stopper => [
+            PositionGroup.def
+          ],
+        PlayerRole.playmaker || PlayerRole.boxToBox => [PositionGroup.mid],
+        PlayerRole.poacher || PlayerRole.targetMan => [PositionGroup.att],
+      };
+
+  /// このロールの適性を判定する際に重視する能力値(2項目の平均で評価)。
+  List<String> get keyAttributes => switch (this) {
+        PlayerRole.standard => const [],
+        PlayerRole.sweeperKeeper => const [
+            AttributeKeys.kicking,
+            AttributeKeys.commandOfArea,
+          ],
+        PlayerRole.ballPlayingDefender => const [
+            AttributeKeys.passing,
+            AttributeKeys.vision,
+          ],
+        PlayerRole.stopper => const [
+            AttributeKeys.tackling,
+            AttributeKeys.aggression,
+          ],
+        PlayerRole.playmaker => const [
+            AttributeKeys.vision,
+            AttributeKeys.passing,
+          ],
+        PlayerRole.boxToBox => const [
+            AttributeKeys.stamina,
+            AttributeKeys.workRate,
+          ],
+        PlayerRole.poacher => const [
+            AttributeKeys.finishing,
+            AttributeKeys.offTheBall,
+          ],
+        PlayerRole.targetMan => const [
+            AttributeKeys.heading,
+            AttributeKeys.strength,
+          ],
+      };
+}
+
 /// 選手の性格。不満度(happiness)の変動しやすさや移籍希望の出やすさに影響する。
 enum PlayerPersonality {
   professional,
@@ -311,6 +393,19 @@ class Player {
   /// 出場手当(万円)。契約更新時に決定され、リーグ公式戦でスタメン出場するたびに支払われる。
   int appearanceFee;
 
+  /// プレースタイル(ロール)。デューティとは別に、活躍する能力値の傾向を表す。
+  PlayerRole role;
+
+  /// 本職(主ポジション)以外のポジションで起用された際の慣れ度(0-100、
+  /// Position.name → 慣れ度)。出場を重ねるごとに上昇し、攻撃/守備への
+  /// ペナルティを徐々に軽減する。主ポジションは常に完全適性のため含まない。
+  Map<String, int> positionFamiliarity;
+
+  /// 直近の試合勘・コンディション(0-100)。出場を重ねると上昇し、
+  /// ベンチ・怪我・出場停止が続くと緩やかに低下する。負傷から復帰した
+  /// 直後は大きく下がる。試合エンジンのコンディション算出に用いる。
+  int matchSharpness;
+
   Player({
     required this.id,
     required this.name,
@@ -341,12 +436,27 @@ class Player {
     this.loanedOutWeeksRemaining = 0,
     this.loanedOutToClubName,
     this.appearanceFee = 0,
+    this.role = PlayerRole.standard,
+    Map<String, int>? positionFamiliarity,
+    this.matchSharpness = 80,
   })  : secondaryPositions = secondaryPositions ?? [],
-        attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50};
+        attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50},
+        positionFamiliarity = positionFamiliarity ?? {};
 
   /// このポジション（主・副とも）を無理なくこなせるか。
   bool canPlay(Position pos) =>
       position == pos || secondaryPositions.contains(pos);
+
+  /// 指定ポジションでの慣れ度(0-100)。主ポジションは常に100。
+  int familiarityFor(Position pos) =>
+      pos == position ? 100 : (positionFamiliarity[pos.name] ?? 0);
+
+  /// 本職外のポジションで出場した際、慣れ度を積み増す(上限100)。
+  void growFamiliarity(Position pos, {int amount = 3}) {
+    if (pos == position) return;
+    final current = positionFamiliarity[pos.name] ?? 0;
+    positionFamiliarity[pos.name] = (current + amount).clamp(0, 100);
+  }
 
   /// 不満度が性格ごとの閾値を下回り、移籍を希望しているかどうか。
   bool get wantsTransfer => happiness < personality.transferRequestThreshold;
@@ -467,6 +577,9 @@ class Player {
         'loanedOutWeeksRemaining': loanedOutWeeksRemaining,
         'loanedOutToClubName': loanedOutToClubName,
         'appearanceFee': appearanceFee,
+        'role': role.name,
+        'positionFamiliarity': positionFamiliarity,
+        'matchSharpness': matchSharpness,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -518,6 +631,14 @@ class Player {
       loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
       loanedOutToClubName: json['loanedOutToClubName'] as String?,
       appearanceFee: json['appearanceFee'] as int? ?? 0,
+      role: json['role'] == null
+          ? PlayerRole.standard
+          : PlayerRole.values.byName(json['role'] as String),
+      positionFamiliarity: (json['positionFamiliarity'] as Map?)?.map(
+            (k, v) => MapEntry(k as String, v as int),
+          ) ??
+          {},
+      matchSharpness: json['matchSharpness'] as int? ?? 80,
     );
   }
 

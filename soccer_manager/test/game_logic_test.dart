@@ -3253,4 +3253,234 @@ void main() {
           greaterThanOrEqualTo(projections[i - 1].avgFinalRank));
     }
   });
+
+  test(
+      'MatchEngine.roleMultiplier rewards attributes matching the role and '
+      'penalizes a mismatch, while standard is always neutral', () {
+    Player make(String id, {required int uniform}) {
+      final p = Player(
+          id: id, name: id, age: 24, position: Position.st, potential: 70);
+      for (final key in AttributeKeys.all) {
+        p.setAttributeValue(key, uniform);
+      }
+      return p;
+    }
+
+    final fitted = make('fit', uniform: 50)
+      ..role = PlayerRole.poacher
+      ..setAttributeValue(AttributeKeys.finishing, 90)
+      ..setAttributeValue(AttributeKeys.offTheBall, 90);
+    final mismatched = make('mismatch', uniform: 50)
+      ..role = PlayerRole.poacher
+      ..setAttributeValue(AttributeKeys.finishing, 10)
+      ..setAttributeValue(AttributeKeys.offTheBall, 10);
+    final standard = make('standard', uniform: 50)..role = PlayerRole.standard;
+
+    expect(
+        MatchEngine.roleMultiplier(fitted, forAttack: true), greaterThan(1.0));
+    expect(
+        MatchEngine.roleMultiplier(mismatched, forAttack: true), lessThan(1.0));
+    expect(MatchEngine.roleMultiplier(standard, forAttack: true), 1.0);
+  });
+
+  test(
+      'MatchEngine.positionFitMultiplier penalizes off-position starters, '
+      'less so for a listed secondary position, and eases with familiarity',
+      () {
+    final p = Player(
+        id: 'p',
+        name: 'p',
+        age: 24,
+        position: Position.mc,
+        potential: 70,
+        secondaryPositions: [Position.dm]);
+
+    expect(MatchEngine.positionFitMultiplier(p, Position.mc), 1.0);
+    expect(MatchEngine.positionFitMultiplier(p, Position.dm), 0.90);
+    expect(MatchEngine.positionFitMultiplier(p, Position.st), 0.75);
+
+    p.growFamiliarity(Position.dm, amount: 100);
+    p.growFamiliarity(Position.st, amount: 100);
+    expect(MatchEngine.positionFitMultiplier(p, Position.dm), 1.0);
+    expect(MatchEngine.positionFitMultiplier(p, Position.st), 0.90);
+  });
+
+  test(
+      'LineupUtils.assignedSlotByPlayerId maps starters to their own position '
+      'when possible and to a same-group fallback slot otherwise', () {
+    Player make(String id, Position pos) =>
+        Player(id: id, name: id, age: 24, position: pos, potential: 70);
+
+    final gk = make('gk', Position.gk);
+    final dc1 = make('dc1', Position.dc);
+    final dc2 = make('dc2', Position.dc);
+    final dr = make('dr', Position.dr);
+    final dl = make('dl', Position.dl);
+    final mc1 = make('mc1', Position.mc);
+    final mc2 = make('mc2', Position.mc);
+    final mr = make('mr', Position.mr);
+    final ml = make('ml', Position.ml);
+    final st = make('st', Position.st);
+    // 4-4-2の2枚目のSTが不在で、代わりにMCで代役を務める想定。
+    final fallbackSt = make('fallback', Position.mc);
+
+    final team = Team(
+      id: 't',
+      name: 'T',
+      players: [gk, dc1, dc2, dr, dl, mc1, mc2, mr, ml, st, fallbackSt],
+      formation: Formation.f442,
+      startingXI: [
+        gk.id,
+        dr.id,
+        dc1.id,
+        dc2.id,
+        dl.id,
+        mr.id,
+        mc1.id,
+        mc2.id,
+        ml.id,
+        st.id,
+        fallbackSt.id,
+      ],
+    );
+
+    final slotById = LineupUtils.assignedSlotByPlayerId(team);
+
+    expect(slotById[st.id], Position.st);
+    expect(slotById[fallbackSt.id], Position.st);
+    expect(slotById[mc1.id], Position.mc);
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects grows familiarity only for the '
+      'starter filling an unfamiliar slot', () {
+    Player make(String id, Position pos) =>
+        Player(id: id, name: id, age: 24, position: pos, potential: 70);
+
+    final gk = make('gk', Position.gk);
+    final dc1 = make('dc1', Position.dc);
+    final dc2 = make('dc2', Position.dc);
+    final dr = make('dr', Position.dr);
+    final dl = make('dl', Position.dl);
+    final mc1 = make('mc1', Position.mc);
+    final mc2 = make('mc2', Position.mc);
+    final mr = make('mr', Position.mr);
+    final ml = make('ml', Position.ml);
+    final st = make('st', Position.st);
+    final fallbackSt = make('fallback', Position.mc);
+    final home = Team(
+      id: 'home',
+      name: 'Home',
+      players: [gk, dc1, dc2, dr, dl, mc1, mc2, mr, ml, st, fallbackSt],
+      formation: Formation.f442,
+      startingXI: [
+        gk.id,
+        dr.id,
+        dc1.id,
+        dc2.id,
+        dl.id,
+        mr.id,
+        mc1.id,
+        mc2.id,
+        ml.id,
+        st.id,
+        fallbackSt.id,
+      ],
+    );
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(away);
+
+    expect(fallbackSt.familiarityFor(Position.st), 0);
+    expect(st.familiarityFor(Position.st), 100);
+
+    MatchEngine.applyPostMatchEffects(home: home, away: away);
+
+    expect(fallbackSt.familiarityFor(Position.st), greaterThan(0));
+    expect(mc1.familiarityFor(Position.mc), 100);
+  });
+
+  test(
+      'MatchEngine.applyPostMatchEffects raises sharpness for starters and '
+      'lowers it (with a floor) for the rest of the squad', () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'home', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'away', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    for (final p in home.players) {
+      p.matchSharpness = 50;
+    }
+    final starterIds = home.startingXI.toSet();
+
+    MatchEngine.applyPostMatchEffects(home: home, away: away);
+
+    for (final p in home.players) {
+      if (starterIds.contains(p.id)) {
+        expect(p.matchSharpness, 56);
+      } else {
+        expect(p.matchSharpness, 47);
+      }
+    }
+  });
+
+  test('GameState.setPlayerRole updates the player\'s role', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+
+    gameState.setPlayerRole(player.id, PlayerRole.playmaker);
+
+    expect(player.role, PlayerRole.playmaker);
+  });
+
+  test(
+      'GameState tactic presets can be saved, applied, and deleted, and are '
+      'capped at maxTacticPresets by evicting the oldest', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    team.formation = Formation.f442;
+    team.pressing = 30;
+    team.lineHeight = 30;
+    team.width = 30;
+    team.tempo = 30;
+
+    gameState.saveTacticPreset('守備的');
+    team.formation = Formation.f433;
+    team.pressing = 80;
+    team.lineHeight = 80;
+    team.width = 80;
+    team.tempo = 80;
+
+    gameState.applyTacticPreset('守備的');
+    expect(team.formation, Formation.f442);
+    expect(team.pressing, 30);
+    expect(team.width, 30);
+
+    gameState.deleteTacticPreset('守備的');
+    expect(team.tacticPresets, isEmpty);
+
+    for (int i = 0; i < maxTacticPresets + 1; i++) {
+      gameState.saveTacticPreset('preset$i');
+    }
+    expect(team.tacticPresets.length, maxTacticPresets);
+    expect(team.tacticPresets.map((p) => p.name), isNot(contains('preset0')));
+  });
+
+  test(
+      'GameState.playNextMatchday resets match sharpness for players who '
+      'just recovered from injury', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final injured = gameState.userTeam.players.first;
+    injured.injuryWeeks = 1;
+    injured.matchSharpness = 90;
+
+    await gameState.playNextMatchday();
+
+    expect(injured.injuryWeeks, 0);
+    expect(injured.matchSharpness, lessThanOrEqualTo(40));
+  });
 }

@@ -5,6 +5,7 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../models/match_result.dart';
 import '../models/weather.dart';
+import 'lineup_utils.dart';
 
 /// この枚数の警告が貯まると次節出場停止になる(退場は即1試合出場停止)。
 const int yellowCardSuspensionThreshold = 5;
@@ -23,7 +24,9 @@ class MatchEngine {
   static final Random _rng = Random();
 
   static double _condition(Player p) =>
-      (1 - p.fatigue / 250) * (0.85 + p.morale / 500);
+      (1 - p.fatigue / 250) *
+      (0.85 + p.morale / 500) *
+      (0.8 + p.matchSharpness / 500);
 
   /// 先発11人を解決する。未設定・不整合な場合は負傷者を除いた総合力上位11人で代用する。
   static List<Player> lineupOf(Team t) {
@@ -65,6 +68,31 @@ class MatchEngine {
         PlayerDuty.attack => 0.85,
       };
 
+  /// ロールに応じた貢献度補正。ロールが重視する能力値の平均が選手本来の
+  /// 攻撃力/守備力より高ければボーナス、低ければペナルティになる
+  /// (=適性の合わないロールを割り当てると損をする)。
+  static double roleMultiplier(Player p, {required bool forAttack}) {
+    final keyAttributes = p.role.keyAttributes;
+    if (keyAttributes.isEmpty) return 1.0;
+    final base = forAttack ? p.attack : p.defense;
+    final roleRating =
+        keyAttributes.fold<int>(0, (s, k) => s + p.attributeValue(k)) /
+            keyAttributes.length;
+    return (1 + (roleRating - base) / 150).clamp(0.85, 1.2);
+  }
+
+  /// 本職以外のポジションで起用された際の貢献度ペナルティ。副ポジションと
+  /// して登録済みなら軽微(慣れが増すほど解消)、それ以外(同グループの
+  /// 代役)はより大きなペナルティになる。
+  static double positionFitMultiplier(Player p, Position assignedSlot) {
+    if (assignedSlot == p.position) return 1.0;
+    final familiarity = p.familiarityFor(assignedSlot) / 100;
+    if (p.secondaryPositions.contains(assignedSlot)) {
+      return 0.90 + 0.10 * familiarity;
+    }
+    return 0.75 + 0.15 * familiarity;
+  }
+
   static double _attackPower(Team t, List<Player> lineup) {
     final relevant = lineup
         .where((p) =>
@@ -72,9 +100,16 @@ class MatchEngine {
             p.position.group == PositionGroup.mid)
         .toList();
     if (relevant.isEmpty) return 40;
+    final slotById = LineupUtils.assignedSlotByPlayerId(t);
     final total = relevant.fold<double>(
       0,
-      (s, p) => s + p.attack * _condition(p) * _dutyAttackMultiplier(p.duty),
+      (s, p) =>
+          s +
+          p.attack *
+              _condition(p) *
+              _dutyAttackMultiplier(p.duty) *
+              roleMultiplier(p, forAttack: true) *
+              positionFitMultiplier(p, slotById[p.id] ?? p.position),
     );
     final lineFactor = 1 + (t.lineHeight - 50) / 400;
     final widthFactor = 1 + (t.width - 50) / 500;
@@ -93,9 +128,16 @@ class MatchEngine {
             p.position.group == PositionGroup.gk)
         .toList();
     if (relevant.isEmpty) return 40;
+    final slotById = LineupUtils.assignedSlotByPlayerId(t);
     final total = relevant.fold<double>(
       0,
-      (s, p) => s + p.defense * _condition(p) * _dutyDefenseMultiplier(p.duty),
+      (s, p) =>
+          s +
+          p.defense *
+              _condition(p) *
+              _dutyDefenseMultiplier(p.duty) *
+              roleMultiplier(p, forAttack: false) *
+              positionFitMultiplier(p, slotById[p.id] ?? p.position),
     );
     final pressFactor = 1 + (t.pressing - 50) / 400;
     final lineRiskFactor = 1 + (50 - t.lineHeight) / 500;
@@ -144,6 +186,29 @@ class MatchEngine {
           tempoFatigueFactor *
           weatherFactor;
       p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
+    }
+  }
+
+  /// 本職外のスロットで出場した選手のポジション慣れ度を積み増す。
+  static void _growPositionFamiliarity(Team t, List<Player> lineup) {
+    final slotById = LineupUtils.assignedSlotByPlayerId(t);
+    for (final p in lineup) {
+      final slot = slotById[p.id];
+      if (slot == null) continue;
+      p.growFamiliarity(slot);
+    }
+  }
+
+  /// 出場した選手はマッチシャープネスが上昇し、出場しなかった選手は
+  /// 緩やかに低下する(下限あり)。
+  static void _updateMatchSharpness(Team t, List<Player> lineup) {
+    final lineupIds = lineup.map((p) => p.id).toSet();
+    for (final p in t.players) {
+      if (lineupIds.contains(p.id)) {
+        p.matchSharpness = (p.matchSharpness + 6).clamp(0, 100);
+      } else {
+        p.matchSharpness = (p.matchSharpness - 3).clamp(30, 100);
+      }
     }
   }
 
@@ -331,6 +396,10 @@ class MatchEngine {
     _applyFatigue(away, awayLineup, weatherFactor: weather.fatigueMultiplier);
     _rollInjuries(homeLineup, homeInjuryFactor);
     _rollInjuries(awayLineup, awayInjuryFactor);
+    _growPositionFamiliarity(home, homeLineup);
+    _growPositionFamiliarity(away, awayLineup);
+    _updateMatchSharpness(home, homeLineup);
+    _updateMatchSharpness(away, awayLineup);
     // 出場停止の消化は既存の出場停止(前節以前に受けたもの)にのみ適用し、
     // その後で今節に新たに受けたカードを反映する。
     _advanceSuspensions(home, homeLineup);

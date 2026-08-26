@@ -170,6 +170,11 @@ class PlayerDetailScreen extends StatelessWidget {
           const SizedBox(height: 4),
           Text(p.personality.description,
               style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          if (p.role != PlayerRole.standard) ...[
+            const SizedBox(height: 4),
+            Text('ロール: ${p.role.label} — ${p.role.description}',
+                style: const TextStyle(fontSize: 12, color: Colors.teal)),
+          ],
           const SizedBox(height: 16),
           StatBar(label: '攻撃', value: p.attack),
           StatBar(label: '守備', value: p.defense),
@@ -181,6 +186,11 @@ class PlayerDetailScreen extends StatelessWidget {
               label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
           StatBar(
               label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
+          StatBar(
+              label: 'マッチシャープネス',
+              value: p.matchSharpness,
+              max: 100,
+              color: Colors.teal),
           StatBar(
             label: '不満度(高いほど満足)',
             value: p.happiness,

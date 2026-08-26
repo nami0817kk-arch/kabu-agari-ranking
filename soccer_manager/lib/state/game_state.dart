@@ -18,6 +18,7 @@ import '../models/save_game.dart';
 import '../models/season_award.dart';
 import '../models/season_record.dart';
 import '../models/sponsor.dart';
+import '../models/tactic_preset.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
@@ -456,6 +457,15 @@ class GameState extends ChangeNotifier {
     _persist();
   }
 
+  /// 選手のプレースタイル(ロール)を設定する。
+  void setPlayerRole(String playerId, PlayerRole role) {
+    if (_save == null) return;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    player.role = role;
+    notifyListeners();
+    _persist();
+  }
+
   /// キャプテンを指名する。既に副キャプテンだった場合はその指名を解除する。
   Future<void> setCaptain(String? playerId) async {
     if (_save == null) return;
@@ -506,6 +516,63 @@ class GameState extends ChangeNotifier {
     if (_save == null) return;
     userTeam.formation = formation;
     LineupUtils.autoFill(userTeam);
+    notifyListeners();
+    _persist();
+  }
+
+  /// 現在の戦術設定(フォーメーション・各種スライダー・セットプレー担当)を
+  /// 名前を付けて保存する。同名の既存プリセットがあれば上書きし、新規の
+  /// 場合は[maxTacticPresets]件を超えないよう最も古いものから削除する。
+  void saveTacticPreset(String name) {
+    if (_save == null) return;
+    final team = userTeam;
+    final preset = TacticPreset(
+      name: name,
+      formation: team.formation,
+      pressing: team.pressing,
+      lineHeight: team.lineHeight,
+      width: team.width,
+      tempo: team.tempo,
+      penaltyTakerId: team.penaltyTakerId,
+      freeKickTakerId: team.freeKickTakerId,
+      cornerTakerId: team.cornerTakerId,
+    );
+    final existingIndex = team.tacticPresets.indexWhere((p) => p.name == name);
+    if (existingIndex >= 0) {
+      team.tacticPresets[existingIndex] = preset;
+    } else {
+      if (team.tacticPresets.length >= maxTacticPresets) {
+        team.tacticPresets.removeAt(0);
+      }
+      team.tacticPresets.add(preset);
+    }
+    notifyListeners();
+    _persist();
+  }
+
+  /// 保存済みの戦術プリセットを現在の設定へ適用する。
+  void applyTacticPreset(String name) {
+    if (_save == null) return;
+    final team = userTeam;
+    final preset = team.tacticPresets.firstWhere((p) => p.name == name,
+        orElse: () => team.tacticPresets.first);
+    team.formation = preset.formation;
+    team.pressing = preset.pressing;
+    team.lineHeight = preset.lineHeight;
+    team.width = preset.width;
+    team.tempo = preset.tempo;
+    team.penaltyTakerId = preset.penaltyTakerId;
+    team.freeKickTakerId = preset.freeKickTakerId;
+    team.cornerTakerId = preset.cornerTakerId;
+    LineupUtils.autoFill(team);
+    notifyListeners();
+    _persist();
+  }
+
+  /// 保存済みの戦術プリセットを削除する。
+  void deleteTacticPreset(String name) {
+    if (_save == null) return;
+    userTeam.tacticPresets.removeWhere((p) => p.name == name);
     notifyListeners();
     _persist();
   }
@@ -1443,10 +1510,16 @@ class GameState extends ChangeNotifier {
     final next = league.nextUnplayedFixture;
     if (next == null) return null;
 
-    // 週の経過による負傷回復
+    // 週の経過による負傷回復。復帰直後は試合勘が鈍っているため
+    // マッチシャープネスを大きく下げる。
     for (final t in league.teams) {
       for (final p in t.players) {
-        if (p.injuryWeeks > 0) p.injuryWeeks -= 1;
+        if (p.injuryWeeks > 0) {
+          p.injuryWeeks -= 1;
+          if (p.injuryWeeks == 0) {
+            p.matchSharpness = min(p.matchSharpness, 40);
+          }
+        }
       }
     }
 

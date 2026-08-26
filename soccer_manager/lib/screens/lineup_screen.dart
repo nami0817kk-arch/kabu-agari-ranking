@@ -4,9 +4,11 @@ import '../models/attributes.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../logic/lineup_utils.dart';
 import '../logic/rotation_engine.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
+import '../theme/semantic_colors.dart';
 import '../widgets/formation_layout.dart';
 import '../widgets/player_face_avatar.dart';
 
@@ -165,6 +167,11 @@ class LineupScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _TacticPresetsCard(team: team),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 OutlinedButton(
@@ -189,6 +196,11 @@ class LineupScreen extends StatelessWidget {
               aspectRatio: 0.72,
               child: _PitchView(team: team, formation: formation),
             ),
+          ),
+          const Divider(height: 32),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _DepthChartSection(team: team),
           ),
           const Divider(height: 32),
           Padding(
@@ -360,40 +372,182 @@ class _TakerDropdown extends StatelessWidget {
   }
 }
 
-/// スタメン11人をフォーメーションのスロット順に割り当てる。
-/// 完全一致がいない枠(グループ代用など)は残りの先発から総合力順に補う。
-List<Player?> _resolveSlotAssignments(Team team, Formation formation) {
-  final byId = {for (final p in team.players) p.id: p};
-  final startingPlayers =
-      team.startingXI.map((id) => byId[id]).whereType<Player>().toList();
+/// 現在の戦術一式(フォーメーション・スライダー・セットプレー担当)を
+/// 名前を付けて保存し、後から呼び出せるカード。
+class _TacticPresetsCard extends StatelessWidget {
+  final Team team;
+  const _TacticPresetsCard({required this.team});
 
-  final remainingByPosition = <Position, List<Player>>{};
-  for (final p in startingPlayers) {
-    remainingByPosition.putIfAbsent(p.position, () => []).add(p);
-  }
-  for (final list in remainingByPosition.values) {
-    list.sort((a, b) => b.overall.compareTo(a.overall));
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('戦術プリセット', style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                TextButton.icon(
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('現在の設定を保存'),
+                  onPressed: () => _showSaveDialog(context),
+                ),
+              ],
+            ),
+            if (team.tacticPresets.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('保存済みのプリセットはありません',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final preset in team.tacticPresets)
+                    InputChip(
+                      label: Text('${preset.name}（${preset.formation.label}）'),
+                      onPressed: () {
+                        FeedbackService.tap();
+                        context
+                            .read<GameState>()
+                            .applyTacticPreset(preset.name);
+                      },
+                      onDeleted: () {
+                        FeedbackService.tap();
+                        context
+                            .read<GameState>()
+                            .deleteTacticPreset(preset.name);
+                      },
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
-  final slots = formation.slots;
-  final assignments = <Player?>[];
-  for (final slotPos in slots) {
-    final list = remainingByPosition[slotPos];
-    if (list != null && list.isNotEmpty) {
-      assignments.add(list.removeAt(0));
-    } else {
-      assignments.add(null);
+  Future<void> _showSaveDialog(BuildContext context) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('戦術プリセットを保存'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '名前(例: 守備固め)'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || !context.mounted) return;
+    FeedbackService.tap();
+    context.read<GameState>().saveTacticPreset(name);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('「$name」を保存しました')),
+      );
     }
   }
+}
 
-  final leftovers = remainingByPosition.values.expand((l) => l).toList()
-    ..sort((a, b) => b.overall.compareTo(a.overall));
-  for (int i = 0; i < assignments.length; i++) {
-    if (assignments[i] == null && leftovers.isNotEmpty) {
-      assignments[i] = leftovers.removeAt(0);
+/// ポジションごとの控え順(デプスチャート)を一覧表示するセクション。
+/// 各ポジションを主戦場とする選手を総合力順に並べ、出場できない状態の
+/// 選手にはその理由を添える。
+class _DepthChartSection extends StatelessWidget {
+  final Team team;
+  const _DepthChartSection({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    final byPosition = <Position, List<Player>>{};
+    for (final p in team.players) {
+      byPosition.putIfAbsent(p.position, () => []).add(p);
     }
+    for (final list in byPosition.values) {
+      list.sort((a, b) => b.overall.compareTo(a.overall));
+    }
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text('デプスチャート(ポジション別控え順)',
+            style: Theme.of(context).textTheme.titleSmall),
+        children: [
+          for (final pos in Position.values)
+            if ((byPosition[pos] ?? []).isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pos.fullLabel,
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.bold)),
+                    for (int i = 0; i < byPosition[pos]!.length; i++)
+                      _DepthChartPlayerRow(
+                          rank: i + 1, player: byPosition[pos]![i]),
+                  ],
+                ),
+              ),
+        ],
+      ),
+    );
   }
-  return assignments;
+}
+
+class _DepthChartPlayerRow extends StatelessWidget {
+  final int rank;
+  final Player player;
+  const _DepthChartPlayerRow({required this.rank, required this.player});
+
+  @override
+  Widget build(BuildContext context) {
+    final unavailable = player.isInjured
+        ? '負傷中'
+        : player.isSuspended
+            ? '出場停止'
+            : player.isOnInternationalDuty
+                ? '代表招集中'
+                : player.isLoanedOut
+                    ? 'ローン中'
+                    : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          SizedBox(
+              width: 18,
+              child: Text('$rank.', style: const TextStyle(fontSize: 12))),
+          Expanded(
+            child: Text('${player.name}（総合${player.overall}）',
+                style: const TextStyle(fontSize: 12)),
+          ),
+          if (unavailable != null)
+            Text(unavailable,
+                style: TextStyle(
+                    fontSize: 11, color: SemanticColors.negative(context))),
+        ],
+      ),
+    );
+  }
 }
 
 class _PitchView extends StatelessWidget {
@@ -406,7 +560,7 @@ class _PitchView extends StatelessWidget {
   Widget build(BuildContext context) {
     final slots = formation.slots;
     final offsets = FormationLayout.offsetsFor(formation);
-    final assignments = _resolveSlotAssignments(team, formation);
+    final assignments = LineupUtils.resolveSlotAssignments(team);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
@@ -491,6 +645,44 @@ class _PitchView extends StatelessWidget {
                   ],
                 ),
               ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Text('ロール',
+                    style: TextStyle(fontSize: 12, color: Colors.grey)),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    for (final role in PlayerRole.values.where((r) =>
+                        r == PlayerRole.standard ||
+                        r.allowedGroups.contains(current.position.group)))
+                      ChoiceChip(
+                        label: Text(role.label),
+                        selected: current.role == role,
+                        onSelected: (_) {
+                          Navigator.pop(ctx);
+                          FeedbackService.tap();
+                          gameState.setPlayerRole(current.id, role);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              if (slotPosition != current.position)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Text(
+                    current.secondaryPositions.contains(slotPosition)
+                        ? '本職外のポジションです(慣れ度 '
+                            '${current.familiarityFor(slotPosition)}%。出場を重ねると上がります)'
+                        : '本職から離れたポジションです(慣れ度 '
+                            '${current.familiarityFor(slotPosition)}%。パフォーマンスが低下します)',
+                    style: const TextStyle(fontSize: 12, color: Colors.orange),
+                  ),
+                ),
               const Divider(),
             ],
             for (final p in candidates)
@@ -565,11 +757,15 @@ class _SlotChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = player;
+    final outOfPosition = p != null && p.position != slotPosition;
+    final roleSuffix =
+        (p != null && p.role != PlayerRole.standard) ? '・${p.role.label}' : '';
     return Semantics(
       button: true,
       label: p == null
           ? '${slotPosition.fullLabel}: 空き枠'
-          : '${slotPosition.fullLabel}: ${p.name}（${p.duty.label}）',
+          : '${slotPosition.fullLabel}: ${p.name}（${p.duty.label}$roleSuffix）'
+              '${outOfPosition ? '。本職外(慣れ度${p.familiarityFor(slotPosition)}%)' : ''}',
       child: GestureDetector(
         onTap: onTap,
         child: SizedBox(
@@ -598,7 +794,7 @@ class _SlotChip extends StatelessWidget {
                       right: -2,
                       bottom: -2,
                       child: Tooltip(
-                        message: p.duty.label,
+                        message: '${p.duty.label}$roleSuffix',
                         child: Container(
                           width: 10,
                           height: 10,
@@ -607,6 +803,25 @@ class _SlotChip extends StatelessWidget {
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 1),
                           ),
+                        ),
+                      ),
+                    ),
+                  if (outOfPosition)
+                    Positioned(
+                      left: -2,
+                      top: -2,
+                      child: Tooltip(
+                        message: '本職外(慣れ度${p.familiarityFor(slotPosition)}%)',
+                        child: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade700,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1),
+                          ),
+                          child: const Icon(Icons.priority_high,
+                              size: 8, color: Colors.white),
                         ),
                       ),
                     ),
