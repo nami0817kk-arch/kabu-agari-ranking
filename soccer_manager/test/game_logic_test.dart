@@ -15,6 +15,7 @@ import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/promotion_engine.dart';
 import 'package:soccer_manager/logic/retirement_engine.dart';
+import 'package:soccer_manager/logic/rotation_engine.dart';
 import 'package:soccer_manager/logic/scout_report_engine.dart';
 import 'package:soccer_manager/logic/scouting_engine.dart';
 import 'package:soccer_manager/logic/sponsor_engine.dart';
@@ -964,6 +965,44 @@ void main() {
     }
 
     expect(strikerAGoals, greaterThan(strikerBGoals));
+  });
+
+  test(
+      'RotationEngine.suggest recommends swapping in a fresher bench player '
+      'of the same position', () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'rot', name: 'Rotation FC', strengthTier: 60);
+    LineupUtils.autoFill(team);
+    final tired =
+        team.players.firstWhere((p) => team.startingXI.contains(p.id));
+    tired.fatigue = 90;
+    for (final p
+        in team.players.where((p) => !team.startingXI.contains(p.id))) {
+      p.fatigue = 80;
+    }
+    final fresh = team.players.firstWhere(
+        (p) => !team.startingXI.contains(p.id) && p.canPlay(tired.position));
+    fresh.fatigue = 10;
+
+    final suggestions = RotationEngine.suggest(team);
+    final match = suggestions.where((s) => s.tiredPlayerId == tired.id);
+
+    expect(match, isNotEmpty);
+    expect(match.first.replacementId, fresh.id);
+  });
+
+  test('RotationEngine.suggest ignores starters below the fatigue threshold',
+      () {
+    final team = PlayerGenerator.generateSquad(
+        id: 'rot2', name: 'Rested FC', strengthTier: 60);
+    LineupUtils.autoFill(team);
+    for (final p in team.players) {
+      p.fatigue = 10;
+    }
+
+    final suggestions = RotationEngine.suggest(team);
+
+    expect(suggestions, isEmpty);
   });
 
   test(

@@ -4,6 +4,7 @@ import '../models/attributes.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../logic/rotation_engine.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/formation_layout.dart';
@@ -61,6 +62,12 @@ class LineupScreen extends StatelessWidget {
               ],
             ),
           ),
+          if (gameState.rotationSuggestions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: _RotationSuggestionsCard(
+                  suggestions: gameState.rotationSuggestions),
+            ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Card(
@@ -191,6 +198,64 @@ class LineupScreen extends StatelessWidget {
           for (final p in bench) _BenchTile(playerId: p.id),
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+}
+
+/// 疲労が溜まったスタメンを、より疲労の少ないベンチ選手に入れ替える
+/// ことを提案するカード。
+class _RotationSuggestionsCard extends StatelessWidget {
+  final List<RotationSuggestion> suggestions;
+  const _RotationSuggestionsCard({required this.suggestions});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.orange.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.battery_alert,
+                    size: 18, color: Colors.orange.shade800),
+                const SizedBox(width: 6),
+                Text('疲労ローテーション提案',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(color: Colors.orange.shade900)),
+              ],
+            ),
+            for (final s in suggestions)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${s.tiredPlayerName}(疲労${s.tiredFatigue}) → '
+                        '${s.replacementName}(疲労${s.replacementFatigue})',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        FeedbackService.tap();
+                        context.read<GameState>().swapStartingPlayer(
+                            outPlayerId: s.tiredPlayerId,
+                            inPlayerId: s.replacementId);
+                      },
+                      child: const Text('入れ替える'),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

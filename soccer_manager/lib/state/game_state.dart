@@ -32,6 +32,7 @@ import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/promotion_engine.dart';
 import '../logic/retirement_engine.dart';
+import '../logic/rotation_engine.dart';
 import '../logic/fixture_generator.dart';
 import '../logic/free_agent_engine.dart';
 import '../logic/lineup_utils.dart';
@@ -535,6 +536,10 @@ class GameState extends ChangeNotifier {
 
   /// スタメンの特定選手を別の選手と入れ替える(戦術画面のピッチタップ操作用)。
   /// クォータ判定は行わず、指定された選手をそのまま入れ替える。
+  /// 疲労の溜まったスタメンを、より疲労の少ないベンチ選手に入れ替える提案。
+  List<RotationSuggestion> get rotationSuggestions =>
+      _save == null ? [] : RotationEngine.suggest(userTeam);
+
   void swapStartingPlayer({String? outPlayerId, required String inPlayerId}) {
     if (_save == null) return;
     final team = userTeam;
