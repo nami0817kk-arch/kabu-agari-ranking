@@ -25,6 +25,7 @@ import 'package:soccer_manager/logic/weather_engine.dart';
 import 'package:soccer_manager/data/name_pool.dart';
 import 'package:soccer_manager/models/attributes.dart';
 import 'package:soccer_manager/models/club_infrastructure.dart';
+import 'package:soccer_manager/models/contract_negotiation.dart';
 import 'package:soccer_manager/models/cup.dart';
 import 'package:soccer_manager/models/formation.dart';
 import 'package:soccer_manager/models/incoming_offer.dart';
@@ -2603,5 +2604,135 @@ void main() {
           .id,
       cheap.marketValue <= expensive.marketValue ? 'cheap' : 'expensive',
     );
+  });
+
+  test(
+      'ContractEngine.minimumAcceptableWage scales with personality wage sensitivity',
+      () {
+    final player = PlayerGenerator.generateSquad(
+            id: 't', name: 'Test FC', strengthTier: 70)
+        .players
+        .first;
+    player.wage = 100;
+    player.personality = PlayerPersonality.ambitious;
+    final ambitious = ContractEngine.minimumAcceptableWage(player);
+
+    player.personality = PlayerPersonality.loyal;
+    final loyal = ContractEngine.minimumAcceptableWage(player);
+
+    expect(ambitious, greaterThan(loyal));
+    expect(ambitious, greaterThan(player.wage));
+  });
+
+  test(
+      'ContractEngine.counterOffer never falls below the minimum acceptable wage',
+      () {
+    final player = PlayerGenerator.generateSquad(
+            id: 't', name: 'Test FC', strengthTier: 70)
+        .players
+        .first;
+    player.wage = 100;
+    player.personality = PlayerPersonality.balanced;
+    final minAcceptable = ContractEngine.minimumAcceptableWage(player);
+
+    final counterFromLowOffer = ContractEngine.counterOffer(player, 0);
+    final counterFromHighOffer =
+        ContractEngine.counterOffer(player, minAcceptable * 2);
+
+    expect(counterFromLowOffer, greaterThanOrEqualTo(minAcceptable));
+    expect(counterFromHighOffer, greaterThanOrEqualTo(minAcceptable));
+    expect(counterFromHighOffer, greaterThan(counterFromLowOffer));
+  });
+
+  test(
+      'GameState.startContractNegotiation initializes a negotiation demanding at least the minimum acceptable wage',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.personality = PlayerPersonality.balanced;
+
+    gameState.startContractNegotiation(player.id);
+
+    final negotiation = gameState.pendingContractNegotiation;
+    expect(negotiation, isNotNull);
+    expect(negotiation!.playerId, player.id);
+    expect(negotiation.initialWage, player.wage);
+    expect(
+        negotiation.counterWage, ContractEngine.minimumAcceptableWage(player));
+    expect(negotiation.roundsUsed, 0);
+  });
+
+  test(
+      'GameState.offerContractWage accepts an offer at or above the minimum acceptable wage',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.personality = PlayerPersonality.balanced;
+    player.contractWeeksRemaining = 2;
+    gameState.startContractNegotiation(player.id);
+    final minAcceptable = ContractEngine.minimumAcceptableWage(player);
+    final cost = gameState.renewalCostFor(player.id) +
+        gameState.signingBonusFor(player.id);
+    gameState.save!.budget = cost;
+
+    final result = await gameState.offerContractWage(minAcceptable);
+
+    expect(result, ContractOfferResult.accepted);
+    expect(player.wage, minAcceptable);
+    expect(player.contractWeeksRemaining, ContractEngine.renewalWeeks);
+    expect(gameState.save!.budget, 0);
+    expect(gameState.pendingContractNegotiation, isNull);
+  });
+
+  test(
+      'GameState.offerContractWage returns insufficientFunds when the club cannot afford an accepted offer',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.personality = PlayerPersonality.balanced;
+    gameState.startContractNegotiation(player.id);
+    final minAcceptable = ContractEngine.minimumAcceptableWage(player);
+    gameState.save!.budget = 0;
+
+    final result = await gameState.offerContractWage(minAcceptable);
+
+    expect(result, ContractOfferResult.insufficientFunds);
+    expect(gameState.pendingContractNegotiation, isNotNull);
+  });
+
+  test(
+      'GameState.offerContractWage counters a low offer and walks away after too many rejected rounds',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    player.personality = PlayerPersonality.balanced;
+    gameState.startContractNegotiation(player.id);
+
+    ContractOfferResult result = ContractOfferResult.countered;
+    for (int i = 0; i < ContractEngine.maxNegotiationRounds; i++) {
+      result = await gameState.offerContractWage(1);
+      if (result != ContractOfferResult.countered) break;
+      expect(gameState.pendingContractNegotiation!.roundsUsed, i + 1);
+    }
+
+    expect(result, ContractOfferResult.walkedAway);
+    expect(gameState.pendingContractNegotiation, isNull);
+  });
+
+  test('GameState.cancelContractNegotiation clears the pending negotiation',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player = gameState.userTeam.players.first;
+    gameState.startContractNegotiation(player.id);
+    expect(gameState.pendingContractNegotiation, isNotNull);
+
+    gameState.cancelContractNegotiation();
+
+    expect(gameState.pendingContractNegotiation, isNull);
   });
 }

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/contract_engine.dart';
 import '../models/attributes.dart';
+import '../models/contract_negotiation.dart';
 import '../models/player.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
@@ -24,6 +26,9 @@ class PlayerDetailScreen extends StatelessWidget {
     final signingBonus = gameState.signingBonusFor(p.id);
     final newAppearanceFee = gameState.appearanceFeeFor(p.id);
     final totalRenewalCost = renewalCost + signingBonus;
+    final negotiation = gameState.pendingContractNegotiation;
+    final isNegotiatingThisPlayer =
+        negotiation != null && negotiation.playerId == p.id;
 
     final categories = [
       AttributeCategory.technical,
@@ -251,6 +256,14 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.handshake_outlined),
+              onPressed: () => _negotiate(context, isNegotiatingThisPlayer),
+              label: Text(isNegotiatingThisPlayer
+                  ? '交渉を続ける（選手の対案: ${negotiation.counterWage}万円/週）'
+                  : '週俸交渉で更新する'),
+            ),
+            const SizedBox(height: 8),
             OutlinedButton(
               onPressed: (team.players.length <= minSquadSize ||
                       !gameState.isTransferWindowOpen)
@@ -342,6 +355,98 @@ class PlayerDetailScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(ok ? '契約を更新しました' : '契約を更新できませんでした')),
       );
+    }
+  }
+
+  Future<void> _negotiate(BuildContext context, bool isOngoing) async {
+    final gameState = context.read<GameState>();
+    if (!isOngoing) {
+      gameState.startContractNegotiation(playerId);
+    }
+    if (!context.mounted) return;
+    await _showNegotiationDialog(context);
+  }
+
+  Future<void> _showNegotiationDialog(BuildContext context) async {
+    final gameState = context.read<GameState>();
+    final negotiation = gameState.pendingContractNegotiation;
+    if (negotiation == null) return;
+    final controller =
+        TextEditingController(text: negotiation.counterWage.toString());
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('週俸交渉'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('現在の週俸: ${negotiation.initialWage}万円'),
+            Text('選手の対案: ${negotiation.counterWage}万円/週',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+                '交渉回数: ${negotiation.roundsUsed}/${ContractEngine.maxNegotiationRounds}',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(labelText: '提示する週俸（万円）'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              gameState.cancelContractNegotiation();
+              Navigator.pop(dialogContext);
+            },
+            child: const Text('交渉をやめる'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final wage = int.tryParse(controller.text);
+              if (wage == null || wage <= 0) return;
+              final result = await gameState.offerContractWage(wage);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (context.mounted) {
+                _showNegotiationResultSnackBar(context, result);
+              }
+            },
+            child: const Text('提示する'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showNegotiationResultSnackBar(
+      BuildContext context, ContractOfferResult result) {
+    switch (result) {
+      case ContractOfferResult.accepted:
+        FeedbackService.success();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('週俸交渉が成立し、契約を更新しました')),
+        );
+        break;
+      case ContractOfferResult.countered:
+        FeedbackService.tap();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選手から対案が届きました。もう一度交渉できます')),
+        );
+        break;
+      case ContractOfferResult.insufficientFunds:
+        FeedbackService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('資金が不足しており契約を更新できませんでした')),
+        );
+        break;
+      case ContractOfferResult.walkedAway:
+        FeedbackService.error();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('選手は交渉に納得できず、交渉から離脱しました')),
+        );
+        break;
     }
   }
 

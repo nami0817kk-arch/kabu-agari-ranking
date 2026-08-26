@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bank_loan.dart';
 import '../models/best_eleven.dart';
 import '../models/club_infrastructure.dart';
+import '../models/contract_negotiation.dart';
 import '../models/cup.dart';
 import '../models/formation.dart';
 import '../models/incoming_offer.dart';
@@ -608,6 +609,70 @@ class GameState extends ChangeNotifier {
     notifyListeners();
     await _persist();
     return true;
+  }
+
+  /// 進行中の契約交渉(週俸の駆け引き)。ない場合はnull。
+  ContractNegotiation? get pendingContractNegotiation =>
+      _save?.pendingContractNegotiation;
+
+  /// 選手との週俸交渉を開始する(現在の週俸を起点に、選手側の最低希望額を提示する)。
+  void startContractNegotiation(String playerId) {
+    if (_save == null) return;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    if (player.isLoan) return;
+    _save!.pendingContractNegotiation = ContractNegotiation(
+      playerId: playerId,
+      initialWage: player.wage,
+      offeredWage: player.wage,
+      counterWage: ContractEngine.minimumAcceptableWage(player),
+    );
+    notifyListeners();
+    _persist();
+  }
+
+  /// 交渉中の選手に週俸を提示する。選手の最低希望額以上ならその場で合意成立
+  /// (契約更新の基本費用・サインボーナスの支払いが必要)。届かなければ選手側
+  /// から対案が届き交渉が続く。規定回数を超えると選手は交渉から離脱する。
+  Future<ContractOfferResult> offerContractWage(int wage) async {
+    if (_save == null || _save!.pendingContractNegotiation == null) {
+      return ContractOfferResult.walkedAway;
+    }
+    final negotiation = _save!.pendingContractNegotiation!;
+    final player =
+        userTeam.players.firstWhere((p) => p.id == negotiation.playerId);
+    final minAcceptable = ContractEngine.minimumAcceptableWage(player);
+    if (wage >= minAcceptable) {
+      final cost = ContractEngine.renewalCost(player) +
+          ContractEngine.signingBonusFor(player);
+      if (_save!.budget < cost) return ContractOfferResult.insufficientFunds;
+      _save!.budget -= cost;
+      player.wage = wage;
+      ContractEngine.renewContract(player);
+      _save!.pendingContractNegotiation = null;
+      notifyListeners();
+      await _persist();
+      return ContractOfferResult.accepted;
+    }
+    negotiation.roundsUsed += 1;
+    if (negotiation.roundsUsed >= ContractEngine.maxNegotiationRounds) {
+      _save!.pendingContractNegotiation = null;
+      notifyListeners();
+      await _persist();
+      return ContractOfferResult.walkedAway;
+    }
+    negotiation.offeredWage = wage;
+    negotiation.counterWage = ContractEngine.counterOffer(player, wage);
+    notifyListeners();
+    await _persist();
+    return ContractOfferResult.countered;
+  }
+
+  /// 契約交渉を打ち切る。
+  void cancelContractNegotiation() {
+    if (_save == null) return;
+    _save!.pendingContractNegotiation = null;
+    notifyListeners();
+    _persist();
   }
 
   /// 選手と話し合い、不満度を引き上げる。既に十分満足している場合は失敗する。

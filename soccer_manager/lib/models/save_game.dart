@@ -1,6 +1,7 @@
 import 'bank_loan.dart';
 import 'best_eleven.dart';
 import 'club_infrastructure.dart';
+import 'contract_negotiation.dart';
 import 'cup.dart';
 import 'incoming_offer.dart';
 import 'installment.dart';
@@ -125,6 +126,9 @@ class SaveGame {
   /// シーズン開始時に0へリセットされる。
   int lastManagerOfMonthCheckpoint;
 
+  /// 進行中の契約交渉(週俸の駆け引き)。ない場合はnull。
+  ContractNegotiation? pendingContractNegotiation;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -166,6 +170,7 @@ class SaveGame {
     this.boardReviewDoneThisSeason = false,
     this.pendingBoardReviewMessage,
     this.lastManagerOfMonthCheckpoint = 0,
+    this.pendingContractNegotiation,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -230,6 +235,7 @@ class SaveGame {
         'boardReviewDoneThisSeason': boardReviewDoneThisSeason,
         'pendingBoardReviewMessage': pendingBoardReviewMessage,
         'lastManagerOfMonthCheckpoint': lastManagerOfMonthCheckpoint,
+        'pendingContractNegotiation': pendingContractNegotiation?.toJson(),
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -332,5 +338,9 @@ class SaveGame {
         pendingBoardReviewMessage: json['pendingBoardReviewMessage'] as String?,
         lastManagerOfMonthCheckpoint:
             json['lastManagerOfMonthCheckpoint'] as int? ?? 0,
+        pendingContractNegotiation: json['pendingContractNegotiation'] == null
+            ? null
+            : ContractNegotiation.fromJson(
+                json['pendingContractNegotiation'] as Map<String, dynamic>),
       );
 }
