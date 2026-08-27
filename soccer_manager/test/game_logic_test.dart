@@ -5385,6 +5385,41 @@ void main() {
   });
 
   test(
+      'CalendarEngine.buildRange labels the date the domestic cup becomes '
+      'playable again, showing the opponent when it is the user\'s match', () {
+    final user = Team(id: 'user', name: 'ユーザー', players: []);
+    final rival = Team(id: 'rival', name: 'ライバル', players: []);
+    final league = League(teams: [user, rival], fixtures: [], season: 1);
+    final cup = Cup(
+      type: CupType.domestic,
+      name: '国内カップ',
+      rounds: [
+        [
+          CupMatch(round: 1, homeTeamId: 'user', awayTeamId: 'rival'),
+        ],
+      ],
+      lastPlayedAtMatchday: 2,
+    );
+    final eligibleDate = CalendarEngine.dateForMatchday(1, 3);
+
+    final days = CalendarEngine.buildRange(
+      from: eligibleDate.subtract(const Duration(days: 3)),
+      to: eligibleDate.add(const Duration(days: 3)),
+      league: league,
+      userTeamId: 'user',
+      trainingDayOfWeek: DateTime.tuesday,
+      today: eligibleDate,
+      domesticCup: cup,
+    );
+
+    final day = days.firstWhere((d) => d.date == eligibleDate);
+    expect(day.isCupMatchDay, isTrue);
+    expect(day.cupLabels.single, contains('ライバル'));
+    final otherDays = days.where((d) => d.date != eligibleDate).toList();
+    expect(otherDays.every((d) => !d.isCupMatchDay), isTrue);
+  });
+
+  test(
       'GameState blocks a second domestic cup match until the league '
       'advances at least one matchday, then allows it', () async {
     final gameState = GameState();

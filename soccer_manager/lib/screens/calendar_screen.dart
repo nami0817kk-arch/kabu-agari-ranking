@@ -44,6 +44,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       userTeamId: gameState.userTeam.id,
       trainingDayOfWeek: gameState.userTeam.trainingDayOfWeek,
       today: today,
+      domesticCup: gameState.domesticCup,
+      continentalCup: gameState.continentalCup,
+      continentalTeams: gameState.save!.continentalTeams,
     );
 
     return Scaffold(
@@ -134,17 +137,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
   void _showDayDetail(BuildContext context, CalendarDayInfo day) {
     final dateLabel =
         '${day.date.month}/${day.date.day}(${CalendarEngine.weekdayLabel(day.date.weekday)})';
-    String message;
+    final messages = <String>[];
     if (day.isLeagueMatchDay) {
-      message = '第${day.matchday}節 ${day.isHomeMatch ? '(H)' : '(A)'} '
-          'vs ${day.opponentName ?? '未定'}';
+      messages.add('第${day.matchday}節 ${day.isHomeMatch ? '(H)' : '(A)'} '
+          'vs ${day.opponentName ?? '未定'}');
     } else if (day.isTrainingFocusDay) {
-      message = '重点トレーニング日';
+      messages.add('重点トレーニング日');
     } else {
-      message = '練習日(通常メニュー)';
+      messages.add('練習日(通常メニュー)');
     }
+    messages.addAll(day.cupLabels);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$dateLabel: $message')),
+      SnackBar(content: Text('$dateLabel: ${messages.join(' / ')}')),
     );
   }
 }
@@ -192,19 +196,33 @@ class _CalendarDayCell extends StatelessWidget {
               : Border.all(color: Colors.transparent),
         ),
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
           children: [
-            Text(
-              '${day.date.day}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: day.isToday ? FontWeight.bold : FontWeight.normal,
-                color: dimmed ? Colors.grey.shade400 : null,
-              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '${day.date.day}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight:
+                        day.isToday ? FontWeight.bold : FontWeight.normal,
+                    color: dimmed ? Colors.grey.shade400 : null,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                SizedBox(height: 14, child: marker),
+              ],
             ),
-            const SizedBox(height: 2),
-            SizedBox(height: 14, child: marker),
+            if (day.isCupMatchDay)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Icon(Icons.emoji_events,
+                    size: 12,
+                    color: Colors.amber.shade700
+                        .withValues(alpha: dimmed ? 0.5 : 1)),
+              ),
           ],
         ),
       ),
@@ -236,6 +254,7 @@ class _CalendarLegend extends StatelessWidget {
           item(Icons.sports_soccer, Colors.blue.shade700, 'ホーム'),
           item(Icons.sports_soccer, Colors.grey.shade700, 'アウェイ'),
           item(Icons.fitness_center, Colors.deepOrange.shade400, '重点練習日'),
+          item(Icons.emoji_events, Colors.amber.shade700, 'カップ戦消化可能'),
         ],
       ),
     );
