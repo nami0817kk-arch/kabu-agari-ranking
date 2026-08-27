@@ -13,13 +13,6 @@ import 'glossary_screen.dart';
 import 'player_compare_screen.dart';
 import 'player_detail_screen.dart';
 
-/// 残り契約週数を「約◯年」表記に丸める(スカッド画面の一覧表示用)。
-String contractYearsLabel(int weeksRemaining) {
-  if (weeksRemaining <= 0) return '契約満了間近';
-  final years = weeksRemaining / 52;
-  return '契約残り$weeksRemaining週(約${years.toStringAsFixed(1)}年)';
-}
-
 enum SquadSortOption { position, overall, age, potential, wage }
 
 extension on SquadSortOption {
@@ -131,7 +124,7 @@ class _SquadScreenState extends State<SquadScreen> {
                 Text(p.name, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                    '週俸: ${p.wage}万円 / ${contractYearsLabel(p.contractWeeksRemaining)}'),
+                    '週俸: ${p.wage}万円 / ${ContractEngine.yearsLabel(p.contractWeeksRemaining)}'),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -459,7 +452,7 @@ class _SquadScreenState extends State<SquadScreen> {
                                               ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
                                               : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
                                                   '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}'
-                                                  '${p.isLoan ? '' : ' / ${contractYearsLabel(p.contractWeeksRemaining)}'}',
+                                                  '${p.isLoan ? '' : ' / ${ContractEngine.yearsLabel(p.contractWeeksRemaining)}'}',
                               style: (p.isInjured ||
                                       p.isSuspended ||
                                       p.isOnInternationalDuty ||

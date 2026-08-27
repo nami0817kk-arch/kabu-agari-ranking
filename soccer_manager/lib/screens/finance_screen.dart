@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/contract_engine.dart';
 import '../logic/loan_engine.dart';
 import '../models/player.dart';
 import '../services/feedback_service.dart';
@@ -109,7 +110,7 @@ class FinanceScreen extends StatelessWidget {
                 ),
             ],
             const SizedBox(height: 16),
-            Text('契約状況（残り週数が少ない順）',
+            Text('契約状況（残り年数が少ない順）',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final p in sortedByExpiry)
@@ -120,7 +121,7 @@ class FinanceScreen extends StatelessWidget {
                   title: Text(p.name),
                   subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
                   trailing: Text(
-                    '残り${p.contractWeeksRemaining}週',
+                    ContractEngine.yearsShortLabel(p.contractWeeksRemaining),
                     style: TextStyle(
                       color: p.contractWeeksRemaining <= 4
                           ? SemanticColors.negative(context)
@@ -191,7 +192,7 @@ class _SponsorSection extends StatelessWidget {
         child: ListTile(
           leading: const Icon(Icons.handshake),
           title: Text(deal.name),
-          subtitle: Text('残り${deal.weeksRemaining}週'),
+          subtitle: Text(ContractEngine.yearsShortLabel(deal.weeksRemaining)),
           trailing: Text('+${deal.weeklyIncome}万円/週',
               style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
@@ -225,7 +226,8 @@ class _SponsorSection extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.handshake_outlined),
               title: Text(offers[i].name),
-              subtitle: Text('契約期間: ${offers[i].weeksRemaining}週'),
+              subtitle: Text(
+                  '契約期間: ${ContractEngine.yearsShortLabel(offers[i].weeksRemaining)}'),
               trailing: FilledButton(
                 onPressed: () => _choose(context, i),
                 child: Text('+${offers[i].weeklyIncome}万円/週'),

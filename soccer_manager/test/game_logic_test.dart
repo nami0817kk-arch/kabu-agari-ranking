@@ -3384,6 +3384,18 @@ void main() {
   });
 
   test(
+      'ContractEngine.yearsLabel/yearsShortLabel round remaining contract '
+      'weeks to years, selecting the pending-expiry wording at zero or below',
+      () {
+    expect(ContractEngine.yearsLabel(0), '契約満了間近');
+    expect(ContractEngine.yearsLabel(-3), '契約満了間近');
+    expect(ContractEngine.yearsLabel(52), contains('約1.0年'));
+    expect(ContractEngine.yearsLabel(52), contains('52週'));
+    expect(ContractEngine.yearsShortLabel(0), '契約満了間近');
+    expect(ContractEngine.yearsShortLabel(104), '残り約2.0年');
+  });
+
+  test(
       'ContractEngine.minimumAcceptableWage scales with personality wage sensitivity',
       () {
     final player = PlayerGenerator.generateSquad(

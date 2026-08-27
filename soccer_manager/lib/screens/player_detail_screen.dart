@@ -220,7 +220,7 @@ class PlayerDetailScreen extends StatelessWidget {
           Text(
             p.isLoan
                 ? '週俸: ${p.wage}万円 / ローン残り${p.loanWeeksRemaining}週'
-                : '週俸: ${p.wage}万円 / 契約残り${p.contractWeeksRemaining}週',
+                : '週俸: ${p.wage}万円 / ${ContractEngine.yearsLabel(p.contractWeeksRemaining)}',
           ),
           if (p.releaseClause != null)
             Text('リリース条項: ${p.releaseClause}万円',

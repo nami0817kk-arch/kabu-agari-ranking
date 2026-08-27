@@ -279,6 +279,8 @@ class _StandingsTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = league.sortedStandings;
     final isTier1 = divisionTier == 1;
+    final maxOverall = league.teams
+        .fold<int>(1, (m, t) => t.overallRating > m ? t.overallRating : m);
     final relegationStart = rows.length - PromotionEngine.swapCount;
     const autoPromotionEnd = PromotionEngine.automaticPromotionCount;
     const playoffEnd = autoPromotionEnd + PromotionEngine.playoffPoolSize;
@@ -356,6 +358,28 @@ class _StandingsTab extends StatelessWidget {
                           '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}'),
                       const SizedBox(height: 4),
                       _FormGuide(results: league.recentFormFor(r.teamId)),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: LinearProgressIndicator(
+                                value: team.overallRating / maxOverall,
+                                minHeight: 5,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('戦力${team.overallRating}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: Colors.grey)),
+                        ],
+                      ),
                     ],
                   ),
                   trailing: Text('${r.points}pt',
@@ -365,7 +389,8 @@ class _StandingsTab extends StatelessWidget {
               if (!isUser) return row;
               return Semantics(
                 label: '自クラブ。${i + 1}位: ${team.name}、'
-                    '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}、${r.points}pt',
+                    '${r.played}試合 勝${r.won} 分${r.draw} 敗${r.lost} 得失点差${r.goalDiff}、'
+                    '${r.points}pt、戦力${team.overallRating}',
                 child: ExcludeSemantics(child: row),
               );
             },

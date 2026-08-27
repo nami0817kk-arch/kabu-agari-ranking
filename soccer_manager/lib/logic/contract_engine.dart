@@ -7,6 +7,21 @@ class ContractEngine {
       .where((p) => !p.isLoanedOut)
       .fold<int>(0, (s, p) => s + p.wage);
 
+  /// 残り契約週数を「約◯年」表記に丸める。選手・スポンサーいずれの契約も
+  /// 週単位で内部管理しているため、UI表示側でこの丸めを一貫して使う。
+  static String yearsLabel(int weeksRemaining) {
+    if (weeksRemaining <= 0) return '契約満了間近';
+    final years = weeksRemaining / 52;
+    return '契約残り$weeksRemaining週(約${years.toStringAsFixed(1)}年)';
+  }
+
+  /// [yearsLabel]の短縮版(トレーリング領域など表示幅が限られる箇所向け)。
+  static String yearsShortLabel(int weeksRemaining) {
+    if (weeksRemaining <= 0) return '契約満了間近';
+    final years = weeksRemaining / 52;
+    return '残り約${years.toStringAsFixed(1)}年';
+  }
+
   /// 契約満了が近づいたことを事前に警告する残り週数(この週数になった
   /// タイミングで一度だけ通知する)。
   static const int expiryWarningWeeks = 4;
