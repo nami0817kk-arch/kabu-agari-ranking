@@ -13,7 +13,6 @@ import '../screens/season_history_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/training_screen.dart';
 import '../screens/transfer_screen.dart';
-import '../screens/young_talent_screen.dart';
 import '../screens/youth_screen.dart';
 
 /// ホーム画面の「クラブ運営」タイルと、各メインタブのクイックアクセス
@@ -87,12 +86,6 @@ final List<QuickAccessDestination> quickAccessDestinations = [
     label: '設定',
     color: Colors.blueGrey.shade700,
     builder: (_) => const SettingsScreen(),
-  ),
-  QuickAccessDestination(
-    icon: Icons.stars,
-    label: '若手ランキング',
-    color: Colors.deepPurple.shade400,
-    builder: (_) => const YoungTalentScreen(),
   ),
   QuickAccessDestination(
     icon: Icons.history,

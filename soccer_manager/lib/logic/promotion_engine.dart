@@ -1,5 +1,6 @@
 import '../models/league.dart';
 import '../models/team.dart';
+import 'background_match_engine.dart';
 import 'cup_engine.dart';
 import 'fixture_generator.dart';
 import 'match_engine.dart';
@@ -65,14 +66,16 @@ class PromotionEngine {
   static const int playoffPoolSize = 4;
 
   /// [teams]で1シーズン分(ホーム&アウェイ総当たり)を即座にシミュレートし、
-  /// 最終順位順に並べ替えて返す。
+  /// 最終順位順に並べ替えて返す。呼び出し側([tier1PlayedOrder]/
+  /// [tier2PlayedOrder]が渡されない場合のフォールバック)でしか使わないため、
+  /// 大量の試合を一括処理してもUIが固まらないよう軽量エンジンを使う。
   static List<Team> _simulateSeason(List<Team> teams) {
     final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
     for (final f in fixtures) {
       final home = teams.firstWhere((t) => t.id == f.homeTeamId);
       final away = teams.firstWhere((t) => t.id == f.awayTeamId);
-      f.result =
-          MatchEngine.simulate(home: home, away: away, matchday: f.matchday);
+      f.result = BackgroundMatchEngine.simulate(
+          home: home, away: away, matchday: f.matchday);
     }
     final standings = League(teams: teams, fixtures: fixtures).sortedStandings;
     return standings

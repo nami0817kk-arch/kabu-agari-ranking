@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../logic/calendar_engine.dart';
+import '../logic/player_generator.dart';
 import '../logic/training_engine.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
@@ -190,6 +191,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             .setPlayerTrainingFocus(p.id, focus),
                       ),
                     ),
+                    if ((p.individualFocus ?? team.defaultTrainingFocus) ==
+                        TrainingFocus.positionSwitch)
+                      _PositionConvertPicker(player: p),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
                       child: Row(
@@ -400,6 +404,54 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// ポジションコンバート特訓の目標ポジションを選ぶピッカー。
+/// 生成時に偶然割り当てられた副ポジションとは関係なく、任意のポジションへの
+/// 転向を目指せるようにする(慣れ度が上限に達すると実際に起用可能になる)。
+class _PositionConvertPicker extends StatelessWidget {
+  final Player player;
+
+  const _PositionConvertPicker({required this.player});
+
+  @override
+  Widget build(BuildContext context) {
+    final candidates = PlayerGenerator.secondaryCandidatesFor(player.position)
+        .where((pos) => !player.secondaryPositions.contains(pos))
+        .toList();
+    final target = player.trainingConvertTargetPosition == null
+        ? null
+        : Position.values
+            .firstWhere((v) => v.name == player.trainingConvertTargetPosition);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              target == null
+                  ? '転向先ポジション: 未設定'
+                  : '転向先: ${target.label}(慣れ度${player.familiarityFor(target)}/100)',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          DropdownButton<Position?>(
+            value: target,
+            hint: const Text('選択'),
+            items: [
+              const DropdownMenuItem<Position?>(value: null, child: Text('なし')),
+              ...candidates.map((pos) => DropdownMenuItem<Position?>(
+                  value: pos, child: Text(pos.label))),
+            ],
+            onChanged: (pos) => context
+                .read<GameState>()
+                .setPlayerTrainingConvertTarget(player.id, pos),
+          ),
+        ],
       ),
     );
   }

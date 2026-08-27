@@ -47,7 +47,6 @@ import 'package:soccer_manager/models/team_talk.dart';
 import 'package:soccer_manager/models/weather.dart';
 import 'package:soccer_manager/screens/squad_screen.dart';
 import 'package:soccer_manager/screens/transfer_screen.dart';
-import 'package:soccer_manager/screens/young_talent_screen.dart';
 import 'package:soccer_manager/screens/youth_screen.dart';
 import 'package:soccer_manager/screens/glossary_screen.dart';
 import 'package:soccer_manager/data/glossary_entries.dart';
@@ -3241,61 +3240,6 @@ void main() {
     expect(gameState.isBusy, isFalse);
   });
 
-  test(
-      'YoungTalentScreen.topProspects excludes older players and sorts by potential then overall',
-      () {
-    Player make(String id, int age, int potential) => Player(
-          id: id,
-          name: id,
-          age: age,
-          position: Position.mc,
-          potential: potential,
-        );
-
-    final young1 = make('y1', 19, 90);
-    final young2 = make('y2', 20, 90);
-    final young3 = make('y3', 21, 70);
-    final old1 = make('o1', 30, 95);
-
-    final teamA = Team(id: 'a', name: 'A', players: [young1, old1]);
-    final teamB = Team(id: 'b', name: 'B', players: [young2, young3]);
-    final league = League(teams: [teamA], fixtures: [], season: 1);
-    final save = SaveGame(
-      clubName: 'テストFC',
-      userTeamId: 'a',
-      league: league,
-      secondDivisionTeams: [teamB],
-    );
-
-    final top = YoungTalentScreen.topProspects(save, limit: 10);
-
-    expect(top.length, 3);
-    expect(top.any((p) => p.player.id == 'o1'), isFalse);
-    expect(top.every((p) => p.player.age <= YoungTalentScreen.maxAge), isTrue);
-    expect(top.first.player.potential, 90);
-    expect(top.last.player.id, 'y3');
-  });
-
-  test('YoungTalentScreen.topProspects respects the limit parameter', () {
-    Player make(String id, int potential) => Player(
-          id: id,
-          name: id,
-          age: 18,
-          position: Position.mc,
-          potential: potential,
-        );
-
-    final players = List.generate(5, (i) => make('p$i', 60 + i));
-    final team = Team(id: 'a', name: 'A', players: players);
-    final league = League(teams: [team], fixtures: [], season: 1);
-    final save = SaveGame(clubName: 'テストFC', userTeamId: 'a', league: league);
-
-    final top = YoungTalentScreen.topProspects(save, limit: 2);
-
-    expect(top.length, 2);
-    expect(top.first.player.id, 'p4');
-  });
-
   test('GameState.toggleWatched adds and removes a player from the watchlist',
       () async {
     final gameState = GameState();
@@ -4398,6 +4342,43 @@ void main() {
 
     gameState.setDrillAttribute(player.id, null);
     expect(player.drillAttributeKey, isNull);
+  });
+
+  test(
+      'GameState.setPlayerTrainingConvertTarget lets a player convert to a '
+      "brand-new position not among their generated secondaryPositions",
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final player =
+        gameState.userTeam.players.firstWhere((p) => p.position == Position.mc);
+    player.secondaryPositions = [];
+    player.individualFocus = TrainingFocus.positionSwitch;
+
+    gameState.setPlayerTrainingConvertTarget(player.id, Position.dm);
+    expect(player.trainingConvertTargetPosition, Position.dm.name);
+    expect(player.canPlay(Position.dm), isFalse);
+
+    // 慣れ度が上限に達すると、実際に起用可能な副ポジションへ昇格するはず。
+    player.positionFamiliarity[Position.dm.name] = 100;
+    await gameState.runWeeklyTraining();
+
+    expect(player.secondaryPositions, contains(Position.dm));
+    expect(player.canPlay(Position.dm), isTrue);
+    expect(player.trainingConvertTargetPosition, isNull);
+  });
+
+  test('GameState.addDebugFunds increases or decreases the club budget',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final before = gameState.save!.budget;
+
+    gameState.addDebugFunds(50000);
+    expect(gameState.save!.budget, before + 50000);
+
+    gameState.addDebugFunds(-20000);
+    expect(gameState.save!.budget, before + 30000);
   });
 
   test('a drill attribute grows noticeably more often than an undrilled one',

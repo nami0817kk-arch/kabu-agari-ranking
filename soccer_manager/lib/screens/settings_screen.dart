@@ -21,6 +21,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsController>();
+    final gameState = context.watch<GameState>();
 
     return Scaffold(
       appBar: AppBar(
@@ -169,6 +170,19 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
+          if (gameState.save != null) ...[
+            const SizedBox(height: 20),
+            Text('デバッグ(管理者専用)', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.build_circle_outlined),
+                title: const Text('資金を追加'),
+                subtitle: const Text('動作確認・検証用に、任意の額だけクラブ資金を増減させます'),
+                onTap: () => _showAddFundsDialog(context),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           Text('アプリ情報', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -295,6 +309,47 @@ class SettingsScreen extends StatelessWidget {
               }
             },
             child: const Text('復元する'),
+          ),
+        ],
+      ),
+    ).then((_) => controller.dispose());
+  }
+
+  void _showAddFundsDialog(BuildContext context) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('資金を追加'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(signed: true),
+          decoration: const InputDecoration(
+            labelText: '増減額(万円)',
+            hintText: '例: 100000(マイナスで減額)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () {
+              final amount = int.tryParse(controller.text.trim());
+              Navigator.pop(ctx);
+              if (amount == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('数値を入力してください')),
+                );
+                return;
+              }
+              context.read<GameState>().addDebugFunds(amount);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text('資金を${amount >= 0 ? '+' : ''}$amount万円しました')),
+              );
+            },
+            child: const Text('反映する'),
           ),
         ],
       ),

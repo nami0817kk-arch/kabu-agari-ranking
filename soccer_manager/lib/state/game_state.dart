@@ -31,6 +31,7 @@ import '../logic/achievement_engine.dart';
 import '../logic/ai_transfer_engine.dart';
 import '../logic/calendar_engine.dart';
 import '../logic/awards_engine.dart';
+import '../logic/background_match_engine.dart';
 import '../logic/best_eleven_engine.dart';
 import '../logic/board_engine.dart';
 import '../logic/contract_engine.dart';
@@ -239,8 +240,8 @@ class GameState extends ChangeNotifier {
       if (f.matchday > catchUpTo) continue;
       final home = teams.firstWhere((t) => t.id == f.homeTeamId);
       final away = teams.firstWhere((t) => t.id == f.awayTeamId);
-      f.result =
-          MatchEngine.simulate(home: home, away: away, matchday: f.matchday);
+      f.result = BackgroundMatchEngine.simulate(
+          home: home, away: away, matchday: f.matchday);
     }
     _save!.otherDivisionLeague =
         League(teams: teams, fixtures: fixtures, season: _save!.league.season);
@@ -455,6 +456,26 @@ class GameState extends ChangeNotifier {
     if (_save == null) return;
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
     player.individualFocus = focus;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 開発者向けのデバッグ機能。資金を任意の額だけ増減させる
+  /// (負の値で減額も可能)。設定画面の管理者専用メニューからのみ呼ばれる。
+  void addDebugFunds(int amount) {
+    if (_save == null) return;
+    _save!.budget += amount;
+    notifyListeners();
+    _persist();
+  }
+
+  /// ポジションコンバート特訓の目標ポジションを設定する(nullで解除)。
+  /// 生成時に偶然割り当てられた副ポジションとは無関係に、任意のポジション
+  /// への転向を目指せる。
+  void setPlayerTrainingConvertTarget(String playerId, Position? target) {
+    if (_save == null) return;
+    final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    player.trainingConvertTargetPosition = target?.name;
     notifyListeners();
     _persist();
   }
@@ -2094,7 +2115,8 @@ class GameState extends ChangeNotifier {
         if (f.result != null) continue;
         final home = otherLeague.teams.firstWhere((t) => t.id == f.homeTeamId);
         final away = otherLeague.teams.firstWhere((t) => t.id == f.awayTeamId);
-        f.result = MatchEngine.simulate(home: home, away: away, matchday: md);
+        f.result = BackgroundMatchEngine.simulate(
+            home: home, away: away, matchday: md);
       }
     }
 

@@ -140,9 +140,26 @@ class TrainingEngine {
         p.fatigue = (p.fatigue + (6 * intensityFactor).round()).clamp(0, 100);
         break;
       case TrainingFocus.positionSwitch:
-        for (final pos in p.secondaryPositions) {
-          if (_rng.nextDouble() < (0.5 * effectiveGrowth).clamp(0, 1)) {
-            p.growFamiliarity(pos, amount: 2);
+        final targetName = p.trainingConvertTargetPosition;
+        if (targetName != null) {
+          // 明示的に指定した目標ポジションへ集中的にコンバートする。
+          // 慣れ度が上限に達したら正式に副ポジションへ加え、目標は解除する。
+          final target = Position.values.firstWhere((v) => v.name == targetName,
+              orElse: () => p.position);
+          if (target != p.position &&
+              _rng.nextDouble() < (0.6 * effectiveGrowth).clamp(0, 1)) {
+            p.growFamiliarity(target, amount: 3);
+          }
+          if (p.familiarityFor(target) >= 100 &&
+              !p.secondaryPositions.contains(target)) {
+            p.secondaryPositions = [...p.secondaryPositions, target];
+            p.trainingConvertTargetPosition = null;
+          }
+        } else {
+          for (final pos in p.secondaryPositions) {
+            if (_rng.nextDouble() < (0.5 * effectiveGrowth).clamp(0, 1)) {
+              p.growFamiliarity(pos, amount: 2);
+            }
           }
         }
         p.fatigue = (p.fatigue + (8 * intensityFactor).round()).clamp(0, 100);

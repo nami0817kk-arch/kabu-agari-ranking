@@ -447,6 +447,13 @@ class Player {
   /// トレーニング方針とは別に、この1項目の成長確率が上乗せされる。
   String? drillAttributeKey;
 
+  /// ポジションコンバート特訓(TrainingFocus.positionSwitch)で目標とする
+  /// ポジション(Position.name)。設定した場合、生成時に偶然割り当てられた
+  /// secondaryPositionsとは関係なく、このポジションの慣れ度を集中的に
+  /// 伸ばす。慣れ度が上限(100)に達するとsecondaryPositionsへ自動的に
+  /// 追加され、実際にそのポジションで起用できるようになる。
+  String? trainingConvertTargetPosition;
+
   Player({
     required this.id,
     required this.name,
@@ -486,6 +493,7 @@ class Player {
     this.matchSharpness = 80,
     this.mentorId,
     this.drillAttributeKey,
+    this.trainingConvertTargetPosition,
   })  : secondaryPositions = secondaryPositions ?? [],
         attributes = attributes ?? {for (final k in AttributeKeys.all) k: 50},
         positionFamiliarity = positionFamiliarity ?? {},
@@ -657,6 +665,7 @@ class Player {
         'matchSharpness': matchSharpness,
         'mentorId': mentorId,
         'drillAttributeKey': drillAttributeKey,
+        'trainingConvertTargetPosition': trainingConvertTargetPosition,
       };
 
   factory Player.fromJson(Map<String, dynamic> json) {
@@ -726,6 +735,8 @@ class Player {
       matchSharpness: json['matchSharpness'] as int? ?? 80,
       mentorId: json['mentorId'] as String?,
       drillAttributeKey: json['drillAttributeKey'] as String?,
+      trainingConvertTargetPosition:
+          json['trainingConvertTargetPosition'] as String?,
     );
   }
 
