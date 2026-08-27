@@ -1,6 +1,7 @@
 import 'bank_loan.dart';
 import 'best_eleven.dart';
 import 'club_infrastructure.dart';
+import 'enum_json.dart';
 import 'continental_cup.dart';
 import 'contract_negotiation.dart';
 import 'cup.dart';
@@ -43,6 +44,13 @@ class SaveGame {
 
   /// シーズン終了時に一括生成された、選抜待ちのユースインテーク候補。
   List<Player> pendingYouthIntake;
+
+  /// 若手有望株ランキングで追跡対象に指定した選手のID一覧
+  /// (自クラブ以外の選手も含む、閲覧専用のウォッチリスト)。
+  List<String> watchlistPlayerIds;
+
+  /// 現在のチケット価格戦略(観客動員率と1人あたり収入のトレードオフ)。
+  TicketPricing ticketPricing;
 
   /// スタッフ・施設のレベル。
   ClubInfrastructure infrastructure;
@@ -131,6 +139,9 @@ class SaveGame {
   /// シーズン開始時に0へリセットされる。
   int lastManagerOfMonthCheckpoint;
 
+  /// 今週すでにトレーニングを実施済みかどうか(節が進むとリセットされる)。
+  bool trainingDoneThisWeek;
+
   /// 進行中の契約交渉(週俸の駆け引き)。ない場合はnull。
   ContractNegotiation? pendingContractNegotiation;
 
@@ -154,6 +165,8 @@ class SaveGame {
     this.pendingJobOfferTeamId,
     List<Player>? youthProspects,
     List<Player>? pendingYouthIntake,
+    List<String>? watchlistPlayerIds,
+    this.ticketPricing = TicketPricing.standard,
     ClubInfrastructure? infrastructure,
     List<Cup>? cups,
     this.continentalCup,
@@ -184,6 +197,7 @@ class SaveGame {
     this.boardReviewDoneThisSeason = false,
     this.pendingBoardReviewMessage,
     this.lastManagerOfMonthCheckpoint = 0,
+    this.trainingDoneThisWeek = false,
     this.pendingContractNegotiation,
     this.pendingSuperCup,
     this.consecutiveNegativeBudgetWeeks = 0,
@@ -195,6 +209,7 @@ class SaveGame {
         bestElevenHistory = bestElevenHistory ?? [],
         youthProspects = youthProspects ?? [],
         pendingYouthIntake = pendingYouthIntake ?? [],
+        watchlistPlayerIds = watchlistPlayerIds ?? [],
         infrastructure = infrastructure ?? ClubInfrastructure(),
         cups = cups ?? [],
         continentalTeams = continentalTeams ?? [],
@@ -219,6 +234,8 @@ class SaveGame {
         'youthProspects': youthProspects.map((p) => p.toJson()).toList(),
         'pendingYouthIntake':
             pendingYouthIntake.map((p) => p.toJson()).toList(),
+        'watchlistPlayerIds': watchlistPlayerIds,
+        'ticketPricing': ticketPricing.name,
         'infrastructure': infrastructure.toJson(),
         'cups': cups.map((c) => c.toJson()).toList(),
         'continentalCup': continentalCup?.toJson(),
@@ -252,6 +269,7 @@ class SaveGame {
         'boardReviewDoneThisSeason': boardReviewDoneThisSeason,
         'pendingBoardReviewMessage': pendingBoardReviewMessage,
         'lastManagerOfMonthCheckpoint': lastManagerOfMonthCheckpoint,
+        'trainingDoneThisWeek': trainingDoneThisWeek,
         'pendingContractNegotiation': pendingContractNegotiation?.toJson(),
         'pendingSuperCup': pendingSuperCup?.toJson(),
         'consecutiveNegativeBudgetWeeks': consecutiveNegativeBudgetWeeks,
@@ -275,6 +293,12 @@ class SaveGame {
                 ?.map((e) => Player.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        watchlistPlayerIds: (json['watchlistPlayerIds'] as List?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        ticketPricing: enumFromName(TicketPricing.values,
+            json['ticketPricing'] as String?, TicketPricing.standard),
         infrastructure: ClubInfrastructure.fromJson(
             json['infrastructure'] as Map<String, dynamic>?),
         cups: (json['cups'] as List?)
@@ -361,6 +385,7 @@ class SaveGame {
         pendingBoardReviewMessage: json['pendingBoardReviewMessage'] as String?,
         lastManagerOfMonthCheckpoint:
             json['lastManagerOfMonthCheckpoint'] as int? ?? 0,
+        trainingDoneThisWeek: json['trainingDoneThisWeek'] as bool? ?? false,
         pendingContractNegotiation: json['pendingContractNegotiation'] == null
             ? null
             : ContractNegotiation.fromJson(

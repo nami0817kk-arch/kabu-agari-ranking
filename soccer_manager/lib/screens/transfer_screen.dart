@@ -215,7 +215,8 @@ class _TransferScreenState extends State<TransferScreen>
                           ],
                         ),
                         subtitle: Text(
-                          '${p.age}歳 / ${p.position.label} / 総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万',
+                          '${p.originClubName ?? '所属不明'} / ${p.age}歳 / ${p.position.label} / '
+                          '総合 ${p.overall} / 潜在 ${p.potential} / 移籍金 ${p.marketValue}万',
                         ),
                         trailing: FilledButton(
                           onPressed: (squadFull || !windowOpen)

@@ -4,6 +4,7 @@ import '../logic/training_engine.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../models/training_result.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/busy_overlay.dart';
@@ -99,8 +100,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
               width: double.infinity,
               child: FilledButton(
                 onPressed:
-                    _isRunningTraining ? null : () => _runTraining(context),
-                child: const Text('今週のトレーニングを実施'),
+                    (_isRunningTraining || gameState.trainingDoneThisWeek)
+                        ? null
+                        : () => _runTraining(context),
+                child: Text(gameState.trainingDoneThisWeek
+                    ? '今週は実施済み(次の節で再実施可能)'
+                    : '今週のトレーニングを実施'),
               ),
             ),
             const Divider(height: 32),
@@ -184,14 +189,80 @@ class _TrainingScreenState extends State<TrainingScreen> {
   Future<void> _runTraining(BuildContext context) async {
     final gameState = context.read<GameState>();
     setState(() => _isRunningTraining = true);
-    await gameState.runWeeklyTraining();
+    final ok = await gameState.runWeeklyTraining();
     if (mounted) setState(() => _isRunningTraining = false);
-    FeedbackService.success();
-    if (context.mounted) {
+    if (!context.mounted) return;
+    if (ok) {
+      FeedbackService.success();
+      _showTrainingResultDialog(context, gameState.lastTrainingResults);
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('トレーニングを実施しました')),
+        const SnackBar(content: Text('今週のトレーニングは実施済みです')),
       );
     }
+  }
+
+  void _showTrainingResultDialog(
+      BuildContext context, List<PlayerGrowthSummary> results) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('トレーニング結果'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: results.isEmpty
+              ? const Text('今週は目立った変化のあった選手はいませんでした。')
+              : ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final r in results)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(r.playerName,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold)),
+                                ),
+                                Text(
+                                  '総合 ${r.overallBefore} → ${r.overallAfter}'
+                                  '${r.overallDelta > 0 ? ' (+${r.overallDelta})' : r.overallDelta < 0 ? ' (${r.overallDelta})' : ''}',
+                                  style: TextStyle(
+                                    color: r.overallDelta > 0
+                                        ? Colors.green
+                                        : r.overallDelta < 0
+                                            ? Colors.redAccent
+                                            : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (r.attributeDeltas.isNotEmpty)
+                              Text(
+                                r.attributeDeltas.entries
+                                    .map((e) =>
+                                        '${AttributeKeys.labelOf(e.key)}${e.value > 0 ? '+' : ''}${e.value}')
+                                    .join(' / '),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('閉じる')),
+        ],
+      ),
+    );
   }
 
   String _mentorName(List<Player> players, String mentorId) {

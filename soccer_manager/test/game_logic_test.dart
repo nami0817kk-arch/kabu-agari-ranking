@@ -106,6 +106,15 @@ void main() {
     expect(market.length, 7);
   });
 
+  test('TransferMarket.generate tags every candidate with an origin club name',
+      () {
+    final market = TransferMarket.generate(count: 12);
+    for (final p in market) {
+      expect(p.originClubName, isNotNull);
+      expect(p.originClubName, isNotEmpty);
+    }
+  });
+
   test('BoardEngine confidence deltas reward wins and punish bad losses', () {
     final win = MatchResult(
         matchday: 1,
@@ -289,9 +298,9 @@ void main() {
     team.startingXI = [soonToExpire.id];
     final beforeCount = team.players.length;
 
-    final expired = ContractEngine.advanceWeek(team);
+    final result = ContractEngine.advanceWeek(team);
 
-    expect(expired.map((p) => p.id), contains(soonToExpire.id));
+    expect(result.expired.map((p) => p.id), contains(soonToExpire.id));
     expect(team.players.length, beforeCount - 1);
     expect(team.startingXI, isNot(contains(soonToExpire.id)));
   });
@@ -818,6 +827,25 @@ void main() {
   });
 
   test(
+      'GameState.isUserDomesticCupMatchUpNext is true exactly when the '
+      'bracket\'s next unplayed match involves the user\'s club', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+
+    int guard = 0;
+    while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20) {
+      final next = gameState.domesticCup!.nextUnplayedMatch!;
+      final expected = next.homeTeamId == userId || next.awayTeamId == userId;
+      expect(gameState.isUserDomesticCupMatchUpNext, expected);
+      await gameState.playNextCupMatch();
+      guard++;
+    }
+
+    expect(gameState.isUserDomesticCupMatchUpNext, isFalse);
+  });
+
+  test(
       'GameState.startNewGame names the domestic cup after the chosen '
       'league theme', () async {
     final gameState = GameState();
@@ -1251,9 +1279,9 @@ void main() {
     loanPlayer.isLoan = true;
     loanPlayer.loanWeeksRemaining = 1;
 
-    final expired = ContractEngine.advanceWeek(team);
+    final result = ContractEngine.advanceWeek(team);
 
-    expect(expired.any((p) => p.id == loanPlayer.id), isTrue);
+    expect(result.expired.any((p) => p.id == loanPlayer.id), isTrue);
     expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
   });
 
@@ -1727,6 +1755,118 @@ void main() {
     }
 
     expect(gameState.bankLoans, isEmpty);
+  });
+
+  test(
+      'GameState.playNextMatchday auto-signs free agents when contract expirations '
+      'would drop the squad below the minimum size', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    // 最低人数ぎりぎりまで減らした上で、残り全員の契約を今週切れさせる。
+    while (team.players.length > minSquadSize) {
+      team.players.removeLast();
+    }
+    for (final p in team.players) {
+      p.isLoan = false;
+      p.contractWeeksRemaining = 1;
+    }
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    expect(team.players.length, greaterThanOrEqualTo(minSquadSize));
+    expect(gameState.lastEmergencySignings, isNotEmpty);
+  });
+
+  test('GameState.runWeeklyTraining only allows one training session per week',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    final first = await gameState.runWeeklyTraining();
+    final second = await gameState.runWeeklyTraining();
+
+    expect(first, isTrue);
+    expect(second, isFalse);
+    expect(gameState.trainingDoneThisWeek, isTrue);
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    expect(gameState.trainingDoneThisWeek, isFalse);
+    final afterMatchday = await gameState.runWeeklyTraining();
+    expect(afterMatchday, isTrue);
+  });
+
+  test(
+      'GameState.runWeeklyTraining records a growth summary only for players whose attributes actually changed',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    // 成長判定は確率的なため、複数週分試して少なくとも一度は変化を捉える。
+    var sawAnyResult = false;
+    for (int i = 0; i < 8; i++) {
+      await gameState.runWeeklyTraining();
+      if (gameState.lastTrainingResults.isNotEmpty) sawAnyResult = true;
+      for (final r in gameState.lastTrainingResults) {
+        final hasAttrChange = r.attributeDeltas.values.any((d) => d != 0);
+        expect(hasAttrChange || r.overallDelta != 0, isTrue);
+      }
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    expect(sawAnyResult, isTrue);
+  });
+
+  test(
+      'GameState.seasonStatsFor tallies appearances, goals and average rating from played fixtures only',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final scorer = gameState.userTeam.players.first;
+    final fixture = gameState.save!.league.fixtures.first;
+    fixture.result = MatchResult(
+      matchday: fixture.matchday,
+      homeTeamId: fixture.homeTeamId,
+      awayTeamId: fixture.awayTeamId,
+      homeGoals: 1,
+      awayGoals: 0,
+      events: [
+        MatchEvent(
+            minute: 10,
+            teamId: gameState.userTeam.id,
+            scorerId: scorer.id,
+            scorerName: scorer.name),
+        MatchEvent(
+            minute: 55,
+            teamId: gameState.userTeam.id,
+            scorerId: scorer.id,
+            scorerName: scorer.name,
+            type: MatchEventType.yellowCard),
+      ],
+      playerRatings: {scorer.id: 8.0},
+    );
+
+    final stats = gameState.seasonStatsFor(scorer.id);
+
+    expect(stats.appearances, 1);
+    expect(stats.goals, 1);
+    expect(stats.yellowCards, 1);
+    expect(stats.averageRating, 8.0);
+
+    final unplayedTeammate = gameState.userTeam.players[1];
+    final noStats = gameState.seasonStatsFor(unplayedTeammate.id);
+    expect(noStats.appearances, 0);
+    expect(noStats.averageRating, isNull);
   });
 
   test(
@@ -2372,6 +2512,51 @@ void main() {
     expect(level5, greaterThan(level1));
   });
 
+  test(
+      'ClubInfrastructure formulas for training growth, fatigue recovery and '
+      'injury risk scale monotonically with level', () {
+    expect(ClubInfrastructure.trainingGrowthMultiplier(1, 1), 1.0);
+    expect(ClubInfrastructure.trainingGrowthMultiplier(5, 1),
+        greaterThan(ClubInfrastructure.trainingGrowthMultiplier(1, 1)));
+    expect(ClubInfrastructure.trainingGrowthMultiplier(1, 5),
+        greaterThan(ClubInfrastructure.trainingGrowthMultiplier(1, 1)));
+
+    expect(ClubInfrastructure.fatigueRecoveryBonus(1), 0);
+    expect(ClubInfrastructure.fatigueRecoveryBonus(5), greaterThan(0));
+
+    expect(ClubInfrastructure.injuryFactor(1), 1.0);
+    expect(ClubInfrastructure.injuryFactor(5), 0.4);
+    expect(ClubInfrastructure.injuryFactor(5),
+        lessThan(ClubInfrastructure.injuryFactor(1)));
+  });
+
+  test(
+      'GameState.careerRecordSoFar reflects the in-progress season before it ends',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.save!.careerWins, 0);
+
+    for (int i = 0; i < 3; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    final row = gameState.save!.league.sortedStandings
+        .firstWhere((r) => r.teamId == gameState.userTeam.id);
+    final record = gameState.careerRecordSoFar;
+
+    // シーズン終了前はsave.careerWinsそのものはまだ0のまま。
+    expect(gameState.save!.careerWins, 0);
+    // だがcareerRecordSoFarには進行中シーズンの成績が反映されている。
+    expect(record.wins, row.won);
+    expect(record.draws, row.draw);
+    expect(record.losses, row.lost);
+    expect(row.played, greaterThan(0));
+  });
+
   test('GameState.expectedAttendance stays within the stadium capacity',
       () async {
     final gameState = GameState();
@@ -2380,6 +2565,34 @@ void main() {
     expect(gameState.expectedAttendance, greaterThan(0));
     expect(gameState.expectedAttendance,
         lessThanOrEqualTo(gameState.stadiumCapacity));
+  });
+
+  test(
+      'GameState.setTicketPricing trades attendance for per-head revenue in '
+      'the expected direction', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    // 動員率が上限(満員)に張り付いて価格差が見えなくなるのを避けるため、
+    // あえて動員率を下げる要因(低い信頼度・2部リーグ)を作っておく。
+    gameState.save!.confidence = 0;
+    gameState.save!.currentDivisionTier = 2;
+
+    await gameState.setTicketPricing(TicketPricing.standard);
+    final standardAttendance = gameState.expectedAttendance;
+    final standardIncome = gameState.weeklyIncomeFor(gameState.userTeam.id);
+
+    await gameState.setTicketPricing(TicketPricing.premium);
+    final premiumAttendance = gameState.expectedAttendance;
+
+    await gameState.setTicketPricing(TicketPricing.budget);
+    final budgetAttendance = gameState.expectedAttendance;
+
+    expect(gameState.save!.ticketPricing, TicketPricing.budget);
+    expect(premiumAttendance, lessThan(standardAttendance));
+    expect(budgetAttendance, greaterThan(standardAttendance));
+
+    await gameState.setTicketPricing(TicketPricing.standard);
+    expect(gameState.weeklyIncomeFor(gameState.userTeam.id), standardIncome);
   });
 
   test(
@@ -2948,6 +3161,23 @@ void main() {
     expect(top.first.player.id, 'p4');
   });
 
+  test('GameState.toggleWatched adds and removes a player from the watchlist',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final anyPlayerId = gameState.userTeam.players.first.id;
+
+    expect(gameState.isWatched(anyPlayerId), isFalse);
+
+    await gameState.toggleWatched(anyPlayerId);
+    expect(gameState.isWatched(anyPlayerId), isTrue);
+    expect(gameState.save!.watchlistPlayerIds, contains(anyPlayerId));
+
+    await gameState.toggleWatched(anyPlayerId);
+    expect(gameState.isWatched(anyPlayerId), isFalse);
+    expect(gameState.save!.watchlistPlayerIds, isNot(contains(anyPlayerId)));
+  });
+
   test('SquadScreen.filterAndSort filters by position group and search query',
       () {
     Player make(String id, String name, Position pos) => Player(
@@ -3396,6 +3626,57 @@ void main() {
       expect(projections[i].avgFinalRank,
           greaterThanOrEqualTo(projections[i - 1].avgFinalRank));
     }
+  });
+
+  test(
+      'MatchEngine.dutyAttackMultiplier/dutyDefenseMultiplier reward the '
+      'matching duty and penalize the opposite one', () {
+    expect(MatchEngine.dutyAttackMultiplier(PlayerDuty.attack),
+        greaterThan(MatchEngine.dutyAttackMultiplier(PlayerDuty.support)));
+    expect(MatchEngine.dutyAttackMultiplier(PlayerDuty.defend),
+        lessThan(MatchEngine.dutyAttackMultiplier(PlayerDuty.support)));
+    expect(MatchEngine.dutyDefenseMultiplier(PlayerDuty.defend),
+        greaterThan(MatchEngine.dutyDefenseMultiplier(PlayerDuty.support)));
+    expect(MatchEngine.dutyDefenseMultiplier(PlayerDuty.attack),
+        lessThan(MatchEngine.dutyDefenseMultiplier(PlayerDuty.support)));
+  });
+
+  test(
+      'MatchEngine.tacticalImpact reflects raising each slider in the '
+      'expected direction', () {
+    final team = Team(id: 't', name: 'T', players: []);
+    final baseline = MatchEngine.tacticalImpact(team);
+    expect(baseline.attackMultiplier, 1.0);
+    expect(baseline.defenseMultiplier, 1.0);
+    expect(baseline.fatigueMultiplier, 1.0);
+
+    team.lineHeight = 90;
+    final higherLine = MatchEngine.tacticalImpact(team);
+    expect(higherLine.attackMultiplier, greaterThan(baseline.attackMultiplier));
+    expect(higherLine.defenseMultiplier, lessThan(baseline.defenseMultiplier));
+    team.lineHeight = 50;
+
+    team.width = 90;
+    final widerAttack = MatchEngine.tacticalImpact(team);
+    expect(
+        widerAttack.attackMultiplier, greaterThan(baseline.attackMultiplier));
+    expect(widerAttack.defenseMultiplier, lessThan(baseline.defenseMultiplier));
+    team.width = 50;
+
+    team.pressing = 90;
+    final morePressing = MatchEngine.tacticalImpact(team);
+    expect(morePressing.defenseMultiplier,
+        greaterThan(baseline.defenseMultiplier));
+    expect(morePressing.fatigueMultiplier,
+        greaterThan(baseline.fatigueMultiplier));
+    team.pressing = 50;
+
+    team.tempo = 90;
+    final higherTempo = MatchEngine.tacticalImpact(team);
+    expect(
+        higherTempo.attackMultiplier, greaterThan(baseline.attackMultiplier));
+    expect(
+        higherTempo.fatigueMultiplier, greaterThan(baseline.fatigueMultiplier));
   });
 
   test(

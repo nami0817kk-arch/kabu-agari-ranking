@@ -73,6 +73,10 @@ class _BestElevenCard extends StatelessWidget {
     };
     final userPlayerIds =
         context.watch<GameState>().userTeam.players.map((p) => p.id).toSet();
+    final userSelections = seasonEleven.entries
+        .where((e) =>
+            e.teamId != null ? e.teamId == userTeamId : e.teamName == clubName)
+        .length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -81,8 +85,19 @@ class _BestElevenCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('シーズン${seasonEleven.season}',
-                style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('シーズン${seasonEleven.season}',
+                    style: Theme.of(context).textTheme.titleMedium),
+                if (userSelections > 0)
+                  Text('自クラブから$userSelections名選出',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blueAccent,
+                          fontWeight: FontWeight.bold)),
+              ],
+            ),
             const Divider(height: 20),
             for (final g in PositionGroup.values)
               if (byGroup[g]!.isNotEmpty) ...[
@@ -115,8 +130,16 @@ class _BestElevenCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Text('平均${e.avgRating.toStringAsFixed(1)}',
-                              style: Theme.of(context).textTheme.bodySmall),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('平均${e.avgRating.toStringAsFixed(1)}',
+                                  style: Theme.of(context).textTheme.bodySmall),
+                              Text('${e.appearances}試合',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: Colors.grey)),
+                            ],
+                          ),
                         ],
                       ),
                     ),

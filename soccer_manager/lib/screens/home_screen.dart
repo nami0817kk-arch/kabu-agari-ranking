@@ -13,6 +13,7 @@ import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'cup_screen.dart';
 import 'live_match_screen.dart';
 import 'match_screen.dart';
 import 'player_detail_screen.dart';
@@ -148,6 +149,8 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
+              _ThisWeekCard(gameState: gameState, next: next, league: league),
+              const SizedBox(height: 12),
               if (gameState.pendingBoardReviewMessage != null)
                 Card(
                   color: Colors.indigo.shade50,
@@ -190,6 +193,24 @@ class HomeScreen extends StatelessWidget {
                 _JobOfferCard(gameState: gameState),
               if (gameState.pendingSuperCup != null)
                 _SuperCupCard(gameState: gameState),
+              if (gameState.isUserDomesticCupMatchUpNext)
+                Card(
+                  color: scheme.tertiaryContainer,
+                  child: ListTile(
+                    leading: const Icon(Icons.emoji_events_outlined),
+                    title: const Text('国内カップ戦の出番です'),
+                    subtitle: const Text('ブラケットの次の試合が自クラブの対戦になっています'),
+                    trailing: FilledButton(
+                      onPressed: () {
+                        FeedbackService.tap();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const CupScreen()),
+                        );
+                      },
+                      child: const Text('カップ戦へ'),
+                    ),
+                  ),
+                ),
               if (gameState.pendingYouthIntake.isNotEmpty)
                 Card(
                   color: scheme.secondaryContainer,
@@ -993,6 +1014,89 @@ class _SuperCupCard extends StatelessWidget {
       MaterialPageRoute(
         builder: (_) =>
             MatchScreen(result: result, teams: teams, title: 'スーパーカップ'),
+      ),
+    );
+  }
+}
+
+/// 「今週」に何をすべきかを一目でまとめるカード。試合(リーグ/カップ)の
+/// 予定とトレーニングの実施状況を、カレンダーの代わりに凝縮して見せる。
+class _ThisWeekCard extends StatelessWidget {
+  final GameState gameState;
+  final Fixture? next;
+  final League league;
+
+  const _ThisWeekCard(
+      {required this.gameState, required this.next, required this.league});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    String matchLine;
+    if (next == null) {
+      matchLine = 'リーグ戦は今シーズン終了しています';
+    } else {
+      final userId = gameState.userTeam.id;
+      final isHome = next!.homeTeamId == userId;
+      final opponentId = isHome ? next!.awayTeamId : next!.homeTeamId;
+      final opponent = league.teams.firstWhere((t) => t.id == opponentId,
+          orElse: () => league.teams.first);
+      final derby = gameState.isRivalFixture(next!);
+      matchLine =
+          '第${next!.matchday}節 ${isHome ? '(H)' : '(A)'} vs ${opponent.name}'
+          '${derby ? ' ⚡ダービー' : ''}';
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('今週の予定',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.sports_soccer, size: 18, color: scheme.primary),
+                const SizedBox(width: 6),
+                Expanded(child: Text(matchLine)),
+              ],
+            ),
+            if (gameState.isUserDomesticCupMatchUpNext) ...[
+              const SizedBox(height: 6),
+              const Row(
+                children: [
+                  Icon(Icons.emoji_events_outlined,
+                      size: 18, color: Colors.amber),
+                  SizedBox(width: 6),
+                  Expanded(child: Text('国内カップ戦の出番も控えています')),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(
+                  gameState.trainingDoneThisWeek
+                      ? Icons.check_circle
+                      : Icons.fitness_center,
+                  size: 18,
+                  color: gameState.trainingDoneThisWeek
+                      ? SemanticColors.positive(context)
+                      : Colors.orange,
+                ),
+                const SizedBox(width: 6),
+                Text(gameState.trainingDoneThisWeek
+                    ? '今週のトレーニングは実施済み'
+                    : '今週のトレーニングは未実施'),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

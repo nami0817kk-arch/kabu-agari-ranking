@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/season_award.dart';
 import '../models/season_record.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
@@ -14,6 +15,13 @@ class SeasonHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final history = gameState.seasonHistory;
+    final awards = gameState.save!.seasonAwards;
+    SeasonAward? awardFor(int season) {
+      for (final a in awards) {
+        if (a.season == season) return a;
+      }
+      return null;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -42,8 +50,8 @@ class SeasonHistoryScreen extends StatelessWidget {
             : ListView.builder(
                 padding: const EdgeInsets.all(16),
                 itemCount: history.length,
-                itemBuilder: (context, i) =>
-                    _SeasonRecordCard(record: history[i]),
+                itemBuilder: (context, i) => _SeasonRecordCard(
+                    record: history[i], award: awardFor(history[i].season)),
               ),
       ),
     );
@@ -52,7 +60,8 @@ class SeasonHistoryScreen extends StatelessWidget {
 
 class _SeasonRecordCard extends StatelessWidget {
   final SeasonRecord record;
-  const _SeasonRecordCard({required this.record});
+  final SeasonAward? award;
+  const _SeasonRecordCard({required this.record, this.award});
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +112,26 @@ class _SeasonRecordCard extends StatelessWidget {
                         ))
                     .toList(),
               ),
+            ],
+            if (award != null &&
+                (award!.topScorerName != null ||
+                    award!.mvpName != null ||
+                    award!.goldenGloveName != null)) ...[
+              const Divider(height: 20),
+              if (award!.topScorerName != null)
+                Text(
+                    '得点王: ${award!.topScorerName}（${award!.topScorerTeamName ?? '不明'}） '
+                    '${award!.topScorerGoals}得点',
+                    style: const TextStyle(fontSize: 12)),
+              if (award!.mvpName != null)
+                Text(
+                    'シーズンMVP: ${award!.mvpName}（${award!.mvpTeamName ?? '不明'}）',
+                    style: const TextStyle(fontSize: 12)),
+              if (award!.goldenGloveName != null)
+                Text(
+                    'ゴールデングラブ: ${award!.goldenGloveName}（${award!.goldenGloveTeamName ?? '不明'}） '
+                    '${award!.goldenGloveCleanSheets}試合無失点',
+                    style: const TextStyle(fontSize: 12)),
             ],
           ],
         ),

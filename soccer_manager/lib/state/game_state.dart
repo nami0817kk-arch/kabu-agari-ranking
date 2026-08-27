@@ -13,6 +13,7 @@ import '../models/incoming_offer.dart';
 import '../models/installment.dart';
 import '../models/league_theme.dart';
 import '../models/player.dart';
+import '../models/player_season_stats.dart';
 import '../models/press_question.dart';
 import '../models/save_game.dart';
 import '../models/season_award.dart';
@@ -20,6 +21,7 @@ import '../models/season_record.dart';
 import '../models/sponsor.dart';
 import '../models/tactic_preset.dart';
 import '../models/team_talk.dart';
+import '../models/training_result.dart';
 import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
@@ -98,6 +100,21 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayで契約切れとなった選手名（1回表示したら呼び出し側でクリアする想定）。
   List<String> lastContractExpirations = [];
 
+  /// 直近のplayNextMatchdayで契約満了が近づいた(事前警告)選手名
+  /// (1回表示したら呼び出し側でクリアする想定)。
+  List<String> lastContractWarnings = [];
+
+  /// 契約切れでスカッドが最低人数を割り込んだ際、自動的に緊急補強された
+  /// フリーエージェントの選手名(1回表示したら呼び出し側でクリアする想定)。
+  List<String> lastEmergencySignings = [];
+
+  /// 今週すでにトレーニングを実施済みかどうか(節が進むとリセットされる)。
+  bool get trainingDoneThisWeek => _save?.trainingDoneThisWeek ?? false;
+
+  /// 直近のrunWeeklyTrainingで実際に変化(成長・衰え)があった選手の一覧
+  /// (1回表示したら呼び出し側でクリアする想定)。
+  List<PlayerGrowthSummary> lastTrainingResults = [];
+
   /// 直近のstartNextSeasonで引退した選手名(1回表示したら呼び出し側でクリアする想定)。
   List<String> lastRetirements = [];
 
@@ -112,6 +129,21 @@ class GameState extends ChangeNotifier {
 
   /// 信頼度が0まで落ち、監督が解任された状態かどうか。
   bool get isDismissed => _save != null && _save!.confidence <= 0;
+
+  /// 監督としての通算成績(勝敗数)。保存済みの過去シーズン分に加え、
+  /// 進行中のシーズンの現在の順位表の成績もその場で合算して返す
+  /// (シーズン終了を待たずに逐次反映されるようにするため)。
+  ({int wins, int draws, int losses}) get careerRecordSoFar {
+    if (_save == null) return (wins: 0, draws: 0, losses: 0);
+    final rows = _save!.league.sortedStandings
+        .where((r) => r.teamId == _save!.userTeamId);
+    final row = rows.isEmpty ? null : rows.first;
+    return (
+      wins: _save!.careerWins + (row?.won ?? 0),
+      draws: _save!.careerDraws + (row?.draw ?? 0),
+      losses: _save!.careerLosses + (row?.lost ?? 0),
+    );
+  }
 
   /// 今シーズンの最終節(まだ日程が組まれていなければ0)。
   int get _totalMatchdaysThisSeason {
@@ -447,17 +479,53 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
-  Future<void> runWeeklyTraining() async {
-    if (_save == null) return;
+  Future<bool> runWeeklyTraining() async {
+    if (_save == null) return false;
+    if (_save!.trainingDoneThisWeek) return false;
     final infra = _save!.infrastructure;
+    final overallBefore = {for (final p in userTeam.players) p.id: p.overall};
+    final attrsBefore = {
+      for (final p in userTeam.players)
+        p.id: Map<String, int>.from(p.attributes)
+    };
     TrainingEngine.applyWeeklyTraining(
       userTeam,
       headCoachLevel: infra.staffLevel(StaffRole.headCoach),
       trainingGroundLevel: infra.facilityLevel(FacilityType.trainingGround),
       injuryFactor: _userInjuryFactor,
     );
+    _save!.trainingDoneThisWeek = true;
+    lastTrainingResults = _diffTrainingResults(overallBefore, attrsBefore);
     notifyListeners();
     await _persist();
+    return true;
+  }
+
+  /// トレーニング前後の総合力・属性を比較し、実際に変化があった選手のみを返す。
+  List<PlayerGrowthSummary> _diffTrainingResults(Map<String, int> overallBefore,
+      Map<String, Map<String, int>> attrsBefore) {
+    final changes = <PlayerGrowthSummary>[];
+    for (final p in userTeam.players) {
+      final prevOverall = overallBefore[p.id];
+      final prevAttrs = attrsBefore[p.id];
+      if (prevOverall == null || prevAttrs == null) continue;
+      final deltas = <String, int>{};
+      for (final entry in p.attributes.entries) {
+        final before = prevAttrs[entry.key] ?? entry.value;
+        if (entry.value != before) deltas[entry.key] = entry.value - before;
+      }
+      if (deltas.isNotEmpty || p.overall != prevOverall) {
+        changes.add(PlayerGrowthSummary(
+          playerId: p.id,
+          playerName: p.name,
+          overallBefore: prevOverall,
+          overallAfter: p.overall,
+          attributeDeltas: deltas,
+        ));
+      }
+    }
+    changes.sort((a, b) => b.overallDelta.compareTo(a.overallDelta));
+    return changes;
   }
 
   /// スタッフ雇用・昇格の費用(万円)。上限レベルなら0を返す。
@@ -499,6 +567,14 @@ class GameState extends ChangeNotifier {
     notifyListeners();
     await _persist();
     return true;
+  }
+
+  /// チケット価格戦略を切り替える(観客動員率と1人あたり収入のトレードオフ)。
+  Future<void> setTicketPricing(TicketPricing pricing) async {
+    if (_save == null) return;
+    _save!.ticketPricing = pricing;
+    notifyListeners();
+    await _persist();
   }
 
   void setPressing(int value) {
@@ -829,6 +905,46 @@ class GameState extends ChangeNotifier {
   int appearanceFeeFor(String playerId) {
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
     return ContractEngine.appearanceFeeFor(player);
+  }
+
+  /// 指定選手の今シーズンの成績(出場・得点・カード・平均採点)を、
+  /// リーグ戦の消化済み試合結果から都度集計する。
+  PlayerSeasonStats seasonStatsFor(String playerId) {
+    if (_save == null) return const PlayerSeasonStats();
+    int appearances = 0, goals = 0, yellowCards = 0, redCards = 0;
+    double ratingSum = 0;
+    for (final f in _save!.league.fixtures) {
+      final r = f.result;
+      if (r == null) continue;
+      final rating = r.playerRatings[playerId];
+      if (rating != null) {
+        appearances++;
+        ratingSum += rating;
+      }
+      for (final e in r.events) {
+        if (e.scorerId != playerId) continue;
+        switch (e.type) {
+          case MatchEventType.goal:
+            goals++;
+            break;
+          case MatchEventType.yellowCard:
+            yellowCards++;
+            break;
+          case MatchEventType.redCard:
+            redCards++;
+            break;
+          case MatchEventType.chance:
+            break;
+        }
+      }
+    }
+    return PlayerSeasonStats(
+      appearances: appearances,
+      goals: goals,
+      yellowCards: yellowCards,
+      redCards: redCards,
+      averageRating: appearances == 0 ? null : ratingSum / appearances,
+    );
   }
 
   Future<bool> renewContract(String playerId) async {
@@ -1170,6 +1286,21 @@ class GameState extends ChangeNotifier {
     if (_save == null) return;
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
     player.isTransferListed = listed;
+    notifyListeners();
+    await _persist();
+  }
+
+  /// 若手有望株ランキングで選手を追跡対象(ウォッチリスト)に指定しているか。
+  /// 自クラブ以外の選手も、将来獲得を検討するために追跡できる。
+  bool isWatched(String playerId) =>
+      _save?.watchlistPlayerIds.contains(playerId) ?? false;
+
+  /// ウォッチリストへの追加・削除を切り替える。
+  Future<void> toggleWatched(String playerId) async {
+    if (_save == null) return;
+    if (!_save!.watchlistPlayerIds.remove(playerId)) {
+      _save!.watchlistPlayerIds.add(playerId);
+    }
     notifyListeners();
     await _persist();
   }
@@ -1593,6 +1724,7 @@ class GameState extends ChangeNotifier {
             .clamp(0.6, 1.4);
     // 2部リーグは1部より観客動員が少ない。
     if (_save!.currentDivisionTier == 2) factor *= 0.7;
+    factor *= _save!.ticketPricing.attendanceMultiplier;
     return factor.clamp(0.0, 1.0);
   }
 
@@ -1621,8 +1753,10 @@ class GameState extends ChangeNotifier {
 
     final stadiumLevel =
         _save!.infrastructure.facilityLevel(FacilityType.stadium);
-    var matchdayIncome =
-        ((base + (stadiumLevel - 1) * 80) * userAttendanceFactor).round();
+    var matchdayIncome = ((base + (stadiumLevel - 1) * 80) *
+            userAttendanceFactor *
+            _save!.ticketPricing.revenueMultiplier)
+        .round();
     // 2部リーグは1部より観客動員が少ない(userAttendanceFactorに反映済み)。
     final sponsorIncome = _save!.sponsorDeal?.weeklyIncome ?? 0;
     return matchdayIncome + sponsorIncome;
@@ -1672,9 +1806,8 @@ class GameState extends ChangeNotifier {
   }
 
   /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
-  double get _userInjuryFactor =>
-      (1 - (_save!.infrastructure.staffLevel(StaffRole.physio) - 1) * 0.15)
-          .clamp(0.4, 1.0);
+  double get _userInjuryFactor => ClubInfrastructure.injuryFactor(
+      _save!.infrastructure.staffLevel(StaffRole.physio));
 
   double _injuryFactorFor(String teamId) =>
       teamId == _save!.userTeamId ? _userInjuryFactor : 1.0;
@@ -1725,6 +1858,8 @@ class GameState extends ChangeNotifier {
     final next = league.nextUnplayedFixture;
     if (next == null) return null;
 
+    _save!.trainingDoneThisWeek = false;
+
     // 週の経過による負傷回復と自然な疲労回復(休養日)。
     // 疲労回復は個別のトレーニング方針(休養特訓)とは別に、全チーム・
     // 全選手へ毎週一律で適用する。CPUクラブは練習メニューを設定できず、
@@ -1745,13 +1880,25 @@ class GameState extends ChangeNotifier {
     }
 
     // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）
-    final expired = ContractEngine.advanceWeek(userTeam);
+    final contractResult = ContractEngine.advanceWeek(userTeam);
+    final expired = contractResult.expired;
     lastContractExpirations = expired.map((p) => p.name).toList();
+    lastContractWarnings =
+        contractResult.nearingExpiry.map((p) => p.name).toList();
     // ローン満了(元クラブへ復帰)ではなく、正式に契約が切れた選手は
     // フリーエージェントプールへ移す(移籍金なしで再獲得可能)。
     for (final p in expired.where((p) => !p.isLoan)) {
       if (_save!.freeAgents.length >= FreeAgentEngine.maxPoolSize) break;
       _save!.freeAgents.add(p);
+    }
+    // 契約満了により編成人数が最低人数を割り込んだ場合、フリーエージェントを
+    // 緊急補強してスカッドが組めなくなる事態を防ぐ(安全網)。
+    lastEmergencySignings = [];
+    while (userTeam.players.length < minSquadSize) {
+      final signing = FreeAgentEngine.generateVeteran();
+      ContractEngine.renewContract(signing);
+      userTeam.players.add(signing);
+      lastEmergencySignings.add(signing.name);
     }
 
     // 選手の不満度を更新する。
@@ -2103,6 +2250,16 @@ class GameState extends ChangeNotifier {
 
   /// 前シーズンの最終順位に基づき、来季の大陸カップ出場資格があるか。
   bool get qualifiedForContinentalCup => (_save?.lastSeasonRank ?? 99) <= 2;
+
+  /// 国内カップ戦で、ブラケット全体の中で次に消化されるべき試合が自クラブの
+  /// 試合であるかどうか。日程画面・ホーム画面から「カップ戦の順番が来ている」
+  /// ことに気づけるようにするためのフラグ。
+  bool get isUserDomesticCupMatchUpNext {
+    final match = domesticCup?.nextUnplayedMatch;
+    if (match == null || _save == null) return false;
+    final userId = _save!.userTeamId;
+    return match.homeTeamId == userId || match.awayTeamId == userId;
+  }
 
   Future<MatchResult?> playNextCupMatch() async {
     if (_save == null) return null;

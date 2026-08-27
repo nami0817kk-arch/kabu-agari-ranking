@@ -7,10 +7,17 @@ class ContractEngine {
       .where((p) => !p.isLoanedOut)
       .fold<int>(0, (s, p) => s + p.wage);
 
+  /// 契約満了が近づいたことを事前に警告する残り週数(この週数になった
+  /// タイミングで一度だけ通知する)。
+  static const int expiryWarningWeeks = 4;
+
   /// 契約(またはローン期間)を1週分消化させ、契約切れ・ローン満了となった
-  /// 選手をチームから除外する。除外された選手のリストを返す（UI通知用）。
-  static List<Player> advanceWeek(Team team) {
+  /// 選手をチームから除外する。除外された選手と、契約満了が間近になった
+  /// 選手(事前警告用)をそれぞれ返す(UI通知用)。
+  static ({List<Player> expired, List<Player> nearingExpiry}) advanceWeek(
+      Team team) {
     final expired = <Player>[];
+    final nearingExpiry = <Player>[];
     for (final p in List<Player>.from(team.players)) {
       if (p.isLoan) {
         if (p.loanWeeksRemaining > 0) {
@@ -26,13 +33,15 @@ class ContractEngine {
       }
       if (p.contractWeeksRemaining <= 0) {
         expired.add(p);
+      } else if (p.contractWeeksRemaining == expiryWarningWeeks) {
+        nearingExpiry.add(p);
       }
     }
     for (final p in expired) {
       team.players.remove(p);
       team.startingXI.remove(p.id);
     }
-    return expired;
+    return (expired: expired, nearingExpiry: nearingExpiry);
   }
 
   /// 契約更新にかかる基本費用（万円）。ローン選手には適用されない。

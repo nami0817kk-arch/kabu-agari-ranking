@@ -13,9 +13,10 @@ class ManagerCareerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gameState = context.watch<GameState>();
     final save = gameState.save!;
-    final totalMatches = save.careerWins + save.careerDraws + save.careerLosses;
+    final record = gameState.careerRecordSoFar;
+    final totalMatches = record.wins + record.draws + record.losses;
     final winRate =
-        totalMatches == 0 ? 0 : (save.careerWins / totalMatches * 100).round();
+        totalMatches == 0 ? 0 : (record.wins / totalMatches * 100).round();
 
     return Scaffold(
       appBar: AppBar(
@@ -36,6 +37,9 @@ class ManagerCareerScreen extends StatelessWidget {
                   children: [
                     Text('通算成績',
                         style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    const Text('進行中のシーズンの成績もここに含まれます',
+                        style: TextStyle(fontSize: 11, color: Colors.grey)),
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -44,15 +48,15 @@ class ManagerCareerScreen extends StatelessWidget {
                             label: '指揮シーズン数', value: '${save.careerSeasons}'),
                         _StatColumn(
                             label: '勝',
-                            value: '${save.careerWins}',
+                            value: '${record.wins}',
                             color: SemanticColors.positive(context)),
                         _StatColumn(
                             label: '分',
-                            value: '${save.careerDraws}',
+                            value: '${record.draws}',
                             color: Colors.grey),
                         _StatColumn(
                             label: '敗',
-                            value: '${save.careerLosses}',
+                            value: '${record.losses}',
                             color: SemanticColors.negative(context)),
                         _StatColumn(label: '勝率', value: '$winRate%'),
                       ],

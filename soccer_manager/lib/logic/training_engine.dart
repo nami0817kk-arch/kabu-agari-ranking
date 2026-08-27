@@ -1,5 +1,6 @@
 import 'dart:math';
 import '../models/attributes.dart';
+import '../models/club_infrastructure.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../models/training_focus.dart';
@@ -22,9 +23,10 @@ class TrainingEngine {
     int trainingGroundLevel = 1,
     double injuryFactor = 1.0,
   }) {
-    final growthMultiplier =
-        1 + (headCoachLevel - 1) * 0.15 + (trainingGroundLevel - 1) * 0.08;
-    final fatigueRecoveryBonus = (trainingGroundLevel - 1) * 3;
+    final growthMultiplier = ClubInfrastructure.trainingGrowthMultiplier(
+        headCoachLevel, trainingGroundLevel);
+    final fatigueRecoveryBonus =
+        ClubInfrastructure.fatigueRecoveryBonus(trainingGroundLevel);
     final byId = {for (final p in team.players) p.id: p};
     final mentorIdsUsed = <String>{};
 

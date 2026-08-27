@@ -544,8 +544,21 @@ class _ScheduleTabState extends State<_ScheduleTab> {
     final league = widget.league;
     final userTeamId = widget.userTeamId;
 
+    final gameState = context.watch<GameState>();
     return Column(
       children: [
+        if (gameState.isUserDomesticCupMatchUpNext)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Card(
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+              child: const ListTile(
+                leading: Icon(Icons.emoji_events_outlined),
+                title: Text('国内カップ戦の出番です'),
+                subtitle: Text('カップ戦画面で次の試合を消化できます'),
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.all(12),
           child: SegmentedButton<bool>(

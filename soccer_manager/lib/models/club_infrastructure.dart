@@ -1,3 +1,35 @@
+/// チケット価格戦略。値上げは1人あたり収入を増やす一方で観客動員率を下げ、
+/// 値下げはその逆になる(合計の増収効果は保証されない)。
+enum TicketPricing { budget, standard, premium }
+
+extension TicketPricingInfo on TicketPricing {
+  String get label => switch (this) {
+        TicketPricing.budget => '低価格',
+        TicketPricing.standard => '標準',
+        TicketPricing.premium => '高価格',
+      };
+
+  String get description => switch (this) {
+        TicketPricing.budget => '観客動員率+15%だが、1人あたり収入-25%',
+        TicketPricing.standard => '標準の価格設定',
+        TicketPricing.premium => '1人あたり収入+30%だが、観客動員率-20%',
+      };
+
+  /// 観客動員率に対する倍率。
+  double get attendanceMultiplier => switch (this) {
+        TicketPricing.budget => 1.15,
+        TicketPricing.standard => 1.0,
+        TicketPricing.premium => 0.8,
+      };
+
+  /// 試合収入(観客動員数に依存する部分)に対する倍率。
+  double get revenueMultiplier => switch (this) {
+        TicketPricing.budget => 0.75,
+        TicketPricing.standard => 1.0,
+        TicketPricing.premium => 1.3,
+      };
+}
+
 enum StaffRole { headCoach, scout, physio, youthCoach }
 
 extension StaffRoleInfo on StaffRole {
@@ -56,6 +88,19 @@ class ClubInfrastructure {
 
   /// スタジアムのレベルに応じた収容人数。
   static int stadiumCapacity(int level) => 12000 + (level - 1) * 6000;
+
+  /// ヘッドコーチ・トレーニング施設のレベルに応じたトレーニング成長効率の倍率。
+  static double trainingGrowthMultiplier(
+          int headCoachLevel, int trainingGroundLevel) =>
+      1 + (headCoachLevel - 1) * 0.15 + (trainingGroundLevel - 1) * 0.08;
+
+  /// トレーニング施設のレベルに応じた、週次の追加疲労回復量。
+  static int fatigueRecoveryBonus(int trainingGroundLevel) =>
+      (trainingGroundLevel - 1) * 3;
+
+  /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
+  static double injuryFactor(int physioLevel) =>
+      (1 - (physioLevel - 1) * 0.15).clamp(0.4, 1.0);
 
   int get totalStaffWeeklyWage =>
       staffLevels.values.fold<int>(0, (s, lvl) => s + staffWeeklyWage(lvl));

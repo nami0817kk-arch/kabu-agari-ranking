@@ -66,14 +66,14 @@ class MatchEngine {
   }
 
   /// デューティ(攻撃的/バランス/守備的)による攻撃貢献度の補正。
-  static double _dutyAttackMultiplier(PlayerDuty duty) => switch (duty) {
+  static double dutyAttackMultiplier(PlayerDuty duty) => switch (duty) {
         PlayerDuty.attack => 1.15,
         PlayerDuty.support => 1.0,
         PlayerDuty.defend => 0.85,
       };
 
   /// デューティによる守備貢献度の補正(攻撃的デューティは守備が手薄になる)。
-  static double _dutyDefenseMultiplier(PlayerDuty duty) => switch (duty) {
+  static double dutyDefenseMultiplier(PlayerDuty duty) => switch (duty) {
         PlayerDuty.defend => 1.15,
         PlayerDuty.support => 1.0,
         PlayerDuty.attack => 0.85,
@@ -126,19 +126,16 @@ class MatchEngine {
           s +
           p.attack *
               _condition(p) *
-              _dutyAttackMultiplier(p.duty) *
+              dutyAttackMultiplier(p.duty) *
               roleMultiplier(p, forAttack: true) *
               positionFitMultiplier(p, slotById[p.id] ?? p.position) *
               (p.id == suppressedId ? 0.8 : 1.0),
     );
-    final lineFactor = 1 + (t.lineHeight - 50) / 400;
-    final widthFactor = 1 + (t.width - 50) / 500;
-    final tempoFactor = 1 + (t.tempo - 50) / 500;
     final result = (total / relevant.length) *
         t.formation.attackBias *
-        lineFactor *
-        widthFactor *
-        tempoFactor;
+        lineHeightAttackFactor(t.lineHeight) *
+        widthAttackFactor(t.width) *
+        tempoAttackFactor(t.tempo);
     return t.timeWastingMode ? result * 0.92 : result;
   }
 
@@ -156,18 +153,15 @@ class MatchEngine {
           s +
           p.defense *
               _condition(p) *
-              _dutyDefenseMultiplier(p.duty) *
+              dutyDefenseMultiplier(p.duty) *
               roleMultiplier(p, forAttack: false) *
               positionFitMultiplier(p, slotById[p.id] ?? p.position),
     );
-    final pressFactor = 1 + (t.pressing - 50) / 400;
-    final lineRiskFactor = 1 + (50 - t.lineHeight) / 500;
-    final widthRiskFactor = 1 - (t.width - 50) / 800;
     final result = (total / relevant.length) *
         t.formation.defenseBias *
-        pressFactor *
-        lineRiskFactor *
-        widthRiskFactor;
+        pressingDefenseFactor(t.pressing) *
+        lineHeightDefenseRiskFactor(t.lineHeight) *
+        widthDefenseRiskFactor(t.width);
     return t.timeWastingMode ? result * 1.08 : result;
   }
 
@@ -211,18 +205,63 @@ class MatchEngine {
 
   static void _applyFatigue(Team t, List<Player> lineup,
       {double weatherFactor = 1.0, double intensity = 1.0}) {
-    final pressFatigueFactor = 1 + (t.pressing - 50) / 200;
-    final tempoFatigueFactor = 1 + (t.tempo - 50) / 300;
     final timeWastingFactor = t.timeWastingMode ? 0.85 : 1.0;
     for (final p in lineup) {
       final gain = (12 + _rng.nextInt(8)) *
-          pressFatigueFactor *
-          tempoFatigueFactor *
+          pressingFatigueFactor(t.pressing) *
+          tempoFatigueFactor(t.tempo) *
           weatherFactor *
           timeWastingFactor *
           intensity;
       p.fatigue = (p.fatigue + gain.round()).clamp(0, 100);
     }
+  }
+
+  /// ライン高さがチームの攻撃力に与える倍率(高いラインほど攻撃的)。
+  static double lineHeightAttackFactor(int lineHeight) =>
+      1 + (lineHeight - 50) / 400;
+
+  /// 攻撃の幅がチームの攻撃力に与える倍率。
+  static double widthAttackFactor(int width) => 1 + (width - 50) / 500;
+
+  /// テンポがチームの攻撃力に与える倍率。
+  static double tempoAttackFactor(int tempo) => 1 + (tempo - 50) / 500;
+
+  /// プレッシングがチームの守備力(ボール奪取)に与える倍率。
+  static double pressingDefenseFactor(int pressing) =>
+      1 + (pressing - 50) / 400;
+
+  /// ライン高さがチームの守備力に与えるリスク倍率(高いラインほど守備が手薄になる)。
+  static double lineHeightDefenseRiskFactor(int lineHeight) =>
+      1 + (50 - lineHeight) / 500;
+
+  /// 攻撃の幅がチームの守備力に与えるリスク倍率(幅が広いほど守備が手薄になる)。
+  static double widthDefenseRiskFactor(int width) => 1 - (width - 50) / 800;
+
+  /// プレッシングが1試合あたりの疲労蓄積に与える倍率。
+  static double pressingFatigueFactor(int pressing) =>
+      1 + (pressing - 50) / 200;
+
+  /// テンポが1試合あたりの疲労蓄積に与える倍率。
+  static double tempoFatigueFactor(int tempo) => 1 + (tempo - 50) / 300;
+
+  /// 現在の戦術スライダー設定が攻撃力・守備力・疲労蓄積にどれだけ影響しているかを
+  /// 倍率として要約する(戦術画面での定量的なフィードバック用)。
+  static ({
+    double attackMultiplier,
+    double defenseMultiplier,
+    double fatigueMultiplier
+  }) tacticalImpact(Team t) {
+    return (
+      attackMultiplier: lineHeightAttackFactor(t.lineHeight) *
+          widthAttackFactor(t.width) *
+          tempoAttackFactor(t.tempo),
+      defenseMultiplier: pressingDefenseFactor(t.pressing) *
+          lineHeightDefenseRiskFactor(t.lineHeight) *
+          widthDefenseRiskFactor(t.width),
+      fatigueMultiplier:
+          pressingFatigueFactor(t.pressing) * tempoFatigueFactor(t.tempo),
+    );
   }
 
   /// 前半終了時点(ハーフタイム)で、そこまでの運動量に応じた疲労を先に

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../logic/contract_engine.dart';
+import '../logic/lineup_utils.dart';
+import '../logic/match_engine.dart';
 import '../models/attributes.dart';
 import '../models/contract_negotiation.dart';
 import '../models/player.dart';
+import '../models/training_result.dart';
 import '../data/glossary_entries.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
@@ -31,6 +34,16 @@ class PlayerDetailScreen extends StatelessWidget {
     final negotiation = gameState.pendingContractNegotiation;
     final isNegotiatingThisPlayer =
         negotiation != null && negotiation.playerId == p.id;
+    final seasonStats = gameState.seasonStatsFor(p.id);
+    final assignedSlot =
+        LineupUtils.assignedSlotByPlayerId(team)[p.id] ?? p.position;
+    PlayerGrowthSummary? latestGrowth;
+    for (final r in gameState.lastTrainingResults) {
+      if (r.playerId == p.id) {
+        latestGrowth = r;
+        break;
+      }
+    }
 
     final categories = [
       AttributeCategory.technical,
@@ -78,6 +91,18 @@ class PlayerDetailScreen extends StatelessWidget {
               child: Text(
                 '対応可能ポジション: ${p.secondaryPositions.map((s) => s.label).join(', ')}',
                 style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+          if (seasonStats.appearances > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '今シーズン: ${seasonStats.appearances}試合 ${seasonStats.goals}得点'
+                '${seasonStats.yellowCards > 0 ? ' 警告${seasonStats.yellowCards}' : ''}'
+                '${seasonStats.redCards > 0 ? ' 退場${seasonStats.redCards}' : ''}'
+                ' / 平均採点${seasonStats.averageRating!.toStringAsFixed(1)}',
+                style: const TextStyle(
+                    color: Colors.teal, fontWeight: FontWeight.bold),
               ),
             ),
           if (p.careerAppearances > 0)
@@ -172,8 +197,25 @@ class PlayerDetailScreen extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 16),
-          Text('総合力: ${p.overall}',
-              style: Theme.of(context).textTheme.titleLarge),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text('総合力: ${p.overall}',
+                  style: Theme.of(context).textTheme.titleLarge),
+              if (latestGrowth != null && latestGrowth.overallDelta != 0) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '(今週${latestGrowth.overallDelta > 0 ? '+' : ''}${latestGrowth.overallDelta})',
+                  style: TextStyle(
+                    color: latestGrowth.overallDelta > 0
+                        ? Colors.green
+                        : Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ],
+          ),
           Text('市場価値: ${p.marketValue}万円'),
           Text(
             p.isLoan
@@ -191,6 +233,9 @@ class PlayerDetailScreen extends StatelessWidget {
             Text('ロール: ${p.role.label} — ${p.role.description}',
                 style: const TextStyle(fontSize: 12, color: Colors.teal)),
           ],
+          const SizedBox(height: 12),
+          _MatchImpactSummary(
+              player: p, isStarting: isStarting, assignedSlot: assignedSlot),
           const SizedBox(height: 16),
           StatBar(label: '攻撃', value: p.attack),
           StatBar(label: '守備', value: p.defense),
@@ -619,6 +664,66 @@ class PlayerDetailScreen extends StatelessWidget {
             },
             child: const Text('放出する'),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 選手の性格・ロール・デューティ・ポジション適性が、実際の試合でどれだけ
+/// 攻撃力・守備力に影響するかを定量的にまとめたカード。
+class _MatchImpactSummary extends StatelessWidget {
+  final Player player;
+  final bool isStarting;
+  final Position assignedSlot;
+
+  const _MatchImpactSummary({
+    required this.player,
+    required this.isStarting,
+    required this.assignedSlot,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String pct(double multiplier) {
+      final delta = ((multiplier - 1) * 100).round();
+      return delta >= 0 ? '+$delta%' : '$delta%';
+    }
+
+    final roleAttack = MatchEngine.roleMultiplier(player, forAttack: true);
+    final roleDefense = MatchEngine.roleMultiplier(player, forAttack: false);
+    final dutyAttack = MatchEngine.dutyAttackMultiplier(player.duty);
+    final dutyDefense = MatchEngine.dutyDefenseMultiplier(player.duty);
+    final positionFit = isStarting
+        ? MatchEngine.positionFitMultiplier(player, assignedSlot)
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('試合への影響(定量)',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          Text('ロール適性: 攻撃${pct(roleAttack)} / 守備${pct(roleDefense)}',
+              style: const TextStyle(fontSize: 12)),
+          Text(
+              'デューティ(${player.duty.label}): 攻撃${pct(dutyAttack)} / 守備${pct(dutyDefense)}',
+              style: const TextStyle(fontSize: 12)),
+          if (positionFit != null && positionFit != 1.0)
+            Text('ポジション適性(${assignedSlot.label}で起用中): ${pct(positionFit)}',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: SemanticColors.negative(context),
+                    fontWeight: FontWeight.bold)),
         ],
       ),
     );

@@ -419,6 +419,10 @@ class Player {
   int loanedOutWeeksRemaining;
   String? loanedOutToClubName;
 
+  /// 移籍市場にスカウティング候補として掲載されている選手の現所属クラブ名
+  /// (表示専用。自クラブの選手・フリーエージェントにはnull)。
+  String? originClubName;
+
   /// 出場手当(万円)。契約更新時に決定され、リーグ公式戦でスタメン出場するたびに支払われる。
   int appearanceFee;
 
@@ -475,6 +479,7 @@ class Player {
     this.isTransferListed = false,
     this.loanedOutWeeksRemaining = 0,
     this.loanedOutToClubName,
+    this.originClubName,
     this.appearanceFee = 0,
     this.role = PlayerRole.standard,
     Map<String, int>? positionFamiliarity,
@@ -645,6 +650,7 @@ class Player {
         'isTransferListed': isTransferListed,
         'loanedOutWeeksRemaining': loanedOutWeeksRemaining,
         'loanedOutToClubName': loanedOutToClubName,
+        'originClubName': originClubName,
         'appearanceFee': appearanceFee,
         'role': role.name,
         'positionFamiliarity': positionFamiliarity,
@@ -709,6 +715,7 @@ class Player {
       isTransferListed: json['isTransferListed'] as bool? ?? false,
       loanedOutWeeksRemaining: json['loanedOutWeeksRemaining'] as int? ?? 0,
       loanedOutToClubName: json['loanedOutToClubName'] as String?,
+      originClubName: json['originClubName'] as String?,
       appearanceFee: json['appearanceFee'] as int? ?? 0,
       role: enumFromName(
           PlayerRole.values, json['role'] as String?, PlayerRole.standard),

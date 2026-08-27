@@ -5,6 +5,7 @@ import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../logic/lineup_utils.dart';
+import '../logic/match_engine.dart';
 import '../logic/rotation_engine.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
@@ -225,6 +226,8 @@ class _TacticsTab extends StatelessWidget {
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ),
+                const SizedBox(height: 12),
+                _TacticalImpactSummary(team: team),
               ],
             ),
           ),
@@ -236,6 +239,87 @@ class _TacticsTab extends StatelessWidget {
         const SizedBox(height: 8),
         _DepthChartSection(team: team),
       ],
+    );
+  }
+}
+
+/// 現在の戦術スライダー設定が攻撃力・守備力・疲労蓄積に与える倍率を数値で示す。
+/// 「上げたら実際どれだけ変わるのか」を定量的に判断できるようにするための表示。
+class _TacticalImpactSummary extends StatelessWidget {
+  final Team team;
+  const _TacticalImpactSummary({required this.team});
+
+  @override
+  Widget build(BuildContext context) {
+    final impact = MatchEngine.tacticalImpact(team);
+    String pct(double multiplier) {
+      final delta = ((multiplier - 1) * 100).round();
+      return delta >= 0 ? '+$delta%' : '$delta%';
+    }
+
+    Color colorFor(double multiplier, {bool higherIsWorse = false}) {
+      final positive = multiplier >= 1;
+      final good = higherIsWorse ? !positive : positive;
+      if (multiplier == 1) return Colors.grey;
+      return good
+          ? SemanticColors.positive(context)
+          : SemanticColors.negative(context);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('現在の戦術設定による影響(定量)',
+              style: Theme.of(context)
+                  .textTheme
+                  .labelMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 6),
+          _ImpactRow(
+              label: '攻撃力補正',
+              text: pct(impact.attackMultiplier),
+              color: colorFor(impact.attackMultiplier)),
+          _ImpactRow(
+              label: '守備力補正',
+              text: pct(impact.defenseMultiplier),
+              color: colorFor(impact.defenseMultiplier)),
+          _ImpactRow(
+              label: '疲労蓄積',
+              text: pct(impact.fatigueMultiplier),
+              color: colorFor(impact.fatigueMultiplier, higherIsWorse: true)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImpactRow extends StatelessWidget {
+  final String label;
+  final String text;
+  final Color color;
+  const _ImpactRow(
+      {required this.label, required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+              width: 90,
+              child: Text(label, style: const TextStyle(fontSize: 12))),
+          Text(text,
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
     );
   }
 }
