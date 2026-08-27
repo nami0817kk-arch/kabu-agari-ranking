@@ -2237,6 +2237,54 @@ void main() {
         isTrue);
   });
 
+  test(
+      'playNextMatchday skips a background fixture referencing a team no '
+      'longer present, instead of throwing and blocking the user\'s own '
+      'matchday from ever resolving', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    // 何らかの理由で裏ディビジョンのチーム一覧とフィクスチャの参照が
+    // ずれてしまった状態を模倣する(存在しないチームIDの試合を混入させる)。
+    final otherLeague = gameState.save!.otherDivisionLeague!;
+    otherLeague.fixtures.add(Fixture(
+      matchday: 1,
+      homeTeamId: 'ghost-team-a',
+      awayTeamId: 'ghost-team-b',
+    ));
+
+    // 例外が伝播せず、ユーザー自身の第1節は正常に消化されるはず。
+    final firstHalf = await gameState.playNextMatchday();
+    expect(firstHalf, isNotNull);
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+    expect(gameState.save!.league.nextUnplayedFixture?.matchday, 2);
+  });
+
+  test(
+      'playNextMatchday skips a same-division fixture referencing a team no '
+      'longer present, instead of throwing and blocking the user\'s own '
+      'matchday from ever resolving', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    // ユーザー自身のリーグ内に、存在しないチームIDを参照する不整合な
+    // フィクスチャが紛れ込んだ状態を模倣する。
+    gameState.save!.league.fixtures.add(Fixture(
+      matchday: 1,
+      homeTeamId: 'ghost-team-c',
+      awayTeamId: 'ghost-team-d',
+    ));
+
+    final firstHalf = await gameState.playNextMatchday();
+    expect(firstHalf, isNotNull);
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+    expect(gameState.save!.league.nextUnplayedFixture?.matchday, 2);
+  });
+
   test('LineupUtils.autoFill excludes players on international duty', () {
     final team = PlayerGenerator.generateSquad(
         id: 't6', name: 'Test FC', strengthTier: 60);

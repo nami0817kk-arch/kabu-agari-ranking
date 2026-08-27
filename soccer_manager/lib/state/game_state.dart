@@ -228,6 +228,16 @@ class GameState extends ChangeNotifier {
     PlayerGenerator.ensureIdCounterAbove(ids);
   }
 
+  /// [teams]から指定IDのチームを探す。見つからない場合はnull(移籍・世代交代
+  /// 等で参照が古くなったフィクスチャがあっても、例外で節送り全体を
+  /// 止めないようにするための安全な検索)。
+  Team? _findTeam(List<Team> teams, String id) {
+    for (final t in teams) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
   /// 旧セーブデータ(otherDivisionLeague未生成)を読み込んだ場合、現在の
   /// リーグの節数まで裏のディビジョンの日程をまとめて消化して追いつかせる。
   void _backfillOtherDivisionLeagueIfNeeded() {
@@ -2080,8 +2090,23 @@ class GameState extends ChangeNotifier {
     Fixture? userFixture;
     HalfResult? userFirstHalf;
     for (final f in league.fixturesForMatchday(md)) {
-      final home = league.teams.firstWhere((t) => t.id == f.homeTeamId);
-      final away = league.teams.firstWhere((t) => t.id == f.awayTeamId);
+      final home = _findTeam(league.teams, f.homeTeamId);
+      final away = _findTeam(league.teams, f.awayTeamId);
+      if (home == null || away == null) {
+        // 何らかの理由でチームが見つからない不整合データ。この1試合だけ
+        // 0-0扱いで確定させ、未消化のまま残ってnextUnplayedFixtureが
+        // 恒久的にこの節で止まってしまう(=節送り自体が二度とできなくなる)
+        // 事態を避ける。
+        f.result = MatchResult(
+          matchday: md,
+          homeTeamId: f.homeTeamId,
+          awayTeamId: f.awayTeamId,
+          homeGoals: 0,
+          awayGoals: 0,
+          events: const [],
+        );
+        continue;
+      }
       final weather = WeatherEngine.roll();
       f.weather = weather;
       final isUserFixture = f.homeTeamId == _save!.userTeamId ||
@@ -2113,8 +2138,9 @@ class GameState extends ChangeNotifier {
     if (otherLeague != null) {
       for (final f in otherLeague.fixturesForMatchday(md)) {
         if (f.result != null) continue;
-        final home = otherLeague.teams.firstWhere((t) => t.id == f.homeTeamId);
-        final away = otherLeague.teams.firstWhere((t) => t.id == f.awayTeamId);
+        final home = _findTeam(otherLeague.teams, f.homeTeamId);
+        final away = _findTeam(otherLeague.teams, f.awayTeamId);
+        if (home == null || away == null) continue;
         f.result = BackgroundMatchEngine.simulate(
             home: home, away: away, matchday: md);
       }

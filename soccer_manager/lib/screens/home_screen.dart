@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/quick_access_destinations.dart';
 import '../logic/calendar_engine.dart';
+import '../logic/match_engine.dart' show HalfResult;
 import '../models/formation.dart';
 import '../models/incoming_offer.dart';
 import '../models/league.dart';
@@ -482,7 +483,13 @@ class HomeScreen extends StatelessWidget {
   Future<void> _playMatch(BuildContext context) async {
     FeedbackService.tap();
     final gameState = context.read<GameState>();
-    final firstHalf = await gameState.playNextMatchday();
+    final HalfResult? firstHalf;
+    try {
+      firstHalf = await gameState.playNextMatchday();
+    } catch (e) {
+      if (context.mounted) _showProgressFailedSnackBar(context, e);
+      return;
+    }
     if (!context.mounted) return;
     _showMatchdayNotifications(context, gameState);
 
@@ -506,7 +513,13 @@ class HomeScreen extends StatelessWidget {
     final opponentName = teams.firstWhere((t) => t.id == opponentId).name;
     final userTeamName = gameState.userTeam.name;
 
-    final result = await gameState.playNextMatchdayQuickSim();
+    final MatchResult? result;
+    try {
+      result = await gameState.playNextMatchdayQuickSim();
+    } catch (e) {
+      if (context.mounted) _showProgressFailedSnackBar(context, e);
+      return;
+    }
     if (!context.mounted || result == null) return;
 
     await _showQuickSimResultDialog(
@@ -521,6 +534,18 @@ class HomeScreen extends StatelessWidget {
     _showMatchdayNotifications(context, gameState);
     _showMonthlyAwardNotification(context, gameState);
     showAchievementUnlockNotification(context, gameState);
+  }
+
+  /// 節送り処理中に予期しない例外が発生した場合、ボタンが無反応に見える
+  /// (何もフィードバックがないまま処理が失敗する)事態を避けるための通知。
+  void _showProgressFailedSnackBar(BuildContext context, Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('節の進行に失敗しました: $error'),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 6),
+      ),
+    );
   }
 
   /// クイックシム結果を、スコアだけでなく得点者・MVPまで含めたダイアログで表示する。
@@ -808,7 +833,12 @@ class HomeScreen extends StatelessWidget {
 
   Future<void> _startNextSeason(BuildContext context) async {
     final gameState = context.read<GameState>();
-    await gameState.startNextSeason();
+    try {
+      await gameState.startNextSeason();
+    } catch (e) {
+      if (context.mounted) _showProgressFailedSnackBar(context, e);
+      return;
+    }
     final message = gameState.lastDivisionChangeMessage;
     if (context.mounted && message != null) {
       ScaffoldMessenger.of(context).showSnackBar(
