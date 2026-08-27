@@ -1880,12 +1880,17 @@ class GameState extends ChangeNotifier {
 
     final stadiumLevel =
         _save!.infrastructure.facilityLevel(FacilityType.stadium);
+    final commercialMultiplier = ClubInfrastructure.commercialRevenueMultiplier(
+        _save!.infrastructure.facilityLevel(FacilityType.commercialFacility));
     var matchdayIncome = ((base + (stadiumLevel - 1) * 80) *
             userAttendanceFactor *
-            _save!.ticketPricing.revenueMultiplier)
+            _save!.ticketPricing.revenueMultiplier *
+            commercialMultiplier)
         .round();
     // 2部リーグは1部より観客動員が少ない(userAttendanceFactorに反映済み)。
-    final sponsorIncome = _save!.sponsorDeal?.weeklyIncome ?? 0;
+    final sponsorIncome =
+        ((_save!.sponsorDeal?.weeklyIncome ?? 0) * commercialMultiplier)
+            .round();
     return matchdayIncome + sponsorIncome;
   }
 

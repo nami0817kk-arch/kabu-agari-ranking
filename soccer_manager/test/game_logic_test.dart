@@ -44,6 +44,7 @@ import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/season_award.dart';
 import 'package:soccer_manager/models/season_record.dart';
+import 'package:soccer_manager/models/sponsor.dart';
 import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/models/team_talk.dart';
 import 'package:soccer_manager/models/weather.dart';
@@ -820,6 +821,23 @@ void main() {
     expect(
         gameState.save!.infrastructure.facilityLevel(FacilityType.stadium), 2);
     expect(gameState.save!.budget, 0);
+  });
+
+  test(
+      'GameState.weeklyIncomeFor rises with the commercial facility level, '
+      'boosting both matchday and sponsor income', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.sponsorDeal =
+        SponsorDeal(name: 'Sponsor', weeklyIncome: 200, yearsRemaining: 2);
+    final incomeAtLevel1 = gameState.weeklyIncomeFor(gameState.userTeam.id);
+
+    gameState.save!.infrastructure
+            .facilityLevels[FacilityType.commercialFacility] =
+        ClubInfrastructure.maxLevel;
+
+    expect(gameState.weeklyIncomeFor(gameState.userTeam.id),
+        greaterThan(incomeAtLevel1));
   });
 
   test('GameState.upgradeStaff fails when budget is insufficient', () async {

@@ -70,6 +70,13 @@ String _facilityEffectLabel(
           level < maxLevel ? ScoutingEngine.maxProspectsFor(level + 1) : null;
       return '受け入れ枠 $cur人'
           '${next == null ? '' : ' → 次Lv: $next人'}';
+    case FacilityType.commercialFacility:
+      final cur = ClubInfrastructure.commercialRevenueMultiplier(level);
+      final next = level < maxLevel
+          ? ClubInfrastructure.commercialRevenueMultiplier(level + 1)
+          : null;
+      return '観客・スポンサー収入 x${cur.toStringAsFixed(2)}'
+          '${next == null ? '' : ' → 次Lv: x${next.toStringAsFixed(2)}'}';
   }
 }
 

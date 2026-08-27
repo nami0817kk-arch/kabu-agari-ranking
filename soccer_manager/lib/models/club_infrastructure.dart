@@ -48,19 +48,21 @@ extension StaffRoleInfo on StaffRole {
       };
 }
 
-enum FacilityType { trainingGround, stadium, youthFacility }
+enum FacilityType { trainingGround, stadium, youthFacility, commercialFacility }
 
 extension FacilityTypeInfo on FacilityType {
   String get label => switch (this) {
         FacilityType.trainingGround => 'トレーニング施設',
         FacilityType.stadium => 'スタジアム',
         FacilityType.youthFacility => 'ユース施設',
+        FacilityType.commercialFacility => '商業施設',
       };
 
   String get description => switch (this) {
         FacilityType.trainingGround => '選手の成長速度と疲労回復を高める',
         FacilityType.stadium => '試合ごとの観客収入を増やす',
         FacilityType.youthFacility => 'ユース昇格候補の受け入れ枠を増やす',
+        FacilityType.commercialFacility => '観客収入とスポンサー収入をまとめて底上げする',
       };
 }
 
@@ -101,6 +103,9 @@ class ClubInfrastructure {
   /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
   static double injuryFactor(int physioLevel) =>
       (1 - (physioLevel - 1) * 0.15).clamp(0.4, 1.0);
+
+  /// 商業施設のレベルに応じた、観客収入・スポンサー収入への倍率。
+  static double commercialRevenueMultiplier(int level) => 1 + (level - 1) * 0.1;
 
   int get totalStaffWeeklyWage =>
       staffLevels.values.fold<int>(0, (s, lvl) => s + staffWeeklyWage(lvl));
