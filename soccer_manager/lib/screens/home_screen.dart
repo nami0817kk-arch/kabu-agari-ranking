@@ -873,6 +873,52 @@ class HomeScreen extends StatelessWidget {
       gameState.lastPromotionPlayoffResults = [];
       gameState.userInvolvedInLastPromotionPlayoff = false;
     }
+    if (context.mounted && gameState.lastSeasonGrowthSummary.isNotEmpty) {
+      final summary = List.of(gameState.lastSeasonGrowthSummary)
+        ..sort((a, b) => b.overallDelta.compareTo(a.overallDelta));
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('シーズン成長サマリー'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: summary.length,
+              itemBuilder: (context, index) {
+                final s = summary[index];
+                final delta = s.overallDelta;
+                final deltaLabel = delta > 0 ? '+$delta' : '$delta';
+                final deltaColor = delta > 0
+                    ? SemanticColors.positive(context)
+                    : delta < 0
+                        ? SemanticColors.negative(context)
+                        : Theme.of(context).disabledColor;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(s.playerName)),
+                      Text('${s.overallBefore} → ${s.overallAfter}'),
+                      const SizedBox(width: 8),
+                      Text(deltaLabel,
+                          style: TextStyle(
+                              color: deltaColor, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('閉じる'),
+            ),
+          ],
+        ),
+      );
+    }
     if (context.mounted) showAchievementUnlockNotification(context, gameState);
   }
 }

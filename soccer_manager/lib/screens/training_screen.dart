@@ -122,17 +122,31 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+            Card(
+              margin: EdgeInsets.zero,
+              child: SwitchListTile(
+                title: const Text('トレーニングの自動実施'),
+                subtitle: const Text('有効にすると、節を進めるたびに未実施であれば既定の方針で自動的に実施する。'),
+                value: team.autoTrainingEnabled,
+                onChanged: (v) =>
+                    context.read<GameState>().setAutoTrainingEnabled(v),
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed:
-                    (_isRunningTraining || gameState.trainingDoneThisWeek)
-                        ? null
-                        : () => _runTraining(context),
-                child: Text(gameState.trainingDoneThisWeek
-                    ? '今週は実施済み(次の節で再実施可能)'
-                    : '今週のトレーニングを実施'),
+                onPressed: (_isRunningTraining ||
+                        gameState.trainingDoneThisWeek ||
+                        team.autoTrainingEnabled)
+                    ? null
+                    : () => _runTraining(context),
+                child: Text(team.autoTrainingEnabled
+                    ? '自動実施が有効です'
+                    : gameState.trainingDoneThisWeek
+                        ? '今週は実施済み(次の節で再実施可能)'
+                        : '今週のトレーニングを実施'),
               ),
             ),
             const Divider(height: 32),

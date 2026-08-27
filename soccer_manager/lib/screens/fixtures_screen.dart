@@ -25,13 +25,20 @@ class FixturesScreen extends StatelessWidget {
     final league = gameState.save!.league;
     final userTeamId = gameState.userTeam.id;
     final seasonComplete = league.isSeasonComplete;
+    final divisionTier = gameState.save!.currentDivisionTier;
+    final otherLeague = gameState.save!.otherDivisionLeague;
+    final otherDivisionLabel = divisionTier == 1 ? '2部' : '1部';
 
     return DefaultTabController(
-      length: 2,
+      length: otherLeague == null ? 2 : 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('日程・順位表'),
-          bottom: const TabBar(tabs: [Tab(text: '順位表'), Tab(text: '日程')]),
+          bottom: TabBar(tabs: [
+            const Tab(text: '順位表'),
+            const Tab(text: '日程'),
+            if (otherLeague != null) Tab(text: '$otherDivisionLabel順位表'),
+          ]),
           actions: [
             IconButton(
               icon: const Icon(Icons.query_stats),
@@ -54,8 +61,13 @@ class FixturesScreen extends StatelessWidget {
               _StandingsTab(
                   league: league,
                   userTeamId: userTeamId,
-                  divisionTier: gameState.save!.currentDivisionTier),
+                  divisionTier: divisionTier),
               _ScheduleTab(league: league, userTeamId: userTeamId),
+              if (otherLeague != null)
+                _StandingsTab(
+                    league: otherLeague,
+                    userTeamId: userTeamId,
+                    divisionTier: divisionTier == 1 ? 2 : 1),
             ],
           ),
         ),

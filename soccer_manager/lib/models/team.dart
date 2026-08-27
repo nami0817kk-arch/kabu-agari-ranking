@@ -27,6 +27,10 @@ class Team {
   /// カレンダー画面での表示専用で、試合日と重ならない前提。
   int trainingDayOfWeek;
 
+  /// 有効にすると、毎節の進行時に未実施であれば自動的に週次トレーニングを
+  /// 実施する(既定の方針・強度に従う)。
+  bool autoTrainingEnabled;
+
   /// プレッシングの強度（0-100）。高いほど守備が強まるが疲労が増えやすい。
   int pressing;
 
@@ -82,6 +86,7 @@ class Team {
     this.defaultTrainingFocus = TrainingFocus.rest,
     this.trainingIntensity = TrainingIntensity.normal,
     this.trainingDayOfWeek = DateTime.tuesday,
+    this.autoTrainingEnabled = false,
     this.pressing = 50,
     this.lineHeight = 50,
     this.width = 50,
@@ -137,6 +142,7 @@ class Team {
         'defaultTrainingFocus': defaultTrainingFocus.name,
         'trainingIntensity': trainingIntensity.name,
         'trainingDayOfWeek': trainingDayOfWeek,
+        'autoTrainingEnabled': autoTrainingEnabled,
         'pressing': pressing,
         'lineHeight': lineHeight,
         'width': width,
@@ -167,6 +173,7 @@ class Team {
             json['trainingIntensity'] as String?, TrainingIntensity.normal),
         trainingDayOfWeek:
             json['trainingDayOfWeek'] as int? ?? DateTime.tuesday,
+        autoTrainingEnabled: json['autoTrainingEnabled'] as bool? ?? false,
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
         width: json['width'] as int? ?? 50,

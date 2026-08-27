@@ -301,7 +301,7 @@ void main() {
     team.startingXI = [soonToExpire.id];
     final beforeCount = team.players.length;
 
-    final result = ContractEngine.advanceWeek(team);
+    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 0);
 
     expect(result.expired.map((p) => p.id), contains(soonToExpire.id));
     expect(team.players.length, beforeCount - 1);
@@ -612,6 +612,20 @@ void main() {
     expect(p.attributes.keys.toSet(), AttributeKeys.all.toSet());
     for (final key in AttributeKeys.all) {
       expect(p.attributeValue(key), inInclusiveRange(1, 99));
+    }
+  });
+
+  test(
+      'PlayerGenerator.generate never assigns an attribute value above the '
+      "player's own potential", () {
+    for (final position in Position.values) {
+      for (int i = 0; i < 100; i++) {
+        final p = PlayerGenerator.generate(
+            position: position, strengthTier: 60 + Random().nextInt(35));
+        for (final key in AttributeKeys.all) {
+          expect(p.attributeValue(key), lessThanOrEqualTo(p.potential));
+        }
+      }
     }
   });
 
@@ -1288,10 +1302,26 @@ void main() {
     loanPlayer.isLoan = true;
     loanPlayer.loanWeeksRemaining = 1;
 
-    final result = ContractEngine.advanceWeek(team);
+    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 20);
 
     expect(result.expired.any((p) => p.id == loanPlayer.id), isTrue);
     expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
+  });
+
+  test(
+      'ContractEngine.advanceWeek extends a contract to the season\'s final '
+      'matchday instead of letting it expire mid-season', () {
+    final team = PlayerGenerator.generateSquad(
+        id: 't3b', name: 'Test FC', strengthTier: 60);
+    final player = team.players.first;
+    player.contractWeeksRemaining = 1;
+    final beforeCount = team.players.length;
+
+    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 15);
+
+    expect(result.expired, isEmpty);
+    expect(team.players.length, beforeCount);
+    expect(player.contractWeeksRemaining, 15);
   });
 
   test(
@@ -1772,6 +1802,17 @@ void main() {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
+
+    // 契約は最終節までシーズン途中で切れないため、最終節の直前まで進めてから検証する。
+    while (gameState.save!.league.fixtures
+            .where((f) => f.result == null)
+            .map((f) => f.matchday)
+            .toSet()
+            .length >
+        1) {
+      await gameState.playNextMatchdayQuickSim();
+    }
+
     // 最低人数ぎりぎりまで減らした上で、残り全員の契約を今週切れさせる。
     while (team.players.length > minSquadSize) {
       team.players.removeLast();
@@ -1810,6 +1851,26 @@ void main() {
     expect(gameState.trainingDoneThisWeek, isFalse);
     final afterMatchday = await gameState.runWeeklyTraining();
     expect(afterMatchday, isTrue);
+  });
+
+  test(
+      'GameState.setAutoTrainingEnabled makes playNextMatchday run training '
+      'automatically for the week', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.setAutoTrainingEnabled(true);
+    expect(gameState.userTeam.autoTrainingEnabled, isTrue);
+    expect(gameState.trainingDoneThisWeek, isFalse);
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    expect(gameState.trainingDoneThisWeek, isTrue);
+    // 自動実施が有効な間は、手動でのrunWeeklyTrainingは既に消化済みとして
+    // 扱われる(二重に成長機会を得ないようにするため)。
+    expect(await gameState.runWeeklyTraining(), isFalse);
   });
 
   test(
@@ -2110,6 +2171,71 @@ void main() {
 
     expect(gameState.seasonAwards, isNotEmpty);
     expect(gameState.seasonAwards.first.season, 1);
+  });
+
+  test(
+      'GameState.startNextSeason leaves the growth summary empty for the '
+      'very first season but populates it from the second season onward',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    while (!gameState.save!.league.isSeasonComplete) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    await gameState.startNextSeason();
+    expect(gameState.lastSeasonGrowthSummary, isEmpty);
+
+    // 2シーズン目開始時点のスカッドを基準に、シーズン終了時点の成長サマリーが
+    // そのスカッドの部分集合であることを確認する(最終節ちょうどに契約満了と
+    // なった選手は入れ替わり得るため、完全一致ではなく部分集合で検証する)。
+    final squadIdsAtSeasonStart =
+        gameState.userTeam.players.map((p) => p.id).toSet();
+    while (!gameState.save!.league.isSeasonComplete) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+    await gameState.startNextSeason();
+
+    final ids =
+        gameState.lastSeasonGrowthSummary.map((s) => s.playerId).toSet();
+    expect(ids, isNotEmpty);
+    expect(squadIdsAtSeasonStart.containsAll(ids), isTrue);
+  });
+
+  test(
+      'GameState maintains a live, week-by-week simulated standings table for '
+      'the division the user is not currently in', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    expect(gameState.save!.otherDivisionLeague, isNotNull);
+    final otherLeague = gameState.save!.otherDivisionLeague!;
+    expect(otherLeague.teams.map((t) => t.id).toSet(),
+        gameState.save!.secondDivisionTeams.map((t) => t.id).toSet());
+    expect(otherLeague.fixturesForMatchday(1).every((f) => f.result == null),
+        isTrue);
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    // ユーザーのリーグと同じ1節分が、裏側のディビジョンでも消化されているはず。
+    expect(
+        gameState.save!.otherDivisionLeague!
+            .fixturesForMatchday(1)
+            .every((f) => f.result != null),
+        isTrue);
+    expect(
+        gameState.save!.otherDivisionLeague!
+            .fixturesForMatchday(2)
+            .every((f) => f.result == null),
+        isTrue);
   });
 
   test('LineupUtils.autoFill excludes players on international duty', () {

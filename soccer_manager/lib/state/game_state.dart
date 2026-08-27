@@ -128,6 +128,10 @@ class GameState extends ChangeNotifier {
   /// 直近の判定で新たに解除された実績(1回表示したら呼び出し側でクリアする想定)。
   List<Achievement> lastUnlockedAchievements = [];
 
+  /// 直近のstartNextSeasonで算出された、前シーズン開始時点からの
+  /// 選手成長サマリー(1回表示したら呼び出し側でクリアする想定)。
+  List<PlayerGrowthSummary> lastSeasonGrowthSummary = [];
+
   SaveGame? get save => _save;
   bool get hasSave => _save != null;
   Team get userTeam =>
@@ -202,6 +206,7 @@ class GameState extends ChangeNotifier {
     }
     if (_save != null) {
       _reseedPlayerIdCounter(_save!);
+      _backfillOtherDivisionLeagueIfNeeded();
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     }
@@ -220,6 +225,25 @@ class GameState extends ChangeNotifier {
       for (final p in save.retiredLegends) p.id,
     ];
     PlayerGenerator.ensureIdCounterAbove(ids);
+  }
+
+  /// 旧セーブデータ(otherDivisionLeague未生成)を読み込んだ場合、現在の
+  /// リーグの節数まで裏のディビジョンの日程をまとめて消化して追いつかせる。
+  void _backfillOtherDivisionLeagueIfNeeded() {
+    if (_save == null || _save!.otherDivisionLeague != null) return;
+    final teams = _save!.secondDivisionTeams;
+    if (teams.isEmpty) return;
+    final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
+    final catchUpTo = _currentLeagueMatchdayMarker - 1;
+    for (final f in fixtures) {
+      if (f.matchday > catchUpTo) continue;
+      final home = teams.firstWhere((t) => t.id == f.homeTeamId);
+      final away = teams.firstWhere((t) => t.id == f.awayTeamId);
+      f.result =
+          MatchEngine.simulate(home: home, away: away, matchday: f.matchday);
+    }
+    _save!.otherDivisionLeague =
+        League(teams: teams, fixtures: fixtures, season: _save!.league.season);
   }
 
   Future<void> _persist() async {
@@ -274,6 +298,7 @@ class GameState extends ChangeNotifier {
     }
     if (_save != null) {
       _reseedPlayerIdCounter(_save!);
+      _backfillOtherDivisionLeagueIfNeeded();
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     } else {
@@ -334,6 +359,11 @@ class GameState extends ChangeNotifier {
     }
     final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
     final league = League(teams: teams, fixtures: fixtures, season: 1);
+    final otherDivisionLeague = League(
+        teams: secondDivisionTeams,
+        fixtures:
+            FixtureGenerator.generateDoubleRoundRobin(secondDivisionTeams),
+        season: 1);
     _save = SaveGame(
       clubName: clubName,
       userTeamId: 'user',
@@ -351,6 +381,7 @@ class GameState extends ChangeNotifier {
           SponsorEngine.generateOffers(userTeam.overallRating),
       friendlies: _generateFriendlies(teams, 'user'),
       secondDivisionTeams: secondDivisionTeams,
+      otherDivisionLeague: otherDivisionLeague,
       currentDivisionTier: 1,
       clubHistory: [clubName],
     );
@@ -403,6 +434,7 @@ class GameState extends ChangeNotifier {
     }
     _save = restored;
     _reseedPlayerIdCounter(restored);
+    _backfillOtherDivisionLeagueIfNeeded();
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     notifyListeners();
@@ -439,6 +471,15 @@ class GameState extends ChangeNotifier {
   void setTrainingDayOfWeek(int weekday) {
     if (_save == null) return;
     userTeam.trainingDayOfWeek = weekday;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 週次トレーニングの自動実施の有効/無効を切り替える。有効な場合、
+  /// 毎節の進行時に未実施であれば既定の方針・強度で自動的に実施する。
+  void setAutoTrainingEnabled(bool enabled) {
+    if (_save == null) return;
+    userTeam.autoTrainingEnabled = enabled;
     notifyListeners();
     _persist();
   }
@@ -1874,6 +1915,11 @@ class GameState extends ChangeNotifier {
 
     _save!.trainingDoneThisWeek = false;
 
+    // トレーニング自動化が有効な場合、この節の分をここで自動的に実施する。
+    if (userTeam.autoTrainingEnabled) {
+      await runWeeklyTraining();
+    }
+
     // 週の経過による負傷回復と自然な疲労回復(休養日)。
     // 疲労回復は個別のトレーニング方針(休養特訓)とは別に、全チーム・
     // 全選手へ毎週一律で適用する。CPUクラブは練習メニューを設定できず、
@@ -1893,8 +1939,11 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）
-    final contractResult = ContractEngine.advanceWeek(userTeam);
+    // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）。
+    // 契約はシーズン途中では切れず、最終節まで自動延長されるようにする。
+    final weeksRemainingInSeason = _totalMatchdaysThisSeason - next.matchday;
+    final contractResult = ContractEngine.advanceWeek(userTeam,
+        weeksRemainingInSeason: weeksRemainingInSeason);
     final expired = contractResult.expired;
     lastContractExpirations = expired.map((p) => p.name).toList();
     lastContractWarnings =
@@ -1944,11 +1993,16 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // スポンサー契約の消化・分割払いの引き落とし。
+    // スポンサー契約の消化・分割払いの引き落とし。契約は選手契約と同様に
+    // シーズン途中では切れず、最終節まで自動延長されるようにする。
     if (_save!.sponsorDeal != null) {
       _save!.sponsorDeal!.weeksRemaining -= 1;
       if (_save!.sponsorDeal!.weeksRemaining <= 0) {
-        _save!.sponsorDeal = null;
+        if (weeksRemainingInSeason > 0) {
+          _save!.sponsorDeal!.weeksRemaining = weeksRemainingInSeason;
+        } else {
+          _save!.sponsorDeal = null;
+        }
       }
     }
     if (_save!.sponsorDeal == null && _save!.pendingSponsorOffers.isEmpty) {
@@ -2029,6 +2083,18 @@ class GameState extends ChangeNotifier {
             matchday: md,
             weather: weather,
             homeAdvantageFactor: _homeAdvantageFor(home.id));
+      }
+    }
+
+    // もう一方のディビジョン(2部相当)も同じ節番号の試合を裏で消化しておく。
+    // こうすることで昇格・降格に意味のある順位表を常時閲覧できるようにする。
+    final otherLeague = _save!.otherDivisionLeague;
+    if (otherLeague != null) {
+      for (final f in otherLeague.fixturesForMatchday(md)) {
+        if (f.result != null) continue;
+        final home = otherLeague.teams.firstWhere((t) => t.id == f.homeTeamId);
+        final away = otherLeague.teams.firstWhere((t) => t.id == f.awayTeamId);
+        f.result = MatchEngine.simulate(home: home, away: away, matchday: md);
       }
     }
 
@@ -2511,6 +2577,21 @@ class GameState extends ChangeNotifier {
         .toList();
     final wasTier1 = _save!.currentDivisionTier == 1;
 
+    // シーズン開始時点の総合力からの成長を選手ごとに算出し、シーズン終了時に
+    // 一覧表示できるようにする。
+    final previousOverallSnapshot = _save!.seasonStartOverallByPlayerId;
+    lastSeasonGrowthSummary = [
+      for (final p in userTeam.players)
+        if (previousOverallSnapshot.containsKey(p.id))
+          PlayerGrowthSummary(
+            playerId: p.id,
+            playerName: p.name,
+            overallBefore: previousOverallSnapshot[p.id]!,
+            overallAfter: p.overall,
+            attributeDeltas: const {},
+          ),
+    ];
+
     _save!.seasonAwards.add(AwardsEngine.computeAwards(league, league.season));
     _save!.bestElevenHistory
         .add(BestElevenEngine.compute(league, league.season));
@@ -2587,16 +2668,23 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // 昇格・降格を解決する(裏のディビジョンはこのタイミングで1シーズン分を即座にシミュレートする)。
+    // 昇格・降格を解決する。裏のディビジョンは節ごとに並行して消化してきた
+    // ため、その最終順位順をそのまま使う(改めてシミュレートし直さない)。
+    final otherLeague = _save!.otherDivisionLeague;
+    final otherDivisionPlayedOrder = otherLeague?.sortedStandings
+        .map((r) => otherLeague.teams.firstWhere((t) => t.id == r.teamId))
+        .toList();
     final promotion = wasTier1
         ? PromotionEngine.resolve(
             tier1Teams: league.teams,
             tier2Teams: _save!.secondDivisionTeams,
             tier1PlayedOrder: playedOrder,
+            tier2PlayedOrder: otherDivisionPlayedOrder,
           )
         : PromotionEngine.resolve(
             tier1Teams: _save!.secondDivisionTeams,
             tier2Teams: league.teams,
+            tier1PlayedOrder: otherDivisionPlayedOrder,
             tier2PlayedOrder: playedOrder,
           );
     final userNowInTier1 =
@@ -2626,6 +2714,10 @@ class GameState extends ChangeNotifier {
     }
     _save!.currentDivisionTier = newTier;
     _save!.secondDivisionTeams = newBackgroundTeams;
+    _save!.otherDivisionLeague = League(
+        teams: newBackgroundTeams,
+        fixtures: FixtureGenerator.generateDoubleRoundRobin(newBackgroundTeams),
+        season: league.season + 1);
 
     final newFixtures =
         FixtureGenerator.generateDoubleRoundRobin(newActiveTeams);
@@ -2748,6 +2840,11 @@ class GameState extends ChangeNotifier {
     _save!.boardReviewDoneThisSeason = false;
     _save!.pendingBoardReviewMessage = null;
     _save!.lastManagerOfMonthCheckpoint = 0;
+
+    // 次シーズン終了時の成長算出のため、開始時点の総合力を記録しておく。
+    _save!.seasonStartOverallByPlayerId = {
+      for (final p in userTeam.players) p.id: p.overall
+    };
 
     isBusy = false;
     notifyListeners();

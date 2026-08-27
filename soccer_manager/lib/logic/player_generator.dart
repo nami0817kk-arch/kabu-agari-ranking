@@ -279,7 +279,10 @@ class PlayerGenerator {
     for (final key in AttributeKeys.all) {
       final variance = _rng.nextInt(17) - 8; // -8 〜 +8
       final value = baseAbility + _positionBonus(key, position) + variance;
-      attributes[key] = value.clamp(1, 99);
+      // ポテンシャルは成長の上限のはずなので、生成直後の能力値がそれを
+      // 超えてしまわないようにする(ポジションボーナス・分散を足した後の
+      // 値がpotentialを上回るケースがあったため)。
+      attributes[key] = value.clamp(1, min(99, potential));
     }
 
     final player = Player(

@@ -96,9 +96,14 @@ class SaveGame {
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? pendingPressConference;
 
-  /// 現在ユーザーが所属していない方のディビジョンのチーム一覧。週次では進行させず、
-  /// シーズン終了時にまとめてシミュレートして昇格・降格を決定する。
+  /// 現在ユーザーが所属していない方のディビジョンのチーム一覧。
   List<Team> secondDivisionTeams;
+
+  /// [secondDivisionTeams]の今シーズンの日程・結果・順位表。ユーザーの節送りに
+  /// 合わせて同じ節番号の試合を裏で消化しておくことで、昇格・降格に意味のある
+  /// 「もう一方のディビジョン」の順位表を常時閲覧できるようにする。シーズン
+  /// 終了時はこの順位確定順を昇格・降格の判定にそのまま使う。
+  League? otherDivisionLeague;
 
   /// ユーザークラブが現在所属するディビジョン(1部/2部)。
   int currentDivisionTier;
@@ -156,6 +161,10 @@ class SaveGame {
   /// 解除済みの実績(アチーブメント)ID→達成したシーズン番号。
   Map<String, int> unlockedAchievements;
 
+  /// 現在のシーズン開始時点での自クラブ選手の総合力(選手ID→総合力)。
+  /// シーズン終了時に、この時点からの成長を選手ごとに算出するために使う。
+  Map<String, int> seasonStartOverallByPlayerId;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -186,6 +195,7 @@ class SaveGame {
     this.rivalTeamName,
     this.pendingPressConference,
     List<Team>? secondDivisionTeams,
+    this.otherDivisionLeague,
     this.currentDivisionTier = 1,
     this.careerWins = 0,
     this.careerDraws = 0,
@@ -205,7 +215,9 @@ class SaveGame {
     this.pendingSuperCup,
     this.consecutiveNegativeBudgetWeeks = 0,
     Map<String, int>? unlockedAchievements,
+    Map<String, int>? seasonStartOverallByPlayerId,
   })  : unlockedAchievements = unlockedAchievements ?? {},
+        seasonStartOverallByPlayerId = seasonStartOverallByPlayerId ?? {},
         trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -260,6 +272,7 @@ class SaveGame {
         'pendingPressConference': pendingPressConference?.toJson(),
         'secondDivisionTeams':
             secondDivisionTeams.map((t) => t.toJson()).toList(),
+        'otherDivisionLeague': otherDivisionLeague?.toJson(),
         'currentDivisionTier': currentDivisionTier,
         'careerWins': careerWins,
         'careerDraws': careerDraws,
@@ -279,6 +292,7 @@ class SaveGame {
         'pendingSuperCup': pendingSuperCup?.toJson(),
         'consecutiveNegativeBudgetWeeks': consecutiveNegativeBudgetWeeks,
         'unlockedAchievements': unlockedAchievements,
+        'seasonStartOverallByPlayerId': seasonStartOverallByPlayerId,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -357,6 +371,10 @@ class SaveGame {
                 ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        otherDivisionLeague: json['otherDivisionLeague'] == null
+            ? null
+            : League.fromJson(
+                json['otherDivisionLeague'] as Map<String, dynamic>),
         currentDivisionTier: json['currentDivisionTier'] as int? ?? 1,
         careerWins: json['careerWins'] as int? ?? 0,
         careerDraws: json['careerDraws'] as int? ?? 0,
@@ -405,5 +423,9 @@ class SaveGame {
         unlockedAchievements: (json['unlockedAchievements'] as Map?)
                 ?.map((k, v) => MapEntry(k as String, v as int)) ??
             {},
+        seasonStartOverallByPlayerId:
+            (json['seasonStartOverallByPlayerId'] as Map?)
+                    ?.map((k, v) => MapEntry(k as String, v as int)) ??
+                {},
       );
 }

@@ -14,8 +14,15 @@ class ContractEngine {
   /// 契約(またはローン期間)を1週分消化させ、契約切れ・ローン満了となった
   /// 選手をチームから除外する。除外された選手と、契約満了が間近になった
   /// 選手(事前警告用)をそれぞれ返す(UI通知用)。
+  ///
+  /// [weeksRemainingInSeason]は今節を含めた今シーズンの残り節数(今節が
+  /// 最終節なら0)。現実のクラブ経営では契約はシーズンの区切りで満了する
+  /// ため、シーズン途中で契約が0になった場合は最終節まで自動延長し、
+  /// シーズン最終節でのみ実際に契約満了とする(ローンは対象外。ローン期間は
+  /// 移籍時に個別合意された期間のため、シーズン境界に揃える対象ではない)。
   static ({List<Player> expired, List<Player> nearingExpiry}) advanceWeek(
-      Team team) {
+      Team team,
+      {required int weeksRemainingInSeason}) {
     final expired = <Player>[];
     final nearingExpiry = <Player>[];
     for (final p in List<Player>.from(team.players)) {
@@ -32,7 +39,11 @@ class ContractEngine {
         p.contractWeeksRemaining -= 1;
       }
       if (p.contractWeeksRemaining <= 0) {
-        expired.add(p);
+        if (weeksRemainingInSeason > 0) {
+          p.contractWeeksRemaining = weeksRemainingInSeason;
+        } else {
+          expired.add(p);
+        }
       } else if (p.contractWeeksRemaining == expiryWarningWeeks) {
         nearingExpiry.add(p);
       }
