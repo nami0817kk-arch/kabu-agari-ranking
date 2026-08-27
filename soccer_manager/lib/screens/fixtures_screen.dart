@@ -7,6 +7,7 @@ import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/achievement_unlock_notifier.dart';
 import '../widgets/club_emblem.dart';
 import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
@@ -156,6 +157,7 @@ class FixturesScreen extends StatelessWidget {
         ],
       ),
     );
+    if (context.mounted) showAchievementUnlockNotification(context, gameState);
   }
 
   Future<void> _showProjectionSheet(BuildContext context) async {

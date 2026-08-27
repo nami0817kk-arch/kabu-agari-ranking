@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soccer_manager/logic/achievement_engine.dart';
 import 'package:soccer_manager/logic/ai_transfer_engine.dart';
 import 'package:soccer_manager/logic/awards_engine.dart';
 import 'package:soccer_manager/logic/best_eleven_engine.dart';
@@ -39,6 +40,7 @@ import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
 import 'package:soccer_manager/models/season_award.dart';
+import 'package:soccer_manager/models/season_record.dart';
 import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/models/team_talk.dart';
 import 'package:soccer_manager/models/weather.dart';
@@ -5062,5 +5064,150 @@ void main() {
     gameState.applyTacticPreset('セット専用');
 
     expect(team.penaltyTakerId, isNull);
+  });
+
+  test(
+      'AchievementEngine.evaluate unlocks first_title only after a season '
+      'record shows a league win, and never re-returns an already-unlocked '
+      'achievement', () {
+    final team = Team(id: 'a', name: 'A', players: []);
+    final league = League(teams: [team], fixtures: [], season: 2);
+    final save = SaveGame(clubName: 'テストFC', userTeamId: 'a', league: league);
+
+    expect(AchievementEngine.evaluate(save, team), isEmpty);
+
+    save.seasonHistory.add(SeasonRecord(
+      season: 1,
+      clubName: 'テストFC',
+      leagueName: 'リーグ',
+      divisionTier: 1,
+      finalRank: 1,
+      teamCount: 10,
+      played: 10,
+      won: 10,
+      draw: 0,
+      lost: 0,
+      goalsFor: 20,
+      goalsAgainst: 2,
+      wonLeague: true,
+    ));
+
+    final unlocked = AchievementEngine.evaluate(save, team);
+    expect(unlocked.any((a) => a.id == 'first_title'), isTrue);
+    expect(unlocked.any((a) => a.id == 'unbeaten_champion'), isTrue);
+
+    save.unlockedAchievements['first_title'] = 1;
+    save.unlockedAchievements['unbeaten_champion'] = 1;
+    expect(AchievementEngine.evaluate(save, team), isEmpty);
+  });
+
+  test(
+      'AchievementEngine back_to_back and bounce_back only fire for '
+      'consecutive seasons, not merely any two seasons in history', () {
+    final team = Team(id: 'a', name: 'A', players: []);
+    final league = League(teams: [team], fixtures: [], season: 3);
+    final save = SaveGame(clubName: 'テストFC', userTeamId: 'a', league: league);
+
+    SeasonRecord record(int season,
+            {bool wonLeague = false,
+            bool promoted = false,
+            bool relegated = false}) =>
+        SeasonRecord(
+          season: season,
+          clubName: 'テストFC',
+          leagueName: 'リーグ',
+          divisionTier: 1,
+          finalRank: wonLeague ? 1 : 5,
+          teamCount: 10,
+          played: 10,
+          won: 5,
+          draw: 0,
+          lost: 5,
+          goalsFor: 10,
+          goalsAgainst: 10,
+          wonLeague: wonLeague,
+          promoted: promoted,
+          relegated: relegated,
+        );
+
+    // 優勝したシーズンの間に無冠のシーズンを挟むと連覇にはならない。
+    save.seasonHistory.addAll([
+      record(1, wonLeague: true),
+      record(2),
+      record(3, wonLeague: true),
+    ]);
+    var unlocked = AchievementEngine.evaluate(save, team);
+    expect(unlocked.any((a) => a.id == 'back_to_back'), isFalse);
+
+    save.seasonHistory.add(record(4, wonLeague: true));
+    unlocked = AchievementEngine.evaluate(save, team);
+    expect(unlocked.any((a) => a.id == 'back_to_back'), isTrue);
+
+    // 降格後、1シーズン間を置いてから昇格した場合はbounce_backにならない。
+    final save2 = SaveGame(clubName: 'テストFC2', userTeamId: 'a', league: league);
+    save2.seasonHistory.addAll([
+      record(1, relegated: true),
+      record(2),
+      record(3, promoted: true),
+    ]);
+    expect(
+        AchievementEngine.evaluate(save2, team)
+            .any((a) => a.id == 'bounce_back'),
+        isFalse);
+
+    // relegated(1)の直後にpromoted(2)が来る場合のみtrueになる。
+    save2.seasonHistory[1] = record(2, promoted: true);
+    expect(
+        AchievementEngine.evaluate(save2, team)
+            .any((a) => a.id == 'bounce_back'),
+        isTrue);
+  });
+
+  test(
+      'AchievementEngine facilities_maxed and superstar_player read from '
+      'club infrastructure and the live squad, not season history', () {
+    final infra = ClubInfrastructure();
+    for (final f in FacilityType.values) {
+      while (infra.facilityLevel(f) < ClubInfrastructure.maxLevel) {
+        infra.upgradeFacility(f);
+      }
+    }
+    final star = Player(
+      id: 'star',
+      name: 'スター',
+      age: 25,
+      position: Position.st,
+      potential: 99,
+      attributes: {for (final k in AttributeKeys.all) k: 99},
+    );
+    final team = Team(id: 'a', name: 'A', players: [star]);
+    final league = League(teams: [team], fixtures: [], season: 1);
+    final save = SaveGame(
+      clubName: 'テストFC',
+      userTeamId: 'a',
+      league: league,
+      infrastructure: infra,
+    );
+
+    final unlocked = AchievementEngine.evaluate(save, team);
+    expect(unlocked.any((a) => a.id == 'facilities_maxed'), isTrue);
+    expect(unlocked.any((a) => a.id == 'superstar_player'), isTrue);
+    expect(unlocked.any((a) => a.id == 'staff_maxed'), isFalse);
+  });
+
+  test(
+      'GameState records a newly unlocked achievement into unlockedAchievements '
+      'and surfaces it via lastUnlockedAchievements after startNextSeason',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.careerWins = 50;
+
+    await gameState.startNextSeason();
+
+    expect(gameState.isAchievementUnlocked('wins_50'), isTrue);
+    expect(gameState.achievementUnlockedSeason('wins_50'), isNotNull);
+    expect(gameState.lastUnlockedAchievements.any((a) => a.id == 'wins_50'),
+        isTrue);
   });
 }

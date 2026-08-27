@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/achievements_screen.dart';
 import '../screens/awards_screen.dart';
 import '../screens/best_eleven_screen.dart';
 import '../screens/club_screen.dart';
@@ -115,5 +116,11 @@ final List<QuickAccessDestination> quickAccessDestinations = [
     label: '用語集',
     color: Colors.cyan.shade700,
     builder: (_) => const GlossaryScreen(),
+  ),
+  QuickAccessDestination(
+    icon: Icons.emoji_events,
+    label: '実績',
+    color: Colors.amber.shade700,
+    builder: (_) => const AchievementsScreen(),
   ),
 ];

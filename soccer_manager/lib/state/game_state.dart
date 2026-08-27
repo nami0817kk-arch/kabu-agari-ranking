@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/achievement.dart';
 import '../models/bank_loan.dart';
 import '../models/best_eleven.dart';
 import '../models/club_infrastructure.dart';
@@ -26,6 +27,7 @@ import '../models/team.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
 import '../models/weather.dart';
+import '../logic/achievement_engine.dart';
 import '../logic/ai_transfer_engine.dart';
 import '../logic/awards_engine.dart';
 import '../logic/best_eleven_engine.dart';
@@ -121,6 +123,9 @@ class GameState extends ChangeNotifier {
   /// 直近の自クラブの試合で達成された節目(ハットトリック・通算記録)の説明文
   /// (1回表示したら呼び出し側でクリアする想定)。
   List<String> lastMilestones = [];
+
+  /// 直近の判定で新たに解除された実績(1回表示したら呼び出し側でクリアする想定)。
+  List<Achievement> lastUnlockedAchievements = [];
 
   SaveGame? get save => _save;
   bool get hasSave => _save != null;
@@ -2113,6 +2118,7 @@ class GameState extends ChangeNotifier {
     for (final m in lastMilestones) {
       _save!.trophyHistory.add('シーズン${league.season}: $m');
     }
+    _evaluateAchievements();
 
     final merged = MatchResult(
       matchday: f.matchday,
@@ -2193,6 +2199,31 @@ class GameState extends ChangeNotifier {
     }
     return milestones;
   }
+
+  /// 現在のセーブデータの状態から新たに解除された実績を判定し、
+  /// 解除済みIDとして記録する(通知はlastUnlockedAchievementsへ追加し、
+  /// 呼び出し側が表示後にクリアする想定)。
+  void _evaluateAchievements({int? season}) {
+    if (_save == null) return;
+    final newly = AchievementEngine.evaluate(_save!, userTeam);
+    if (newly.isEmpty) return;
+    final recordedSeason = season ?? _save!.league.season;
+    for (final a in newly) {
+      _save!.unlockedAchievements[a.id] = recordedSeason;
+    }
+    lastUnlockedAchievements = [...lastUnlockedAchievements, ...newly];
+  }
+
+  /// 実績画面向け: 全実績の定義一覧。
+  List<Achievement> get allAchievements => AchievementEngine.all;
+
+  bool isAchievementUnlocked(String id) =>
+      _save?.unlockedAchievements.containsKey(id) ?? false;
+
+  /// 実績を達成したシーズン番号(未達成の場合はnull)。
+  int? achievementUnlockedSeason(String id) => _save?.unlockedAchievements[id];
+
+  int get unlockedAchievementCount => _save?.unlockedAchievements.length ?? 0;
 
   /// ライブ観戦せず、前半・後半を一括で消化して確定結果のみを返す
   /// (クイックシム)。ユーザーの試合がない、またはシーズンが既に終了して
@@ -2572,6 +2603,7 @@ class GameState extends ChangeNotifier {
       relegated: wasTier1 && newTier == 2,
       cupsWon: cupsWonThisSeason,
     ));
+    _evaluateAchievements(season: league.season);
 
     // スーパーカップ: 前シーズンのリーグ王者と国内カップ王者(同一クラブが両方
     // 制した場合はカップ準優勝クラブ)が新シーズン開幕前に対戦する。カップが

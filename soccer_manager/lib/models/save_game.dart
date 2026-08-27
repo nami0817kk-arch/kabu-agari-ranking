@@ -153,6 +153,9 @@ class SaveGame {
   /// 一定週数を超えると理事会の信頼度にペナルティが科される。
   int consecutiveNegativeBudgetWeeks;
 
+  /// 解除済みの実績(アチーブメント)ID→達成したシーズン番号。
+  Map<String, int> unlockedAchievements;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -201,7 +204,9 @@ class SaveGame {
     this.pendingContractNegotiation,
     this.pendingSuperCup,
     this.consecutiveNegativeBudgetWeeks = 0,
-  })  : trophyHistory = trophyHistory ?? [],
+    Map<String, int>? unlockedAchievements,
+  })  : unlockedAchievements = unlockedAchievements ?? {},
+        trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
         retiredLegends = retiredLegends ?? [],
@@ -273,6 +278,7 @@ class SaveGame {
         'pendingContractNegotiation': pendingContractNegotiation?.toJson(),
         'pendingSuperCup': pendingSuperCup?.toJson(),
         'consecutiveNegativeBudgetWeeks': consecutiveNegativeBudgetWeeks,
+        'unlockedAchievements': unlockedAchievements,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -396,5 +402,8 @@ class SaveGame {
                 json['pendingSuperCup'] as Map<String, dynamic>),
         consecutiveNegativeBudgetWeeks:
             json['consecutiveNegativeBudgetWeeks'] as int? ?? 0,
+        unlockedAchievements: (json['unlockedAchievements'] as Map?)
+                ?.map((k, v) => MapEntry(k as String, v as int)) ??
+            {},
       );
 }

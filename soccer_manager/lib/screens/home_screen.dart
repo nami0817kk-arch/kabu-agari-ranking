@@ -9,6 +9,7 @@ import '../models/team.dart';
 import '../state/game_state.dart';
 import '../services/feedback_service.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/achievement_unlock_notifier.dart';
 import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import '../widgets/quick_access_drawer.dart';
@@ -489,6 +490,7 @@ class HomeScreen extends StatelessWidget {
       );
     }
     if (context.mounted) _showMonthlyAwardNotification(context, gameState);
+    if (context.mounted) showAchievementUnlockNotification(context, gameState);
   }
 
   /// ライブ観戦せず、次節の結果だけを一括で確定させる(クイックシム)。
@@ -516,6 +518,7 @@ class HomeScreen extends StatelessWidget {
     if (!context.mounted) return;
     _showMatchdayNotifications(context, gameState);
     _showMonthlyAwardNotification(context, gameState);
+    showAchievementUnlockNotification(context, gameState);
   }
 
   /// クイックシム結果を、スコアだけでなく得点者・MVPまで含めたダイアログで表示する。
@@ -868,6 +871,7 @@ class HomeScreen extends StatelessWidget {
       gameState.lastPromotionPlayoffResults = [];
       gameState.userInvolvedInLastPromotionPlayoff = false;
     }
+    if (context.mounted) showAchievementUnlockNotification(context, gameState);
   }
 }
 
