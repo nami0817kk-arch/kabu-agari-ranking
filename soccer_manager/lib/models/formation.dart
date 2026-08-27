@@ -1,6 +1,17 @@
 import '../models/player.dart';
 
-enum Formation { f442, f433, f4231, f352, f4141, f343 }
+enum Formation {
+  f442,
+  f433,
+  f4231,
+  f352,
+  f4141,
+  f343,
+  f4411,
+  f4321,
+  f541,
+  f424
+}
 
 extension FormationInfo on Formation {
   String get label {
@@ -17,6 +28,14 @@ extension FormationInfo on Formation {
         return '4-1-4-1';
       case Formation.f343:
         return '3-4-3';
+      case Formation.f4411:
+        return '4-4-1-1';
+      case Formation.f4321:
+        return '4-3-2-1';
+      case Formation.f541:
+        return '5-4-1';
+      case Formation.f424:
+        return '4-2-4';
     }
   }
 
@@ -107,6 +126,62 @@ extension FormationInfo on Formation {
           Position.aml,
           Position.st,
         ];
+      case Formation.f4411:
+        return const [
+          Position.gk,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.mr,
+          Position.mc,
+          Position.mc,
+          Position.ml,
+          Position.amc,
+          Position.st,
+        ];
+      case Formation.f4321:
+        return const [
+          Position.gk,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.dm,
+          Position.mc,
+          Position.mc,
+          Position.amr,
+          Position.aml,
+          Position.st,
+        ];
+      case Formation.f541:
+        return const [
+          Position.gk,
+          Position.wbr,
+          Position.dc,
+          Position.dc,
+          Position.dc,
+          Position.wbl,
+          Position.mr,
+          Position.mc,
+          Position.mc,
+          Position.ml,
+          Position.st,
+        ];
+      case Formation.f424:
+        return const [
+          Position.gk,
+          Position.dr,
+          Position.dc,
+          Position.dc,
+          Position.dl,
+          Position.dm,
+          Position.dm,
+          Position.amr,
+          Position.aml,
+          Position.st,
+          Position.st,
+        ];
     }
   }
 
@@ -127,6 +202,14 @@ extension FormationInfo on Formation {
         return 0.95;
       case Formation.f343:
         return 1.12;
+      case Formation.f4411:
+        return 0.97;
+      case Formation.f4321:
+        return 1.06;
+      case Formation.f541:
+        return 0.85;
+      case Formation.f424:
+        return 1.2;
     }
   }
 
@@ -144,6 +227,14 @@ extension FormationInfo on Formation {
         return 1.1;
       case Formation.f343:
         return 0.9;
+      case Formation.f4411:
+        return 1.05;
+      case Formation.f4321:
+        return 0.96;
+      case Formation.f541:
+        return 1.18;
+      case Formation.f424:
+        return 0.8;
     }
   }
 }

@@ -733,6 +733,26 @@ void main() {
     expect(Formation.f343.slots.where((p) => p == Position.st).length, 1);
   });
 
+  test(
+      'Formation.f541 and f424 sit at opposite ends of the attack/defense '
+      'spectrum, and every formation has exactly 11 slots with a layout '
+      'offset for each', () {
+    expect(Formation.f541.slots.length, 11);
+    expect(
+        Formation.f541.slots.where((p) => p.group == PositionGroup.def).length,
+        5);
+    expect(Formation.f424.slots.length, 11);
+    expect(Formation.f424.slots.where((p) => p == Position.st).length, 2);
+    expect(Formation.f541.defenseBias, greaterThan(Formation.f424.defenseBias));
+    expect(Formation.f424.attackBias, greaterThan(Formation.f541.attackBias));
+
+    for (final f in Formation.values) {
+      expect(f.slots.length, 11, reason: '${f.name} should have 11 slots');
+      expect(FormationLayout.offsetsFor(f).length, 11,
+          reason: '${f.name} should have a layout offset per slot');
+    }
+  });
+
   test('Team.fromJson falls back to f442 for a removed formation name', () {
     final team = PlayerGenerator.generateSquad(
         id: 'tf', name: 'Test FC', strengthTier: 60);

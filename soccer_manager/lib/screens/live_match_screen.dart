@@ -4,6 +4,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../game/pitch_game.dart';
+import '../models/formation.dart';
 import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
@@ -374,6 +375,33 @@ class _HalfTimePanel extends StatelessWidget {
           ),
           const Divider(height: 32),
           Text('戦術指示', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text('前半の展開を見て、後半だけフォーメーションを変更できる。',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const SizedBox(width: 90, child: Text('フォーメーション')),
+              Expanded(
+                child: DropdownButton<Formation>(
+                  isExpanded: true,
+                  value: team.formation,
+                  items: Formation.values
+                      .map((f) => DropdownMenuItem(
+                            value: f,
+                            child: Text(f.label),
+                          ))
+                      .toList(),
+                  onChanged: (f) {
+                    if (f != null) {
+                      FeedbackService.tap();
+                      gameState.setFormation(f);
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
