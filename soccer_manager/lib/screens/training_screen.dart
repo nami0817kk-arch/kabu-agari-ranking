@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/calendar_engine.dart';
 import '../logic/training_engine.dart';
 import '../models/attributes.dart';
 import '../models/player.dart';
@@ -90,6 +91,32 @@ class _TrainingScreenState extends State<TrainingScreen> {
                             ),
                           )
                           .toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('重点トレーニング日',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    const Text('カレンダー画面でこの曜日が重点トレーニング日として表示される。',
+                        style: TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final weekday in const [
+                          DateTime.monday,
+                          DateTime.tuesday,
+                          DateTime.wednesday,
+                          DateTime.thursday,
+                          DateTime.friday,
+                        ])
+                          ChoiceChip(
+                            label: Text(CalendarEngine.weekdayLabel(weekday)),
+                            selected: team.trainingDayOfWeek == weekday,
+                            onSelected: (_) => context
+                                .read<GameState>()
+                                .setTrainingDayOfWeek(weekday),
+                          ),
+                      ],
                     ),
                   ],
                 ),

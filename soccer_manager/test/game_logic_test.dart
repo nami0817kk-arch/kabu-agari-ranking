@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:soccer_manager/logic/achievement_engine.dart';
 import 'package:soccer_manager/logic/ai_transfer_engine.dart';
+import 'package:soccer_manager/logic/calendar_engine.dart';
 import 'package:soccer_manager/logic/awards_engine.dart';
 import 'package:soccer_manager/logic/best_eleven_engine.dart';
 import 'package:soccer_manager/logic/board_engine.dart';
@@ -5209,5 +5210,64 @@ void main() {
     expect(gameState.achievementUnlockedSeason('wins_50'), isNotNull);
     expect(gameState.lastUnlockedAchievements.any((a) => a.id == 'wins_50'),
         isTrue);
+  });
+
+  test(
+      'CalendarEngine.seasonAnchor and dateForMatchday always land on a '
+      'Saturday, exactly 7 days apart per matchday', () {
+    for (final season in [1, 2, 3, 10]) {
+      final anchor = CalendarEngine.seasonAnchor(season);
+      expect(anchor.weekday, DateTime.saturday);
+
+      final md1 = CalendarEngine.dateForMatchday(season, 1);
+      final md2 = CalendarEngine.dateForMatchday(season, 2);
+      expect(md1, anchor);
+      expect(md2.weekday, DateTime.saturday);
+      expect(md2.difference(md1).inDays, 7);
+    }
+  });
+
+  test(
+      'CalendarEngine.buildRange marks the user\'s league fixture date as a '
+      'match day (with opponent/home-away) and every other day by the '
+      'configured training weekday, without double-marking a match day', () {
+    final home = Team(id: 'user', name: 'ユーザー', players: []);
+    final away = Team(id: 'rival', name: 'ライバル', players: []);
+    final league = League(
+      teams: [home, away],
+      fixtures: [
+        Fixture(matchday: 1, homeTeamId: 'user', awayTeamId: 'rival'),
+      ],
+      season: 1,
+    );
+
+    final matchDate = CalendarEngine.dateForMatchday(1, 1);
+    // トレーニング曜日をあえて試合日と同じ曜日に設定し、試合日が優先され
+    // 二重にマークされないことを確認する。
+    final days = CalendarEngine.buildRange(
+      from: matchDate.subtract(const Duration(days: 3)),
+      to: matchDate.add(const Duration(days: 10)),
+      league: league,
+      userTeamId: 'user',
+      trainingDayOfWeek: matchDate.weekday,
+      today: matchDate,
+    );
+
+    final matchDay = days.firstWhere((d) => d.date == matchDate);
+    expect(matchDay.isLeagueMatchDay, isTrue);
+    expect(matchDay.isHomeMatch, isTrue);
+    expect(matchDay.opponentName, 'ライバル');
+    expect(matchDay.matchday, 1);
+    expect(matchDay.isTrainingFocusDay, isFalse);
+    expect(matchDay.isToday, isTrue);
+
+    final otherTrainingDays = days.where(
+        (d) => !d.isLeagueMatchDay && d.date.weekday == matchDate.weekday);
+    expect(otherTrainingDays, isNotEmpty);
+    expect(otherTrainingDays.every((d) => d.isTrainingFocusDay), isTrue);
+
+    final nonMatchNonTrainingDay = days.firstWhere(
+        (d) => !d.isLeagueMatchDay && d.date.weekday != matchDate.weekday);
+    expect(nonMatchNonTrainingDay.isTrainingFocusDay, isFalse);
   });
 }

@@ -23,6 +23,10 @@ class Team {
   /// トレードオフを調整する。
   TrainingIntensity trainingIntensity;
 
+  /// 週の中で重点的にトレーニングを行う曜日(1=月〜5=金、既定は火曜)。
+  /// カレンダー画面での表示専用で、試合日と重ならない前提。
+  int trainingDayOfWeek;
+
   /// プレッシングの強度（0-100）。高いほど守備が強まるが疲労が増えやすい。
   int pressing;
 
@@ -77,6 +81,7 @@ class Team {
     List<String>? startingXI,
     this.defaultTrainingFocus = TrainingFocus.rest,
     this.trainingIntensity = TrainingIntensity.normal,
+    this.trainingDayOfWeek = DateTime.tuesday,
     this.pressing = 50,
     this.lineHeight = 50,
     this.width = 50,
@@ -131,6 +136,7 @@ class Team {
         'startingXI': startingXI,
         'defaultTrainingFocus': defaultTrainingFocus.name,
         'trainingIntensity': trainingIntensity.name,
+        'trainingDayOfWeek': trainingDayOfWeek,
         'pressing': pressing,
         'lineHeight': lineHeight,
         'width': width,
@@ -159,6 +165,8 @@ class Team {
             json['defaultTrainingFocus'] as String?, TrainingFocus.rest),
         trainingIntensity: enumFromName(TrainingIntensity.values,
             json['trainingIntensity'] as String?, TrainingIntensity.normal),
+        trainingDayOfWeek:
+            json['trainingDayOfWeek'] as int? ?? DateTime.tuesday,
         pressing: json['pressing'] as int? ?? 50,
         lineHeight: json['lineHeight'] as int? ?? 50,
         width: json['width'] as int? ?? 50,

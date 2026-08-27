@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../data/quick_access_destinations.dart';
+import '../logic/calendar_engine.dart';
 import '../models/formation.dart';
 import '../models/incoming_offer.dart';
 import '../models/league.dart';
@@ -14,6 +15,7 @@ import '../widgets/busy_overlay.dart';
 import '../widgets/club_emblem.dart';
 import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'calendar_screen.dart';
 import 'cup_screen.dart';
 import 'live_match_screen.dart';
 import 'match_screen.dart';
@@ -1036,6 +1038,9 @@ class _ThisWeekCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final today = gameState.currentDate;
+    final dateLabel =
+        '${today.month}/${today.day}(${CalendarEngine.weekdayLabel(today.weekday)})';
     String matchLine;
     if (next == null) {
       matchLine = 'リーグ戦は今シーズン終了しています';
@@ -1057,12 +1062,26 @@ class _ThisWeekCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('今週の予定',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('今週の予定 ($dateLabel)',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  icon: const Icon(Icons.calendar_month, size: 16),
+                  label: const Text('カレンダー'),
+                  onPressed: () {
+                    FeedbackService.tap();
+                    Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => const CalendarScreen()));
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
             Row(
               children: [
                 Icon(Icons.sports_soccer, size: 18, color: scheme.primary),

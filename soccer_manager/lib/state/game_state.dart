@@ -29,6 +29,7 @@ import '../models/match_result.dart';
 import '../models/weather.dart';
 import '../logic/achievement_engine.dart';
 import '../logic/ai_transfer_engine.dart';
+import '../logic/calendar_engine.dart';
 import '../logic/awards_engine.dart';
 import '../logic/best_eleven_engine.dart';
 import '../logic/board_engine.dart';
@@ -430,6 +431,14 @@ class GameState extends ChangeNotifier {
   void setTrainingIntensity(TrainingIntensity intensity) {
     if (_save == null) return;
     userTeam.trainingIntensity = intensity;
+    notifyListeners();
+    _persist();
+  }
+
+  /// 週の中で重点的にトレーニングを行う曜日(1=月〜5=金)を設定する。
+  void setTrainingDayOfWeek(int weekday) {
+    if (_save == null) return;
+    userTeam.trainingDayOfWeek = weekday;
     notifyListeners();
     _persist();
   }
@@ -2272,6 +2281,19 @@ class GameState extends ChangeNotifier {
       if (c.type == type) return c;
     }
     return null;
+  }
+
+  /// 現在の実際の暦日(次に消化する節の日付。シーズンが完了している場合は
+  /// 最終節の翌週)。カレンダー画面・ホーム画面の日付表示に使う。
+  DateTime get currentDate {
+    final league = _save!.league;
+    final next = league.nextUnplayedFixture;
+    if (next != null) {
+      return CalendarEngine.dateForMatchday(league.season, next.matchday);
+    }
+    final maxMatchday =
+        league.fixtures.fold<int>(0, (m, f) => f.matchday > m ? f.matchday : m);
+    return CalendarEngine.dateForMatchday(league.season, maxMatchday + 1);
   }
 
   Cup? get domesticCup => _save == null ? null : _cupOfType(CupType.domestic);

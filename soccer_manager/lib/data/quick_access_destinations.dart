@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../screens/achievements_screen.dart';
 import '../screens/awards_screen.dart';
 import '../screens/best_eleven_screen.dart';
+import '../screens/calendar_screen.dart';
 import '../screens/club_screen.dart';
 import '../screens/cup_screen.dart';
 import '../screens/finance_screen.dart';
@@ -122,5 +123,11 @@ final List<QuickAccessDestination> quickAccessDestinations = [
     label: '実績',
     color: Colors.amber.shade700,
     builder: (_) => const AchievementsScreen(),
+  ),
+  QuickAccessDestination(
+    icon: Icons.calendar_month,
+    label: 'カレンダー',
+    color: Colors.lightBlue.shade700,
+    builder: (_) => const CalendarScreen(),
   ),
 ];
