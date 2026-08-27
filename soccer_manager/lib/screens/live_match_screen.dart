@@ -153,7 +153,10 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
             if (finished)
               FullTimeBanner(userTeamId: _userTeamId, result: _finalResult),
             if (finished)
-              ManOfTheMatchBanner(result: _finalResult, teams: [home, away]),
+              ManOfTheMatchBanner(
+                  result: _finalResult,
+                  teams: [home, away],
+                  userTeamId: _userTeamId),
             AspectRatio(
               aspectRatio: 3 / 2,
               child: Container(
@@ -168,7 +171,8 @@ class _LiveMatchScreenState extends State<LiveMatchScreen> {
                 children: _revealed
                     .map((e) => CommentaryTile(
                         event: e,
-                        teamName: e.teamId == home.id ? home.name : away.name))
+                        teamName: e.teamId == home.id ? home.name : away.name,
+                        userTeam: home.id == _userTeamId ? home : away))
                     .toList(),
               ),
             ),

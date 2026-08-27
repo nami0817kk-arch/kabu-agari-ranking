@@ -3,6 +3,7 @@ import '../models/match_result.dart';
 import '../models/player.dart';
 import '../models/team.dart';
 import '../models/weather.dart';
+import '../screens/player_detail_screen.dart';
 import '../theme/semantic_colors.dart';
 import 'club_emblem.dart';
 
@@ -60,12 +61,15 @@ class TeamHeader extends StatelessWidget {
 }
 
 /// 実況イベント1件分の表示行(得点・警告・退場など)。
+/// [userTeam]を渡すと、選手が現在も自クラブに在籍している場合に限り
+/// タップして選手詳細画面へ遷移できる。
 class CommentaryTile extends StatelessWidget {
   final MatchEvent event;
   final String teamName;
+  final Team? userTeam;
 
   const CommentaryTile(
-      {super.key, required this.event, required this.teamName});
+      {super.key, required this.event, required this.teamName, this.userTeam});
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +95,15 @@ class CommentaryTile extends StatelessWidget {
           '${event.scorerName ?? '???'} が退場！ ($teamName)'
         ),
     };
+    String? playerId;
+    if (userTeam != null && event.teamId == userTeam!.id) {
+      for (final p in userTeam!.players) {
+        if (p.id == event.scorerId) {
+          playerId = p.id;
+          break;
+        }
+      }
+    }
     return ListTile(
       dense: true,
       leading: SizedBox(
@@ -105,6 +118,10 @@ class CommentaryTile extends StatelessWidget {
         ),
       ),
       title: Text(text),
+      onTap: playerId == null
+          ? null
+          : () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => PlayerDetailScreen(playerId: playerId!))),
     );
   }
 }
@@ -165,13 +182,14 @@ class FullTimeBanner extends StatelessWidget {
 }
 
 /// 試合終了時に、その試合で最も採点の高かった選手をマン・オブ・ザ・マッチ
-/// として表示するバナー。
+/// として表示するバナー。選手が自クラブ所属の場合はタップで選手詳細へ遷移できる。
 class ManOfTheMatchBanner extends StatelessWidget {
   final MatchResult? result;
   final List<Team> teams;
+  final String? userTeamId;
 
   const ManOfTheMatchBanner(
-      {super.key, required this.result, required this.teams});
+      {super.key, required this.result, required this.teams, this.userTeamId});
 
   @override
   Widget build(BuildContext context) {
@@ -180,10 +198,12 @@ class ManOfTheMatchBanner extends StatelessWidget {
     final motmId = r.manOfTheMatchId;
     if (motmId == null) return const SizedBox.shrink();
     Player? motm;
+    bool isOwnClub = false;
     for (final t in teams) {
       for (final p in t.players) {
         if (p.id == motmId) {
           motm = p;
+          isOwnClub = t.id == userTeamId;
           break;
         }
       }
@@ -194,26 +214,36 @@ class ManOfTheMatchBanner extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.amber.withValues(alpha: 0.15),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.military_tech, color: Colors.amber, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text('マン・オブ・ザ・マッチ: ${motm.name}',
-                  overflow: TextOverflow.ellipsis),
+          onTap: !isOwnClub
+              ? null
+              : () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => PlayerDetailScreen(playerId: motmId))),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
             ),
-            if (rating != null)
-              Text(rating.toStringAsFixed(1),
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-          ],
+            child: Row(
+              children: [
+                const Icon(Icons.military_tech, color: Colors.amber, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('マン・オブ・ザ・マッチ: ${motm.name}',
+                      overflow: TextOverflow.ellipsis),
+                ),
+                if (rating != null)
+                  Text(rating.toStringAsFixed(1),
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
         ),
       ),
     );

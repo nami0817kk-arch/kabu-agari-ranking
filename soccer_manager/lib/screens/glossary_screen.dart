@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../data/glossary_entries.dart';
+import '../widgets/quick_access_drawer.dart';
 
 /// 選手能力値・複合指標・コンディション・契約・戦術など、アプリ内に登場する
 /// 各種指標の意味をまとめた用語集画面。検索とカテゴリ絞り込みに対応する。
@@ -61,6 +62,7 @@ class _GlossaryScreenState extends State<GlossaryScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('用語集')),
+      drawer: const QuickAccessDrawer(),
       body: Column(
         children: [
           Padding(

@@ -499,44 +499,54 @@ class PlayerDetailScreen extends StatelessWidget {
     final gameState = context.read<GameState>();
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('リリース条項の設定'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('市場価値: $marketValue万円'),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                  labelText: '解放金額(万円)', border: OutlineInputBorder()),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final amount = int.tryParse(controller.text);
+          final isValid = amount != null && amount > 0;
+          return AlertDialog(
+            title: const Text('リリース条項の設定'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('市場価値: $marketValue万円'),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: controller,
+                  keyboardType: TextInputType.number,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: '解放金額(万円)',
+                    border: const OutlineInputBorder(),
+                    errorText: isValid ? null : '1以上の金額を入力してください',
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        actions: [
-          if (current != null)
-            TextButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                gameState.setReleaseClause(playerId, null);
-              },
-              child: const Text('解除する'),
-            ),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
-          FilledButton(
-            onPressed: () {
-              final amount = int.tryParse(controller.text);
-              Navigator.pop(ctx);
-              if (amount != null && amount > 0) {
-                gameState.setReleaseClause(playerId, amount);
-              }
-            },
-            child: const Text('設定する'),
-          ),
-        ],
+            actions: [
+              if (current != null)
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    gameState.setReleaseClause(playerId, null);
+                  },
+                  child: const Text('解除する'),
+                ),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('キャンセル')),
+              FilledButton(
+                onPressed: !isValid
+                    ? null
+                    : () {
+                        Navigator.pop(ctx);
+                        gameState.setReleaseClause(playerId, amount);
+                      },
+                child: const Text('設定する'),
+              ),
+            ],
+          );
+        },
       ),
     ).then((_) => controller.dispose());
   }

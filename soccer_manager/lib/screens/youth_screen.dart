@@ -197,8 +197,11 @@ class _YouthScreenState extends State<YouthScreen> {
                                   overflow: TextOverflow.ellipsis)),
                           if (p.potential - p.overall >= _wonderkidGap) ...[
                             const SizedBox(width: 6),
-                            const Icon(Icons.auto_awesome,
-                                size: 14, color: Colors.amber),
+                            const Tooltip(
+                              message: 'ワンダーキッド(潜在能力が現在能力を大きく上回る逸材)',
+                              child: Icon(Icons.auto_awesome,
+                                  size: 14, color: Colors.amber),
+                            ),
                           ],
                         ],
                       ),
@@ -243,8 +246,11 @@ class _YouthScreenState extends State<YouthScreen> {
                                   overflow: TextOverflow.ellipsis)),
                           if (p.potential - p.overall >= _wonderkidGap) ...[
                             const SizedBox(width: 6),
-                            const Icon(Icons.auto_awesome,
-                                size: 14, color: Colors.amber),
+                            const Tooltip(
+                              message: 'ワンダーキッド(潜在能力が現在能力を大きく上回る逸材)',
+                              child: Icon(Icons.auto_awesome,
+                                  size: 14, color: Colors.amber),
+                            ),
                           ],
                         ],
                       ),
@@ -256,9 +262,8 @@ class _YouthScreenState extends State<YouthScreen> {
                           IconButton(
                             icon: const Icon(Icons.close),
                             tooltip: '解雇',
-                            onPressed: () => context
-                                .read<GameState>()
-                                .releaseYouthProspect(p.id),
+                            onPressed: () =>
+                                _confirmRelease(context, p.id, p.name),
                           ),
                           FilledButton(
                             onPressed: squadFull
@@ -297,5 +302,27 @@ class _YouthScreenState extends State<YouthScreen> {
         SnackBar(content: Text(ok ? '$nameをトップチームに昇格させました' : '昇格できませんでした')),
       );
     }
+  }
+
+  void _confirmRelease(BuildContext context, String playerId, String name) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('この有望株を解雇しますか？'),
+        content: Text('$nameを手放します。この操作は元に戻せません。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              FeedbackService.tap();
+              context.read<GameState>().releaseYouthProspect(playerId);
+            },
+            child: const Text('解雇する'),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../state/game_state.dart';
 import '../state/settings_controller.dart';
+import '../widgets/quick_access_drawer.dart';
 import 'onboarding_screen.dart';
 import 'start_screen.dart';
 
@@ -23,6 +24,7 @@ class SettingsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('設定')),
+      drawer: const QuickAccessDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -247,7 +249,12 @@ class SettingsScreen extends StatelessWidget {
   Future<void> _exportSave(BuildContext context) async {
     final gameState = context.read<GameState>();
     final json = gameState.exportSaveJson();
-    if (json == null) return;
+    if (json == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('セーブデータがないためコピーできませんでした')),
+      );
+      return;
+    }
     await Clipboard.setData(ClipboardData(text: json));
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

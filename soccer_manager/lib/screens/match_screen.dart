@@ -105,7 +105,8 @@ class _MatchScreenState extends State<MatchScreen> {
           if (_finished)
             FullTimeBanner(userTeamId: _userTeamId, result: widget.result),
           if (_finished)
-            ManOfTheMatchBanner(result: widget.result, teams: teams),
+            ManOfTheMatchBanner(
+                result: widget.result, teams: teams, userTeamId: _userTeamId),
           const SizedBox(height: 8),
           AspectRatio(
             aspectRatio: 3 / 2,
@@ -140,13 +141,17 @@ class _MatchScreenState extends State<MatchScreen> {
   List<Widget> _buildCommentary(List<Team> teams) {
     final items = <Widget>[];
     var halfTimeShown = false;
+    final userTeam =
+        teams.firstWhere((t) => t.id == _userTeamId, orElse: () => teams.first);
     for (final e in _revealed) {
       if (!halfTimeShown && e.minute > 45) {
         items.add(const _HalfTimeDivider());
         halfTimeShown = true;
       }
       items.add(CommentaryTile(
-          event: e, teamName: teams.firstWhere((t) => t.id == e.teamId).name));
+          event: e,
+          teamName: teams.firstWhere((t) => t.id == e.teamId).name,
+          userTeam: userTeam));
     }
     if (!halfTimeShown && _currentMinute >= 45) {
       items.add(const _HalfTimeDivider());

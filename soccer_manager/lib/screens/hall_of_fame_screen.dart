@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
 
 /// 高齢により正式に引退した選手(殿堂)の一覧画面。契約満了で単に自由契約に
@@ -18,6 +19,7 @@ class HallOfFameScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('殿堂')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: legends.isEmpty
             ? Center(

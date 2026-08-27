@@ -75,6 +75,7 @@ class AwardsEngine {
     // シーズン終了時点でたまたま入れ替えていた選手が除外されてしまう
     // (=シーズンを通じて活躍していた主力が、最終節前のローテーションだけで
     // 対象外になる)ため、対象は全所属選手とする。
+    String? mvpId;
     String? mvpName;
     String? mvpTeamName;
     String? mvpTeamId;
@@ -84,6 +85,7 @@ class AwardsEngine {
         final score = p.overall.toDouble() + (goals[p.id] ?? 0) * 2;
         if (score > bestScore) {
           bestScore = score;
+          mvpId = p.id;
           mvpName = p.name;
           mvpTeamName = t.name;
           mvpTeamId = t.id;
@@ -108,6 +110,7 @@ class AwardsEngine {
         if (gk != null) cleanSheets[gk.id] = (cleanSheets[gk.id] ?? 0) + 1;
       }
     }
+    String? goldenGloveId;
     String? goldenGloveName;
     String? goldenGloveTeamName;
     String? goldenGloveTeamId;
@@ -118,6 +121,7 @@ class AwardsEngine {
         for (final t in league.teams) {
           for (final p in t.players) {
             if (p.id == entry.key) {
+              goldenGloveId = p.id;
               goldenGloveName = p.name;
               goldenGloveTeamName = t.name;
               goldenGloveTeamId = t.id;
@@ -129,13 +133,16 @@ class AwardsEngine {
 
     return SeasonAward(
       season: season,
+      topScorerId: topScorerId,
       topScorerName: topScorerName,
       topScorerTeamName: topScorerTeamName,
       topScorerTeamId: topScorerTeamId,
       topScorerGoals: topScorerGoals,
+      mvpId: mvpId,
       mvpName: mvpName,
       mvpTeamName: mvpTeamName,
       mvpTeamId: mvpTeamId,
+      goldenGloveId: goldenGloveId,
       goldenGloveName: goldenGloveName,
       goldenGloveTeamName: goldenGloveTeamName,
       goldenGloveTeamId: goldenGloveTeamId,

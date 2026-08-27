@@ -3,12 +3,14 @@ import 'package:provider/provider.dart';
 import '../logic/promotion_engine.dart';
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/club_emblem.dart';
 import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'scout_report_screen.dart';
 
 /// 大陸カップ出場資格が得られる順位(GameState.startNextSeasonの`finalRank <= 2`と一致)。
 const int _continentalQualifyCount = 2;
@@ -96,7 +98,21 @@ class FixturesScreen extends StatelessWidget {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => Center(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text('$choice節分をシミュレーションしています…'),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
     final results = await gameState.simulateAheadMatchdays(choice);
     if (!context.mounted) return;
@@ -390,6 +406,81 @@ class _FormGuide extends StatelessWidget {
   }
 }
 
+/// 消化済みの試合をタップした際に表示する、得点者・MOTMを含む簡易結果ダイアログ。
+Future<void> _showFixtureResultDialog(
+    BuildContext context, MatchResult result, Team home, Team away) {
+  String? nameOf(String? playerId) {
+    if (playerId == null) return null;
+    for (final t in [home, away]) {
+      for (final p in t.players) {
+        if (p.id == playerId) return p.name;
+      }
+    }
+    return null;
+  }
+
+  final goals = result.events
+      .where((e) => e.type == MatchEventType.goal)
+      .toList()
+    ..sort((a, b) => a.minute.compareTo(b.minute));
+  final motmName = nameOf(result.manOfTheMatchId);
+
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(
+          '${home.name} ${result.homeGoals} - ${result.awayGoals} ${away.name}'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (goals.isEmpty)
+              const Text('得点者はいませんでした', style: TextStyle(color: Colors.grey))
+            else ...[
+              Text('得点者', style: Theme.of(dialogContext).textTheme.titleSmall),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final g in goals)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          '${g.minute}\' ${g.scorerName ?? '不明'}'
+                          '（${g.teamId == home.id ? home.name : away.name}）',
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+            if (motmName != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.star, color: Colors.amber, size: 18),
+                  const SizedBox(width: 4),
+                  Expanded(child: Text('マン・オブ・ザ・マッチ: $motmName')),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('閉じる'),
+        ),
+      ],
+    ),
+  );
+}
+
 class _ZoneLegend extends StatelessWidget {
   final Color color;
   final String label;
@@ -535,6 +626,9 @@ class _MatchdayList extends StatelessWidget {
                   .withValues(alpha: 0.3)
               : null,
           child: ListTile(
+            onTap: result == null
+                ? null
+                : () => _showFixtureResultDialog(context, result, home, away),
             leading: isDerby
                 ? const Icon(Icons.local_fire_department,
                     color: Colors.redAccent)
@@ -625,6 +719,21 @@ class _UserFixtureList extends StatelessWidget {
                   .withValues(alpha: 0.3)
               : null,
           child: ListTile(
+            onTap: () {
+              if (result != null) {
+                final home =
+                    league.teams.firstWhere((t) => t.id == f.homeTeamId);
+                final away =
+                    league.teams.firstWhere((t) => t.id == f.awayTeamId);
+                _showFixtureResultDialog(context, result, home, away);
+              } else {
+                final userTeam =
+                    league.teams.firstWhere((t) => t.id == userTeamId);
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ScoutReportScreen(
+                        opponent: opponent, userTeam: userTeam)));
+              }
+            },
             leading: SizedBox(
               width: 76,
               child: Row(

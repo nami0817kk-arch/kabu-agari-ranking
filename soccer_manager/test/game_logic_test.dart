@@ -38,6 +38,7 @@ import 'package:soccer_manager/models/league_theme.dart';
 import 'package:soccer_manager/models/match_result.dart';
 import 'package:soccer_manager/models/player.dart';
 import 'package:soccer_manager/models/save_game.dart';
+import 'package:soccer_manager/models/season_award.dart';
 import 'package:soccer_manager/models/team.dart';
 import 'package:soccer_manager/models/team_talk.dart';
 import 'package:soccer_manager/models/weather.dart';
@@ -1773,10 +1774,40 @@ void main() {
     final award = AwardsEngine.computeAwards(league, 1);
 
     expect(award.season, 1);
+    expect(award.topScorerId, topScorer.id);
     expect(award.topScorerName, topScorer.name);
     expect(award.topScorerTeamName, home.name);
     expect(award.topScorerGoals, 2);
+    expect(award.mvpId, isNotNull);
     expect(award.mvpName, isNotNull);
+  });
+
+  test(
+      'SeasonAward.toJson/fromJson round-trips the player IDs needed to link '
+      'awards back to a player detail screen', () {
+    final award = SeasonAward(
+      season: 3,
+      topScorerId: 'p1',
+      topScorerName: 'Scorer',
+      topScorerTeamName: 'FC A',
+      topScorerTeamId: 'a',
+      topScorerGoals: 12,
+      mvpId: 'p2',
+      mvpName: 'MVP',
+      mvpTeamName: 'FC B',
+      mvpTeamId: 'b',
+      goldenGloveId: 'p3',
+      goldenGloveName: 'Keeper',
+      goldenGloveTeamName: 'FC C',
+      goldenGloveTeamId: 'c',
+      goldenGloveCleanSheets: 15,
+    );
+
+    final restored = SeasonAward.fromJson(award.toJson());
+
+    expect(restored.topScorerId, 'p1');
+    expect(restored.mvpId, 'p2');
+    expect(restored.goldenGloveId, 'p3');
   });
 
   test(

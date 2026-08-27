@@ -5,7 +5,9 @@ import '../models/player.dart';
 import '../state/game_state.dart';
 import '../widgets/position_colors.dart';
 import '../widgets/position_filter_bar.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'player_detail_screen.dart';
 
 /// シーズンごとに選出されたベストイレブン(GK1・DF4・MF4・FW2)の履歴を表示する画面。
 class BestElevenScreen extends StatelessWidget {
@@ -20,6 +22,7 @@ class BestElevenScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('シーズンベストイレブン')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: history.isEmpty
             ? Center(
@@ -64,6 +67,8 @@ class _BestElevenCard extends StatelessWidget {
       for (final g in PositionGroup.values)
         g: seasonEleven.entries.where((e) => e.group == g).toList(),
     };
+    final userPlayerIds =
+        context.watch<GameState>().userTeam.players.map((p) => p.id).toSet();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -84,25 +89,32 @@ class _BestElevenCard extends StatelessWidget {
                           color: g.color, fontWeight: FontWeight.bold)),
                 ),
                 for (final e in byGroup[g]!)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            '${e.playerName}（${e.teamName}）',
-                            style: TextStyle(
-                              fontWeight: (e.teamId != null
-                                      ? e.teamId == userTeamId
-                                      : e.teamName == clubName)
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
+                  InkWell(
+                    onTap: !userPlayerIds.contains(e.playerId)
+                        ? null
+                        : () => Navigator.of(context).push(MaterialPageRoute(
+                            builder: (_) =>
+                                PlayerDetailScreen(playerId: e.playerId))),
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${e.playerName}（${e.teamName}）',
+                              style: TextStyle(
+                                fontWeight: (e.teamId != null
+                                        ? e.teamId == userTeamId
+                                        : e.teamName == clubName)
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                              ),
                             ),
                           ),
-                        ),
-                        Text('平均${e.avgRating.toStringAsFixed(1)}',
-                            style: Theme.of(context).textTheme.bodySmall),
-                      ],
+                          Text('平均${e.avgRating.toStringAsFixed(1)}',
+                              style: Theme.of(context).textTheme.bodySmall),
+                        ],
+                      ),
                     ),
                   ),
                 const SizedBox(height: 8),

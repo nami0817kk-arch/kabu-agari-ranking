@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/game_state.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'player_detail_screen.dart';
 
 /// シーズンごとに確定した個人タイトル(得点王・年間MVP)の履歴を表示する画面。
 class AwardsScreen extends StatelessWidget {
@@ -16,6 +18,7 @@ class AwardsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('個人タイトル')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: awards.isEmpty
             ? Center(
@@ -46,6 +49,22 @@ class AwardsScreen extends StatelessWidget {
                       ? a.mvpTeamId == userTeamId
                       : a.mvpTeamName == clubName;
                   final gloveIsOwnClub = a.goldenGloveTeamId == userTeamId;
+                  String? routablePlayerId(String? id) {
+                    if (id == null) return null;
+                    return gameState.userTeam.players.any((p) => p.id == id)
+                        ? id
+                        : null;
+                  }
+
+                  final scorerPlayerId =
+                      scorerIsOwnClub ? routablePlayerId(a.topScorerId) : null;
+                  final mvpPlayerId =
+                      mvpIsOwnClub ? routablePlayerId(a.mvpId) : null;
+                  final glovePlayerId =
+                      gloveIsOwnClub ? routablePlayerId(a.goldenGloveId) : null;
+                  void openPlayer(String id) =>
+                      Navigator.of(context).push(MaterialPageRoute(
+                          builder: (_) => PlayerDetailScreen(playerId: id)));
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Padding(
@@ -74,6 +93,9 @@ class AwardsScreen extends StatelessWidget {
                                 ? const Text('該当者なし')
                                 : Text(
                                     '${a.topScorerName}（${a.topScorerTeamName}） - ${a.topScorerGoals}得点'),
+                            onTap: scorerPlayerId == null
+                                ? null
+                                : () => openPlayer(scorerPlayerId),
                           ),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -92,6 +114,9 @@ class AwardsScreen extends StatelessWidget {
                             subtitle: a.mvpName == null
                                 ? const Text('該当者なし')
                                 : Text('${a.mvpName}（${a.mvpTeamName}）'),
+                            onTap: mvpPlayerId == null
+                                ? null
+                                : () => openPlayer(mvpPlayerId),
                           ),
                           ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -112,6 +137,9 @@ class AwardsScreen extends StatelessWidget {
                                 : Text(
                                     '${a.goldenGloveName}（${a.goldenGloveTeamName}） - '
                                     '無失点${a.goldenGloveCleanSheets}試合'),
+                            onTap: glovePlayerId == null
+                                ? null
+                                : () => openPlayer(glovePlayerId),
                           ),
                         ],
                       ),

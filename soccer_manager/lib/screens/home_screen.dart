@@ -15,6 +15,7 @@ import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
 import 'live_match_screen.dart';
 import 'match_screen.dart';
+import 'player_detail_screen.dart';
 import 'scout_report_screen.dart';
 import 'start_screen.dart';
 import 'youth_intake_screen.dart';
@@ -252,14 +253,11 @@ class HomeScreen extends StatelessWidget {
                                         child: const Text('拒否'),
                                       ),
                                       FilledButton(
-                                        onPressed: !gameState
-                                                .isTransferWindowOpen
-                                            ? null
-                                            : () {
-                                                FeedbackService.success();
-                                                gameState.acceptIncomingOffer(
-                                                    entry[i].id);
-                                              },
+                                        onPressed:
+                                            !gameState.isTransferWindowOpen
+                                                ? null
+                                                : () => _confirmAcceptOffer(
+                                                    context, entry[i]),
                                         child: const Text('承諾'),
                                       ),
                                     ],
@@ -528,11 +526,23 @@ class HomeScreen extends StatelessWidget {
       return null;
     }
 
+    /// 自クラブの選手がまだ在籍している場合のみ、選手詳細へ遷移可能なIDを返す。
+    String? ownPlayerIdOf(String? playerId) {
+      if (playerId == null) return null;
+      final userTeam = teams.firstWhere((t) => t.id == userTeamId,
+          orElse: () => teams.first);
+      for (final p in userTeam.players) {
+        if (p.id == playerId) return p.id;
+      }
+      return null;
+    }
+
     final goals = result.events
         .where((e) => e.type == MatchEventType.goal)
         .toList()
       ..sort((a, b) => a.minute.compareTo(b.minute));
     final motmName = scorerNameOf(result.manOfTheMatchId);
+    final motmOwnPlayerId = ownPlayerIdOf(result.manOfTheMatchId);
 
     await showDialog<void>(
       context: context,
@@ -572,25 +582,30 @@ class HomeScreen extends StatelessWidget {
                       shrinkWrap: true,
                       children: [
                         for (final g in goals)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 2),
-                            child: Text(
-                              '${g.minute}\' ${g.scorerName ?? '不明'}'
-                              '（${teamNameOf(g.teamId)}）',
-                            ),
-                          ),
+                          _buildGoalRow(context, dialogContext, g,
+                              ownPlayerIdOf(g.scorerId), teamNameOf),
                       ],
                     ),
                   ),
                 ],
                 if (motmName != null) ...[
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber, size: 18),
-                      const SizedBox(width: 4),
-                      Expanded(child: Text('マン・オブ・ザ・マッチ: $motmName')),
-                    ],
+                  InkWell(
+                    onTap: motmOwnPlayerId == null
+                        ? null
+                        : () {
+                            Navigator.pop(dialogContext);
+                            Navigator.of(context).push(MaterialPageRoute(
+                                builder: (_) => PlayerDetailScreen(
+                                    playerId: motmOwnPlayerId)));
+                          },
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 18),
+                        const SizedBox(width: 4),
+                        Expanded(child: Text('マン・オブ・ザ・マッチ: $motmName')),
+                      ],
+                    ),
                   ),
                 ],
               ],
@@ -607,50 +622,140 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
+  /// クイックシム結果ダイアログ内の得点者1行。自クラブ選手が在籍中の場合のみ
+  /// タップして選手詳細へ遷移できる。
+  Widget _buildGoalRow(
+    BuildContext context,
+    BuildContext dialogContext,
+    MatchEvent g,
+    String? playerId,
+    String Function(String) teamNameOf,
+  ) {
+    return InkWell(
+      onTap: playerId == null
+          ? null
+          : () {
+              Navigator.pop(dialogContext);
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => PlayerDetailScreen(playerId: playerId)));
+            },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Text(
+          '${g.minute}\' ${g.scorerName ?? '不明'}（${teamNameOf(g.teamId)}）',
+        ),
+      ),
+    );
+  }
+
+  /// 節送り時に発生しうる複数の通知(契約満了・リリース条項発動・代表召集・
+  /// ローン復帰・CPU移籍ニュース・資金危機警告)をまとめて表示する。1件だけ
+  /// なら従来通りSnackBarで、複数同時に発生した場合はスナックバーの
+  /// 連続表示で見落とさないよう1つの要約ダイアログにまとめる。
   void _showMatchdayNotifications(BuildContext context, GameState gameState) {
+    final messages = <(String text, bool isWarning)>[];
+
     final expired = gameState.lastContractExpirations;
     if (expired.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('契約満了で退団: ${expired.join('、')}')),
-      );
+      messages.add(('契約満了で退団: ${expired.join('、')}', false));
       gameState.lastContractExpirations = [];
     }
     final autoSold = gameState.lastReleaseClauseSales;
     if (autoSold.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('リリース条項が発動し移籍が成立: ${autoSold.join('、')}')),
-      );
+      messages.add(('リリース条項が発動し移籍が成立: ${autoSold.join('、')}', false));
       gameState.lastReleaseClauseSales = [];
     }
     final calledUp = gameState.lastInternationalCallUps;
     if (calledUp.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('代表召集: ${calledUp.join('、')}')),
-      );
+      messages.add(('代表召集: ${calledUp.join('、')}', false));
       gameState.lastInternationalCallUps = [];
     }
     final loanReturns = gameState.lastLoanReturns;
     if (loanReturns.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('ローン放出から復帰: ${loanReturns.join('、')}')),
-      );
+      messages.add(('ローン放出から復帰: ${loanReturns.join('、')}', false));
       gameState.lastLoanReturns = [];
     }
     final aiTransferNews = gameState.lastAiTransferNews;
     if (aiTransferNews != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('移籍市場: $aiTransferNews')),
-      );
+      messages.add(('移籍市場: $aiTransferNews', false));
       gameState.lastAiTransferNews = null;
     }
     final budgetCrisis = gameState.lastBudgetCrisisWarning;
     if (budgetCrisis != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text(budgetCrisis), backgroundColor: Colors.red.shade700),
-      );
+      messages.add((budgetCrisis, true));
       gameState.lastBudgetCrisisWarning = null;
     }
+
+    if (messages.isEmpty) return;
+    if (messages.length == 1) {
+      final (text, isWarning) = messages.first;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(text),
+            backgroundColor: isWarning ? Colors.red.shade700 : null),
+      );
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('今節のお知らせ'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final (text, isWarning) in messages)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        isWarning ? Icons.warning_amber : Icons.info_outline,
+                        size: 18,
+                        color: isWarning ? Colors.red.shade700 : Colors.grey,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(text)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmAcceptOffer(BuildContext context, IncomingOffer offer) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('この移籍オファーを承諾しますか？'),
+        content:
+            Text('${offer.playerName}が${offer.buyerClubName}へ${offer.amount}万円で'
+                '移籍します。この操作は元に戻せません。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              FeedbackService.success();
+              context.read<GameState>().acceptIncomingOffer(offer.id);
+            },
+            child: const Text('承諾する'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMonthlyAwardNotification(

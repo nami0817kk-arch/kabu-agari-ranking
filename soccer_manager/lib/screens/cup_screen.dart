@@ -7,6 +7,7 @@ import '../models/cup.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
 import 'match_screen.dart';
 
@@ -22,6 +23,7 @@ class CupScreen extends StatelessWidget {
           title: const Text('カップ戦'),
           bottom: const TabBar(tabs: [Tab(text: '国内カップ'), Tab(text: '大陸カップ')]),
         ),
+        drawer: const QuickAccessDrawer(),
         body: const ResponsiveBody(
           child: TabBarView(
             children: [

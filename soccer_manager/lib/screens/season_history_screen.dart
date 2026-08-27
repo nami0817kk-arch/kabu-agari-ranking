@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/season_record.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
 
 /// シーズンごとの最終成績(順位・勝敗・昇降格・カップ優勝歴)を振り返る画面。
@@ -16,6 +17,7 @@ class SeasonHistoryScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('シーズン成績アーカイブ')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: history.isEmpty
             ? Center(

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/club_infrastructure.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
+import '../widgets/quick_access_drawer.dart';
+import '../widgets/responsive_body.dart';
 
 class ClubScreen extends StatelessWidget {
   const ClubScreen({super.key});
@@ -22,74 +24,79 @@ class ClubScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('クラブ施設・スタッフ')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('資金: ${save.budget}万円',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text('スタッフ週俸合計: ${infra.totalStaffWeeklyWage}万円',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: totalLevels / maxTotalLevels,
-                            minHeight: 6,
+      drawer: const QuickAccessDrawer(),
+      body: ResponsiveBody(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('資金: ${save.budget}万円',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text('スタッフ週俸合計: ${infra.totalStaffWeeklyWage}万円',
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: totalLevels / maxTotalLevels,
+                              minHeight: 6,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('充実度 $totalLevels/$maxTotalLevels',
-                          style: const TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Text('充実度 $totalLevels/$maxTotalLevels',
+                            style: const TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          Text('スタッフ', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          for (final role in StaffRole.values)
-            _UpgradeCard(
-              title: role.label,
-              description: role.description,
-              level: infra.staffLevel(role),
-              cost: gameState.staffUpgradeCostFor(role),
-              costLabel: '雇用費',
-              extraLabel:
-                  '週俸 ${ClubInfrastructure.staffWeeklyWage(infra.staffLevel(role))}万円',
-              canAfford: save.budget >= gameState.staffUpgradeCostFor(role),
-              onUpgrade: () => gameState.upgradeStaff(role),
-            ),
-          const Divider(height: 32),
-          Text('施設', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          for (final type in FacilityType.values)
-            _UpgradeCard(
-              title: type.label,
-              description: type.description,
-              level: infra.facilityLevel(type),
-              cost: gameState.facilityUpgradeCostFor(type),
-              costLabel: '建設費',
-              extraLabel: type == FacilityType.stadium
-                  ? '収容人数 ${ClubInfrastructure.stadiumCapacity(infra.facilityLevel(type))}人'
-                      ' (平均動員目安 ${gameState.expectedAttendance}人)'
-                  : null,
-              canAfford: save.budget >= gameState.facilityUpgradeCostFor(type),
-              onUpgrade: () => gameState.upgradeFacility(type),
-            ),
-        ],
+            const SizedBox(height: 20),
+            Text('スタッフ', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final role in StaffRole.values)
+              _UpgradeCard(
+                title: role.label,
+                description: role.description,
+                level: infra.staffLevel(role),
+                cost: gameState.staffUpgradeCostFor(role),
+                costLabel: '雇用費',
+                extraLabel:
+                    '週俸 ${ClubInfrastructure.staffWeeklyWage(infra.staffLevel(role))}万円',
+                canAfford: save.budget >= gameState.staffUpgradeCostFor(role),
+                onUpgrade: () => gameState.upgradeStaff(role),
+              ),
+            const Divider(height: 32),
+            Text('施設', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final type in FacilityType.values)
+              _UpgradeCard(
+                title: type.label,
+                description: type.description,
+                level: infra.facilityLevel(type),
+                cost: gameState.facilityUpgradeCostFor(type),
+                costLabel: '建設費',
+                extraLabel: type == FacilityType.stadium
+                    ? '収容人数 ${ClubInfrastructure.stadiumCapacity(infra.facilityLevel(type))}人'
+                        ' (平均動員目安 ${gameState.expectedAttendance}人)'
+                    : null,
+                canAfford:
+                    save.budget >= gameState.facilityUpgradeCostFor(type),
+                onUpgrade: () => gameState.upgradeFacility(type),
+              ),
+          ],
+        ),
       ),
     );
   }

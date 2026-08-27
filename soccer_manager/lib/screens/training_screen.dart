@@ -6,7 +6,9 @@ import '../models/player.dart';
 import '../models/team.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
+import '../widgets/busy_overlay.dart';
 import '../widgets/position_filter_bar.dart';
+import '../widgets/quick_access_drawer.dart';
 
 class TrainingScreen extends StatefulWidget {
   const TrainingScreen({super.key});
@@ -17,6 +19,7 @@ class TrainingScreen extends StatefulWidget {
 
 class _TrainingScreenState extends State<TrainingScreen> {
   PositionGroup? _filter;
+  bool _isRunningTraining = false;
 
   @override
   Widget build(BuildContext context) {
@@ -29,147 +32,156 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('トレーニング')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('チーム既定方針',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  const Text('個別方針を設定していない選手にはこの方針が適用される。',
-                      style: TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: TrainingFocus.values
-                        .map(
-                          (focus) => ChoiceChip(
-                            label: Text(focus.label),
-                            selected: team.defaultTrainingFocus == focus,
-                            onSelected: (_) => context
-                                .read<GameState>()
-                                .setTeamTrainingFocus(focus),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  Text('トレーニング強度',
-                      style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text(team.trainingIntensity.description,
-                      style: const TextStyle(color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: TrainingIntensity.values
-                        .map(
-                          (intensity) => ChoiceChip(
-                            label: Text(intensity.label),
-                            selected: team.trainingIntensity == intensity,
-                            onSelected: (_) => context
-                                .read<GameState>()
-                                .setTrainingIntensity(intensity),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => _runTraining(context),
-              child: const Text('今週のトレーニングを実施'),
-            ),
-          ),
-          const Divider(height: 32),
-          Text('個別方針', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          PositionFilterBar(
-              value: _filter, onChanged: (v) => setState(() => _filter = v)),
-          const SizedBox(height: 8),
-          for (final p in players)
+      drawer: const QuickAccessDrawer(),
+      body: BusyOverlay(
+        visible: _isRunningTraining,
+        label: 'トレーニングを実施しています…',
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
             Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: Column(
-                children: [
-                  ListTile(
-                    title: Row(
-                      children: [
-                        Flexible(
-                            child:
-                                Text(p.name, overflow: TextOverflow.ellipsis)),
-                        if (p.individualFocus != null) ...[
-                          const SizedBox(width: 6),
-                          const Icon(Icons.push_pin,
-                              size: 14, color: Colors.deepPurple),
-                        ],
-                      ],
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('チーム既定方針',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    const Text('個別方針を設定していない選手にはこの方針が適用される。',
+                        style: TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: TrainingFocus.values
+                          .map(
+                            (focus) => ChoiceChip(
+                              label: Text(focus.label),
+                              selected: team.defaultTrainingFocus == focus,
+                              onSelected: (_) => context
+                                  .read<GameState>()
+                                  .setTeamTrainingFocus(focus),
+                            ),
+                          )
+                          .toList(),
                     ),
-                    subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
-                    trailing: DropdownButton<TrainingFocus?>(
-                      value: p.individualFocus,
-                      hint: const Text('既定に従う'),
-                      items: [
-                        const DropdownMenuItem<TrainingFocus?>(
-                            value: null, child: Text('既定に従う')),
-                        ...TrainingFocus.values.map(
-                          (f) => DropdownMenuItem<TrainingFocus?>(
-                              value: f, child: Text(f.label)),
-                        ),
-                      ],
-                      onChanged: (focus) => context
-                          .read<GameState>()
-                          .setPlayerTrainingFocus(p.id, focus),
+                    const SizedBox(height: 12),
+                    Text('トレーニング強度',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(team.trainingIntensity.description,
+                        style: const TextStyle(color: Colors.grey)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: TrainingIntensity.values
+                          .map(
+                            (intensity) => ChoiceChip(
+                              label: Text(intensity.label),
+                              selected: team.trainingIntensity == intensity,
+                              onSelected: (_) => context
+                                  .read<GameState>()
+                                  .setTrainingIntensity(intensity),
+                            ),
+                          )
+                          .toList(),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            p.mentorId == null
-                                ? 'メンター: なし'
-                                : 'メンター: ${_mentorName(team.players, p.mentorId!)}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () => _showMentorPicker(context, team, p),
-                          child: const Text('メンター'),
-                        ),
-                        TextButton(
-                          onPressed: () => _showDrillPicker(context, p),
-                          child: Text(p.drillAttributeKey == null
-                              ? '特訓ドリル'
-                              : '特訓: ${AttributeKeys.labelOf(p.drillAttributeKey!)}'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-        ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed:
+                    _isRunningTraining ? null : () => _runTraining(context),
+                child: const Text('今週のトレーニングを実施'),
+              ),
+            ),
+            const Divider(height: 32),
+            Text('個別方針', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            PositionFilterBar(
+                value: _filter, onChanged: (v) => setState(() => _filter = v)),
+            const SizedBox(height: 8),
+            for (final p in players)
+              Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  children: [
+                    ListTile(
+                      title: Row(
+                        children: [
+                          Flexible(
+                              child: Text(p.name,
+                                  overflow: TextOverflow.ellipsis)),
+                          if (p.individualFocus != null) ...[
+                            const SizedBox(width: 6),
+                            const Icon(Icons.push_pin,
+                                size: 14, color: Colors.deepPurple),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text('${p.position.label} / 総合 ${p.overall}'),
+                      trailing: DropdownButton<TrainingFocus?>(
+                        value: p.individualFocus,
+                        hint: const Text('既定に従う'),
+                        items: [
+                          const DropdownMenuItem<TrainingFocus?>(
+                              value: null, child: Text('既定に従う')),
+                          ...TrainingFocus.values.map(
+                            (f) => DropdownMenuItem<TrainingFocus?>(
+                                value: f, child: Text(f.label)),
+                          ),
+                        ],
+                        onChanged: (focus) => context
+                            .read<GameState>()
+                            .setPlayerTrainingFocus(p.id, focus),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p.mentorId == null
+                                  ? 'メンター: なし'
+                                  : 'メンター: ${_mentorName(team.players, p.mentorId!)}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.grey),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                _showMentorPicker(context, team, p),
+                            child: const Text('メンター'),
+                          ),
+                          TextButton(
+                            onPressed: () => _showDrillPicker(context, p),
+                            child: Text(p.drillAttributeKey == null
+                                ? '特訓ドリル'
+                                : '特訓: ${AttributeKeys.labelOf(p.drillAttributeKey!)}'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _runTraining(BuildContext context) async {
     final gameState = context.read<GameState>();
+    setState(() => _isRunningTraining = true);
     await gameState.runWeeklyTraining();
+    if (mounted) setState(() => _isRunningTraining = false);
     FeedbackService.success();
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

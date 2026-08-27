@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
 
 /// 監督としての通算成績・獲得タイトル・指揮したクラブの履歴を表示する画面。
@@ -18,6 +19,7 @@ class ManagerCareerScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('監督キャリア')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(
           padding: const EdgeInsets.all(16),

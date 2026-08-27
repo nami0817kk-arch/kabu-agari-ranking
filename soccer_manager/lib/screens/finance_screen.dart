@@ -5,7 +5,9 @@ import '../models/player.dart';
 import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'player_detail_screen.dart';
 
 class FinanceScreen extends StatelessWidget {
   const FinanceScreen({super.key});
@@ -28,6 +30,7 @@ class FinanceScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('クラブ経営')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -77,6 +80,9 @@ class FinanceScreen extends StatelessWidget {
                 Card(
                   margin: const EdgeInsets.only(bottom: 6),
                   child: ListTile(
+                    onTap: inst.playerId == null
+                        ? null
+                        : () => _openPlayer(context, inst.playerId!),
                     title: Text(inst.description),
                     subtitle: Text('残り${inst.weeksRemaining}週'),
                     trailing: Text('-${inst.weeklyAmount}万円/週'),
@@ -91,6 +97,7 @@ class FinanceScreen extends StatelessWidget {
                 Card(
                   margin: const EdgeInsets.only(bottom: 6),
                   child: ListTile(
+                    onTap: () => _openPlayer(context, p.id),
                     title: Text(p.name),
                     subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
                     trailing: Text('残り${p.loanWeeksRemaining}週'),
@@ -105,6 +112,7 @@ class FinanceScreen extends StatelessWidget {
               Card(
                 margin: const EdgeInsets.only(bottom: 6),
                 child: ListTile(
+                  onTap: () => _openPlayer(context, p.id),
                   title: Text(p.name),
                   subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
                   trailing: Text(
@@ -124,6 +132,11 @@ class FinanceScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  void _openPlayer(BuildContext context, String playerId) {
+    Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => PlayerDetailScreen(playerId: playerId)));
   }
 }
 

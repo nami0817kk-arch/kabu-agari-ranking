@@ -52,11 +52,8 @@ class YouthIntakeScreen extends StatelessWidget {
                               IconButton(
                                 icon: const Icon(Icons.close),
                                 tooltip: '解雇',
-                                onPressed: () async {
-                                  await gameState
-                                      .releaseYouthIntakePlayer(p.id);
-                                  FeedbackService.tap();
-                                },
+                                onPressed: () =>
+                                    _confirmRelease(context, p.id, p.name),
                               ),
                               FilledButton(
                                 onPressed: slotsLeft <= 0
@@ -88,6 +85,30 @@ class YouthIntakeScreen extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRelease(BuildContext context, String playerId, String name) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('この新人を解雇しますか？'),
+        content: Text('$nameは入団せず解雇されます。この操作は元に戻せません。'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await context
+                  .read<GameState>()
+                  .releaseYouthIntakePlayer(playerId);
+              FeedbackService.tap();
+            },
+            child: const Text('解雇する'),
+          ),
         ],
       ),
     );

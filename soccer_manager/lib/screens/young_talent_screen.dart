@@ -4,7 +4,9 @@ import '../models/player.dart';
 import '../models/save_game.dart';
 import '../models/team.dart';
 import '../state/game_state.dart';
+import '../widgets/quick_access_drawer.dart';
 import '../widgets/responsive_body.dart';
+import 'player_detail_screen.dart';
 
 /// リーグ全体(1部・2部)の若手選手をポテンシャル基準でランキング表示する画面。
 /// スカウティングの参考として、自クラブ以外の有望株にも目を向けられるようにする。
@@ -41,6 +43,7 @@ class YoungTalentScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('若手有望株ランキング')),
+      drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView.builder(
           padding: const EdgeInsets.all(12),
@@ -52,6 +55,10 @@ class YoungTalentScreen extends StatelessWidget {
             return Card(
               margin: const EdgeInsets.symmetric(vertical: 4),
               child: ListTile(
+                onTap: !isUserTeam
+                    ? null
+                    : () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => PlayerDetailScreen(playerId: p.id))),
                 leading: CircleAvatar(child: Text('${i + 1}')),
                 title: Row(
                   children: [

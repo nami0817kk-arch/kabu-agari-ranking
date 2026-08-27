@@ -204,8 +204,11 @@ class _TransferScreenState extends State<TransferScreen>
                                     overflow: TextOverflow.ellipsis)),
                             if (!affordable) ...[
                               const SizedBox(width: 6),
-                              Icon(Icons.lock_outline,
-                                  size: 14, color: Colors.grey.shade600),
+                              Tooltip(
+                                message: '資金不足で獲得できません',
+                                child: Icon(Icons.lock_outline,
+                                    size: 14, color: Colors.grey.shade600),
+                              ),
                             ],
                           ],
                         ),
