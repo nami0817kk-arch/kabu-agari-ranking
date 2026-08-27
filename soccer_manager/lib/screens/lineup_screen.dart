@@ -52,40 +52,63 @@ class _FormationTab extends StatelessWidget {
         .toList()
       ..sort((a, b) => a.position.index.compareTo(b.position.index));
 
+    final squadFull = team.startingXI.length == 11;
+
     return ListView(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Row(
-            children: [
-              const Text('フォーメーション: '),
-              const SizedBox(width: 8),
-              DropdownButton<Formation>(
-                value: formation,
-                items: Formation.values
-                    .map(
-                        (f) => DropdownMenuItem(value: f, child: Text(f.label)))
-                    .toList(),
-                onChanged: (f) {
-                  if (f != null) {
-                    FeedbackService.tap();
-                    context.read<GameState>().setFormation(f);
-                  }
-                },
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  DropdownButton<Formation>(
+                    value: formation,
+                    items: Formation.values
+                        .map((f) =>
+                            DropdownMenuItem(value: f, child: Text(f.label)))
+                        .toList(),
+                    onChanged: (f) {
+                      if (f != null) {
+                        FeedbackService.tap();
+                        context.read<GameState>().setFormation(f);
+                      }
+                    },
+                  ),
+                  Chip(
+                    label:
+                        Text('攻撃 x${formation.attackBias.toStringAsFixed(2)}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  Chip(
+                    label:
+                        Text('守備 x${formation.defenseBias.toStringAsFixed(2)}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  Chip(
+                    label: Text('${team.startingXI.length}/11人'),
+                    avatar: Icon(
+                      squadFull ? Icons.check_circle : Icons.error_outline,
+                      size: 18,
+                      color: squadFull
+                          ? SemanticColors.positive(context)
+                          : SemanticColors.negative(context),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: squadFull
+                        ? SemanticColors.positive(context)
+                            .withValues(alpha: 0.12)
+                        : SemanticColors.negative(context)
+                            .withValues(alpha: 0.12),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Chip(
-                label: Text('攻撃 x${formation.attackBias.toStringAsFixed(2)}'),
-                visualDensity: VisualDensity.compact,
-              ),
-              const SizedBox(width: 4),
-              Chip(
-                label: Text('守備 x${formation.defenseBias.toStringAsFixed(2)}'),
-                visualDensity: VisualDensity.compact,
-              ),
-              const Spacer(),
-              Text('${team.startingXI.length}/11'),
-            ],
+            ),
           ),
         ),
         if (gameState.rotationSuggestions.isNotEmpty)
@@ -95,15 +118,16 @@ class _FormationTab extends StatelessWidget {
                 suggestions: gameState.rotationSuggestions),
           ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(
             children: [
-              OutlinedButton(
+              OutlinedButton.icon(
+                icon: const Icon(Icons.auto_fix_high, size: 18),
                 onPressed: () {
                   FeedbackService.tap();
                   context.read<GameState>().autoFillStartingXI();
                 },
-                child: const Text('自動編成'),
+                label: const Text('自動編成'),
               ),
               const SizedBox(width: 8),
               const Expanded(
@@ -113,20 +137,47 @@ class _FormationTab extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: AspectRatio(
-            aspectRatio: 0.72,
-            child: _PitchView(team: team, formation: formation),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: AspectRatio(
+              aspectRatio: 0.72,
+              child: _PitchView(team: team, formation: formation),
+            ),
           ),
         ),
-        const Divider(height: 32),
+        const SizedBox(height: 24),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
+          child: Row(
+            children: [
+              Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(width: 6),
+              Text('${bench.length}人',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
         ),
-        for (final p in bench) _BenchTile(playerId: p.id),
+        const SizedBox(height: 4),
+        if (bench.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text('ベンチに選手がいません',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+          )
+        else
+          for (final p in bench) _BenchTile(playerId: p.id),
         const SizedBox(height: 16),
       ],
     );
@@ -893,11 +944,20 @@ class _PitchView extends StatelessWidget {
 class _PitchPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()..color = const Color(0xFF2E7D32);
-    canvas.drawRect(Offset.zero & size, bg);
+    const dark = Color(0xFF2E7D32);
+    const light = Color(0xFF34893A);
+    const stripeCount = 8;
+    final stripeHeight = size.height / stripeCount;
+    for (var i = 0; i < stripeCount; i++) {
+      final stripe = Paint()..color = i.isEven ? dark : light;
+      canvas.drawRect(
+        Rect.fromLTWH(0, i * stripeHeight, size.width, stripeHeight),
+        stripe,
+      );
+    }
 
     final line = Paint()
-      ..color = Colors.white.withValues(alpha: 0.7)
+      ..color = Colors.white.withValues(alpha: 0.75)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawRect(Rect.fromLTWH(4, 4, size.width - 8, size.height - 8), line);
@@ -905,6 +965,8 @@ class _PitchPainter extends CustomPainter {
         Offset(size.width - 4, size.height / 2), line);
     canvas.drawCircle(
         Offset(size.width / 2, size.height / 2), size.width * 0.16, line);
+    canvas.drawCircle(Offset(size.width / 2, size.height / 2), 2,
+        Paint()..color = line.color);
 
     final boxW = size.width * 0.55;
     final boxH = size.height * 0.12;
@@ -915,6 +977,24 @@ class _PitchPainter extends CustomPainter {
           size.width / 2 - boxW / 2, size.height - 4 - boxH, boxW, boxH),
       line,
     );
+
+    const cornerRadius = 10.0;
+    const halfPi = 1.5708;
+    final corners = [
+      (const Offset(4, 4), 0.0), // top-left
+      (Offset(size.width - 4, 4), halfPi), // top-right
+      (Offset(size.width - 4, size.height - 4), halfPi * 2), // bottom-right
+      (Offset(4, size.height - 4), halfPi * 3), // bottom-left
+    ];
+    for (final (center, start) in corners) {
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: cornerRadius),
+        start,
+        halfPi,
+        false,
+        line,
+      );
+    }
   }
 
   @override
