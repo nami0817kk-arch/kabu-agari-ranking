@@ -23,7 +23,11 @@ class SettingsScreen extends StatelessWidget {
     final settings = context.watch<SettingsController>();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('設定')),
+      appBar: AppBar(
+        title: const Text('設定'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(16),

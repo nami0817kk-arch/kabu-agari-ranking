@@ -18,7 +18,11 @@ class HallOfFameScreen extends StatelessWidget {
       ..sort((a, b) => b.careerGoals.compareTo(a.careerGoals));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('殿堂')),
+      appBar: AppBar(
+        title: const Text('殿堂'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: legends.isEmpty

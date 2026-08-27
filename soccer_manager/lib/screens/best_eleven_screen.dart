@@ -21,7 +21,11 @@ class BestElevenScreen extends StatelessWidget {
     final userTeamId = gameState.save!.userTeamId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('シーズンベストイレブン')),
+      appBar: AppBar(
+        title: const Text('シーズンベストイレブン'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: history.isEmpty

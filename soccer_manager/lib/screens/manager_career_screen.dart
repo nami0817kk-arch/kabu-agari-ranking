@@ -18,7 +18,11 @@ class ManagerCareerScreen extends StatelessWidget {
         totalMatches == 0 ? 0 : (save.careerWins / totalMatches * 100).round();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('監督キャリア')),
+      appBar: AppBar(
+        title: const Text('監督キャリア'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(

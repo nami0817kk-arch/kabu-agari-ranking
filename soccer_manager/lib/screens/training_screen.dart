@@ -31,7 +31,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
       ..sort((a, b) => a.position.index.compareTo(b.position.index));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('トレーニング')),
+      appBar: AppBar(
+        title: const Text('トレーニング'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: BusyOverlay(
         visible: _isRunningTraining,

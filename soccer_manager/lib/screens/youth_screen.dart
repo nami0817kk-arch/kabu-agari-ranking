@@ -93,7 +93,11 @@ class _YouthScreenState extends State<YouthScreen> {
         group: _filter, query: _query, sort: _sort);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('ユース・スカウト')),
+      appBar: AppBar(
+        title: const Text('ユース・スカウト'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(

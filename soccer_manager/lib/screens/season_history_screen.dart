@@ -16,7 +16,11 @@ class SeasonHistoryScreen extends StatelessWidget {
     final history = gameState.seasonHistory;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('シーズン成績アーカイブ')),
+      appBar: AppBar(
+        title: const Text('シーズン成績アーカイブ'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: history.isEmpty

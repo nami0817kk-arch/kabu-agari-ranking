@@ -61,7 +61,11 @@ class _GlossaryScreenState extends State<GlossaryScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('用語集')),
+      appBar: AppBar(
+        title: const Text('用語集'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: Column(
         children: [

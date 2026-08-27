@@ -42,7 +42,11 @@ class YoungTalentScreen extends StatelessWidget {
     final top = topProspects(save);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('若手有望株ランキング')),
+      appBar: AppBar(
+        title: const Text('若手有望株ランキング'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView.builder(

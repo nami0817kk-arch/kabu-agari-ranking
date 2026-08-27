@@ -23,7 +23,11 @@ class ClubScreen extends StatelessWidget {
             ClubInfrastructure.maxLevel;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('クラブ施設・スタッフ')),
+      appBar: AppBar(
+        title: const Text('クラブ施設・スタッフ'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(

@@ -21,6 +21,8 @@ class CupScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('カップ戦'),
+          leading: const BackButton(),
+          actions: const [QuickAccessMenuButton()],
           bottom: const TabBar(tabs: [Tab(text: '国内カップ'), Tab(text: '大陸カップ')]),
         ),
         drawer: const QuickAccessDrawer(),

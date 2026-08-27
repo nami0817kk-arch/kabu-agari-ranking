@@ -29,7 +29,11 @@ class FinanceScreen extends StatelessWidget {
     final loanPlayers = team.players.where((p) => p.isLoan).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('クラブ経営')),
+      appBar: AppBar(
+        title: const Text('クラブ経営'),
+        leading: const BackButton(),
+        actions: const [QuickAccessMenuButton()],
+      ),
       drawer: const QuickAccessDrawer(),
       body: ResponsiveBody(
         child: ListView(

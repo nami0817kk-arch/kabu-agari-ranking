@@ -97,6 +97,7 @@ class _TransferScreenState extends State<TransferScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('移籍市場'),
+        leading: const BackButton(),
         actions: [
           PopupMenuButton<TransferSortOption>(
             icon: const Icon(Icons.sort),
@@ -108,6 +109,7 @@ class _TransferScreenState extends State<TransferScreen>
                 PopupMenuItem(value: option, child: Text(option.label)),
             ],
           ),
+          const QuickAccessMenuButton(),
         ],
         bottom: TabBar(
           controller: _tabController,

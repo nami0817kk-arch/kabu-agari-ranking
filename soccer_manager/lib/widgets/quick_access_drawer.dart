@@ -48,3 +48,26 @@ class QuickAccessDrawer extends StatelessWidget {
     );
   }
 }
+
+/// AppBarにQuickAccessDrawerを開くボタンを明示的に置くためのウィジェット。
+/// Scaffoldにdrawerを設定すると、Flutterはpushされた画面でも戻るボタンより
+/// ハンバーガーアイコンを優先して自動表示してしまう(AppBar内部の
+/// automaticallyImplyLeadingがhasDrawerをcanPopより先に判定するため)。
+/// そのため戻るボタンが消えて「戻れない」状態になるのを防ぐには、AppBarの
+/// leadingを明示的にBackButtonにし、ドロワーはこのボタンをactionsに置いて
+/// 開く必要がある。
+class QuickAccessMenuButton extends StatelessWidget {
+  const QuickAccessMenuButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.menu),
+      tooltip: '他の管理画面へ',
+      onPressed: () {
+        FeedbackService.tap();
+        Scaffold.of(context).openDrawer();
+      },
+    );
+  }
+}
