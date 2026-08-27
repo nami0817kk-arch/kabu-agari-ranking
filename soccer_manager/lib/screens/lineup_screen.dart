@@ -158,26 +158,66 @@ class _FormationTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Text('ベンチ', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(width: 6),
-              Text('${bench.length}人',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
+        DragTarget<String>(
+          onWillAcceptWithDetails: (details) =>
+              team.startingXI.contains(details.data),
+          onAcceptWithDetails: (details) {
+            FeedbackService.tap();
+            context.read<GameState>().toggleStartingPlayer(details.data);
+          },
+          builder: (context, candidateData, rejectedData) {
+            final isDragOver = candidateData.isNotEmpty;
+            return Container(
+              decoration: BoxDecoration(
+                color: isDragOver
+                    ? SemanticColors.positive(context).withValues(alpha: 0.08)
+                    : null,
+                border: isDragOver
+                    ? Border.all(color: SemanticColors.positive(context))
+                    : null,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Text('ベンチ',
+                            style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(width: 6),
+                        Text('${bench.length}人',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey)),
+                        const Spacer(),
+                        Text(
+                          isDragOver ? 'ここに離してベンチへ' : 'ドラッグで入れ替え可能',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDragOver
+                                ? SemanticColors.positive(context)
+                                : Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (bench.isEmpty)
+                    const Padding(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Text('ベンチに選手がいません',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    )
+                  else
+                    for (final p in bench) _BenchTile(playerId: p.id),
+                ],
+              ),
+            );
+          },
         ),
-        const SizedBox(height: 4),
-        if (bench.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('ベンチに選手がいません',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
-          )
-        else
-          for (final p in bench) _BenchTile(playerId: p.id),
         const SizedBox(height: 16),
       ],
     );
@@ -809,6 +849,7 @@ class _PitchView extends StatelessWidget {
                     left: (offsets[i].dx * w - 26).clamp(0, w - 52),
                     top: (offsets[i].dy * h - 26).clamp(0, h - 52),
                     child: _SlotChip(
+                      team: team,
                       slotPosition: slots[i],
                       player: assignments[i],
                       onTap: () =>
@@ -827,13 +868,8 @@ class _PitchView extends StatelessWidget {
       BuildContext context, Position slotPosition, Player? current) {
     final gameState = context.read<GameState>();
     final candidates = team.players
-        .where(
-            (p) => !p.isInjured && !p.isOnInternationalDuty && !p.isSuspended)
         .where((p) => p.id != current?.id)
-        .where((p) =>
-            p.position == slotPosition ||
-            p.secondaryPositions.contains(slotPosition) ||
-            p.position.group == slotPosition.group)
+        .where((p) => _canFillSlot(p, slotPosition))
         .toList()
       ..sort((a, b) => b.overall.compareTo(a.overall));
 
@@ -1007,13 +1043,28 @@ Color _dutyColor(PlayerDuty duty) => switch (duty) {
       PlayerDuty.attack => Colors.orange.shade400,
     };
 
+/// 選手[p]が[slotPosition]の枠に配置可能か(出場不可状態でなく、
+/// 本職・準本職・同系統ポジションのいずれかに該当する)。
+bool _canFillSlot(Player p, Position slotPosition) =>
+    !p.isInjured &&
+    !p.isOnInternationalDuty &&
+    !p.isSuspended &&
+    (p.position == slotPosition ||
+        p.secondaryPositions.contains(slotPosition) ||
+        p.position.group == slotPosition.group);
+
 class _SlotChip extends StatelessWidget {
+  final Team team;
   final Position slotPosition;
   final Player? player;
   final VoidCallback onTap;
 
-  const _SlotChip(
-      {required this.slotPosition, required this.player, required this.onTap});
+  const _SlotChip({
+    required this.team,
+    required this.slotPosition,
+    required this.player,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1021,7 +1072,7 @@ class _SlotChip extends StatelessWidget {
     final outOfPosition = p != null && p.position != slotPosition;
     final roleSuffix =
         (p != null && p.role != PlayerRole.standard) ? '・${p.role.label}' : '';
-    return Semantics(
+    final content = Semantics(
       button: true,
       label: p == null
           ? '${slotPosition.fullLabel}: 空き枠'
@@ -1107,6 +1158,46 @@ class _SlotChip extends StatelessWidget {
         ),
       ),
     );
+
+    final draggable = p == null
+        ? content
+        : Draggable<String>(
+            data: p.id,
+            feedback: Material(
+              color: Colors.transparent,
+              child: Opacity(opacity: 0.85, child: content),
+            ),
+            childWhenDragging: Opacity(opacity: 0.3, child: content),
+            child: content,
+          );
+
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (details) {
+        if (details.data == p?.id) return false;
+        final matches = team.players.where((pl) => pl.id == details.data);
+        if (matches.isEmpty) return false;
+        return _canFillSlot(matches.first, slotPosition);
+      },
+      onAcceptWithDetails: (details) {
+        FeedbackService.tap();
+        context
+            .read<GameState>()
+            .swapStartingPlayer(outPlayerId: p?.id, inPlayerId: details.data);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isDragOver = candidateData.isNotEmpty;
+        return Container(
+          decoration: isDragOver
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: SemanticColors.positive(context), width: 2),
+                )
+              : null,
+          child: draggable,
+        );
+      },
+    );
   }
 }
 
@@ -1130,7 +1221,7 @@ class _BenchTile extends StatelessWidget {
         !p.isSuspended &&
         currentInPosition < quota;
 
-    return Card(
+    final card = Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       child: ListTile(
         leading: PlayerFaceAvatar(playerId: p.id, position: p.position),
@@ -1158,6 +1249,23 @@ class _BenchTile extends StatelessWidget {
           child: const Text('スタメンへ'),
         ),
       ),
+    );
+
+    if (p.isInjured || p.isOnInternationalDuty || p.isSuspended) {
+      return card;
+    }
+
+    return Draggable<String>(
+      data: p.id,
+      feedback: Material(
+        color: Colors.transparent,
+        child: SizedBox(
+          width: 260,
+          child: Opacity(opacity: 0.85, child: card),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: card),
+      child: card,
     );
   }
 }
