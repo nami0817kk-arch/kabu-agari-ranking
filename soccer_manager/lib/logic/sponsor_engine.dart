@@ -18,7 +18,7 @@ class SponsorEngine {
   ];
 
   /// チームの総合力に応じたスポンサー候補を3件生成する。
-  /// 週間収入が高いほど契約期間は短くなるトレードオフを持つ。
+  /// 週間収入が高いほど契約期間(年単位)は短くなるトレードオフを持つ。
   static List<SponsorDeal> generateOffers(int overallRating) {
     final base = 40 + overallRating.clamp(0, 99);
     final shuffled = ([..._names]..shuffle(_rng)).take(3).toList();
@@ -26,12 +26,12 @@ class SponsorEngine {
       SponsorDeal(
           name: shuffled[0],
           weeklyIncome: (base * 0.8).round(),
-          weeksRemaining: 30),
-      SponsorDeal(name: shuffled[1], weeklyIncome: base, weeksRemaining: 20),
+          yearsRemaining: 3),
+      SponsorDeal(name: shuffled[1], weeklyIncome: base, yearsRemaining: 2),
       SponsorDeal(
           name: shuffled[2],
           weeklyIncome: (base * 1.3).round(),
-          weeksRemaining: 12),
+          yearsRemaining: 1),
     ];
   }
 }

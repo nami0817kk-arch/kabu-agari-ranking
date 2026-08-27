@@ -17,7 +17,7 @@ class FreeAgentEngine {
     final age = 27 + _rng.nextInt(9);
     final player = PlayerGenerator.generate(
         position: position, strengthTier: tier, ageOverride: age);
-    player.contractWeeksRemaining = 0;
+    player.contractYearsRemaining = 0;
     return player;
   }
 

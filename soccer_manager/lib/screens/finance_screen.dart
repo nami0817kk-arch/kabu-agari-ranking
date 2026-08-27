@@ -26,7 +26,7 @@ class FinanceScreen extends StatelessWidget {
 
     final sortedByExpiry = team.players.where((p) => !p.isLoan).toList()
       ..sort((a, b) =>
-          a.contractWeeksRemaining.compareTo(b.contractWeeksRemaining));
+          a.contractYearsRemaining.compareTo(b.contractYearsRemaining));
     final loanPlayers = team.players.where((p) => p.isLoan).toList();
 
     return Scaffold(
@@ -121,12 +121,12 @@ class FinanceScreen extends StatelessWidget {
                   title: Text(p.name),
                   subtitle: Text('${p.position.label} / 週俸 ${p.wage}万円'),
                   trailing: Text(
-                    ContractEngine.yearsShortLabel(p.contractWeeksRemaining),
+                    ContractEngine.yearsShortLabel(p.contractYearsRemaining),
                     style: TextStyle(
-                      color: p.contractWeeksRemaining <= 4
+                      color: p.contractYearsRemaining <= 1
                           ? SemanticColors.negative(context)
                           : null,
-                      fontWeight: p.contractWeeksRemaining <= 4
+                      fontWeight: p.contractYearsRemaining <= 1
                           ? FontWeight.bold
                           : null,
                     ),
@@ -192,7 +192,7 @@ class _SponsorSection extends StatelessWidget {
         child: ListTile(
           leading: const Icon(Icons.handshake),
           title: Text(deal.name),
-          subtitle: Text(ContractEngine.yearsShortLabel(deal.weeksRemaining)),
+          subtitle: Text(ContractEngine.yearsShortLabel(deal.yearsRemaining)),
           trailing: Text('+${deal.weeklyIncome}万円/週',
               style: const TextStyle(fontWeight: FontWeight.bold)),
         ),
@@ -227,7 +227,7 @@ class _SponsorSection extends StatelessWidget {
               leading: const Icon(Icons.handshake_outlined),
               title: Text(offers[i].name),
               subtitle: Text(
-                  '契約期間: ${ContractEngine.yearsShortLabel(offers[i].weeksRemaining)}'),
+                  '契約期間: ${ContractEngine.yearsShortLabel(offers[i].yearsRemaining)}'),
               trailing: FilledButton(
                 onPressed: () => _choose(context, i),
                 child: Text('+${offers[i].weeklyIncome}万円/週'),

@@ -101,10 +101,12 @@ class GameState extends ChangeNotifier {
   /// スカウトが見つけてきた、獲得可能な候補選手一覧(閲覧専用・未確定)。
   List<Player> scoutCandidates = [];
 
-  /// 直近のplayNextMatchdayで契約切れとなった選手名（1回表示したら呼び出し側でクリアする想定）。
+  /// 直近のplayNextMatchdayでローン期間満了により契約元クラブへ復帰した選手名、
+  /// または直近のstartNextSeasonで契約(年単位)満了により退団した選手名
+  /// （1回表示したら呼び出し側でクリアする想定）。
   List<String> lastContractExpirations = [];
 
-  /// 直近のplayNextMatchdayで契約満了が近づいた(事前警告)選手名
+  /// 直近のstartNextSeasonで契約の最終年に入った(事前警告)選手名
   /// (1回表示したら呼び出し側でクリアする想定)。
   List<String> lastContractWarnings = [];
 
@@ -1216,7 +1218,7 @@ class GameState extends ChangeNotifier {
     // ローン中は週俸を6割に軽減していた(signLoanPlayer)ため、完全移籍化に
     // あたって元の水準に戻す。そのままだと恒久的に割引契約のままになる。
     player.wage = (player.wage / 0.6).round().clamp(1, 999);
-    player.contractWeeksRemaining = ContractEngine.renewalWeeks;
+    player.contractYearsRemaining = ContractEngine.negotiatedYears(player);
     notifyListeners();
     await _persist();
     return true;
@@ -1970,22 +1972,13 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // ユーザークラブのみ契約消化・契約切れ(ローン満了含む)を処理する（CPUクラブは対象外）。
-    // 契約はシーズン途中では切れず、最終節まで自動延長されるようにする。
-    final weeksRemainingInSeason = _totalMatchdaysThisSeason - next.matchday;
-    final contractResult = ContractEngine.advanceWeek(userTeam,
-        weeksRemainingInSeason: weeksRemainingInSeason);
-    final expired = contractResult.expired;
-    lastContractExpirations = expired.map((p) => p.name).toList();
-    lastContractWarnings =
-        contractResult.nearingExpiry.map((p) => p.name).toList();
-    // ローン満了(元クラブへ復帰)ではなく、正式に契約が切れた選手は
-    // フリーエージェントプールへ移す(移籍金なしで再獲得可能)。
-    for (final p in expired.where((p) => !p.isLoan)) {
-      if (_save!.freeAgents.length >= FreeAgentEngine.maxPoolSize) break;
-      _save!.freeAgents.add(p);
-    }
-    // 契約満了により編成人数が最低人数を割り込んだ場合、フリーエージェントを
+    // ユーザークラブのみローン期間(週単位)を処理する（CPUクラブは対象外）。
+    // 選手契約自体は年単位で結ばれ、シーズン開始時にまとめて消化する
+    // (startNextSeason参照)。
+    final loanEnded = ContractEngine.advanceLoanWeek(userTeam);
+    lastContractExpirations = loanEnded.map((p) => p.name).toList();
+    lastContractWarnings = [];
+    // ローン満了により編成人数が最低人数を割り込んだ場合、フリーエージェントを
     // 緊急補強してスカッドが組めなくなる事態を防ぐ(安全網)。
     lastEmergencySignings = [];
     while (userTeam.players.length < minSquadSize) {
@@ -2024,18 +2017,8 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // スポンサー契約の消化・分割払いの引き落とし。契約は選手契約と同様に
-    // シーズン途中では切れず、最終節まで自動延長されるようにする。
-    if (_save!.sponsorDeal != null) {
-      _save!.sponsorDeal!.weeksRemaining -= 1;
-      if (_save!.sponsorDeal!.weeksRemaining <= 0) {
-        if (weeksRemainingInSeason > 0) {
-          _save!.sponsorDeal!.weeksRemaining = weeksRemainingInSeason;
-        } else {
-          _save!.sponsorDeal = null;
-        }
-      }
-    }
+    // スポンサー契約(年単位)の消化はシーズン開始時にまとめて処理する
+    // (startNextSeason参照)。分割払いの引き落としは引き続き週次で行う。
     if (_save!.sponsorDeal == null && _save!.pendingSponsorOffers.isEmpty) {
       _save!.pendingSponsorOffers =
           SponsorEngine.generateOffers(userTeam.overallRating);
@@ -2779,6 +2762,18 @@ class GameState extends ChangeNotifier {
     _refreshScoutCandidates();
     FreeAgentEngine.topUp(_save!.freeAgents);
 
+    // スポンサー契約(年単位)はシーズン境界で1年分消化する。
+    if (_save!.sponsorDeal != null) {
+      _save!.sponsorDeal!.yearsRemaining -= 1;
+      if (_save!.sponsorDeal!.yearsRemaining <= 0) {
+        _save!.sponsorDeal = null;
+      }
+    }
+    if (_save!.sponsorDeal == null && _save!.pendingSponsorOffers.isEmpty) {
+      _save!.pendingSponsorOffers =
+          SponsorEngine.generateOffers(userTeam.overallRating);
+    }
+
     // 高齢選手の引退判定(ユースプロスペクトは対象外)。
     final retirees = RetirementEngine.resolveRetirements(userTeam);
     for (final p in retirees) {
@@ -2786,6 +2781,30 @@ class GameState extends ChangeNotifier {
     }
     _save!.retiredLegends.addAll(retirees);
     lastRetirements = retirees.map((p) => p.name).toList();
+
+    // 選手契約(年単位)をシーズン境界で1年分消化する(CPUクラブの契約は
+    // 管理対象外)。切れた契約はフリーエージェントプールへ移す。引退判定より
+    // 後に行うことで、緊急補強の安全網が最終的なスカッド人数を保証できる
+    // ようにする。
+    final contractResult = ContractEngine.advanceSeason(userTeam);
+    lastContractExpirations =
+        contractResult.expired.map((p) => p.name).toList();
+    lastContractWarnings =
+        contractResult.nearingExpiry.map((p) => p.name).toList();
+    for (final p in contractResult.expired) {
+      _clearPlayerRoleReferences(userTeam, p.id);
+      if (_save!.freeAgents.length < FreeAgentEngine.maxPoolSize) {
+        _save!.freeAgents.add(p);
+      }
+    }
+    // 契約満了・引退により編成人数が最低人数を割り込んだ場合の緊急補強(安全網)。
+    lastEmergencySignings = [];
+    while (userTeam.players.length < minSquadSize) {
+      final signing = FreeAgentEngine.generateVeteran();
+      ContractEngine.renewContract(signing);
+      userTeam.players.add(signing);
+      lastEmergencySignings.add(signing.name);
+    }
 
     _save!.lastSeasonRank = finalRank;
 

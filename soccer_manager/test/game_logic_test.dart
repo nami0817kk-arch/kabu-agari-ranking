@@ -291,20 +291,46 @@ void main() {
   });
 
   test(
-      'ContractEngine.advanceWeek decrements contracts and removes expired players',
-      () {
+      'ContractEngine.advanceSeason decrements contracts by one year and '
+      'removes expired players', () {
     final team = PlayerGenerator.generateSquad(
         id: 't3', name: 'Test FC', strengthTier: 60);
+    // 他の選手が偶然同じタイミングで契約切れにならないよう、十分な年数にしておく。
+    for (final p in team.players) {
+      p.contractYearsRemaining = 99;
+    }
     final soonToExpire = team.players.first;
-    soonToExpire.contractWeeksRemaining = 1;
+    soonToExpire.contractYearsRemaining = 1;
     team.startingXI = [soonToExpire.id];
     final beforeCount = team.players.length;
 
-    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 0);
+    final result = ContractEngine.advanceSeason(team);
 
     expect(result.expired.map((p) => p.id), contains(soonToExpire.id));
     expect(team.players.length, beforeCount - 1);
     expect(team.startingXI, isNot(contains(soonToExpire.id)));
+  });
+
+  test(
+      'ContractEngine.advanceSeason warns once a contract enters its final '
+      'year, without removing the player', () {
+    final team = PlayerGenerator.generateSquad(
+        id: 't3b', name: 'Test FC', strengthTier: 60);
+    // 他の選手が偶然同じタイミングで契約切れにならないよう、十分な年数にしておく。
+    for (final p in team.players) {
+      p.contractYearsRemaining = 99;
+    }
+    final enteringFinalYear = team.players.first;
+    enteringFinalYear.contractYearsRemaining = 2;
+    final beforeCount = team.players.length;
+
+    final result = ContractEngine.advanceSeason(team);
+
+    expect(enteringFinalYear.contractYearsRemaining, 1);
+    expect(
+        result.nearingExpiry.map((p) => p.id), contains(enteringFinalYear.id));
+    expect(result.expired, isEmpty);
+    expect(team.players.length, beforeCount);
   });
 
   test('ContractEngine.weeklyWageBill sums all player wages', () {
@@ -721,7 +747,7 @@ void main() {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
-    player.contractWeeksRemaining = 2;
+    player.contractYearsRemaining = 1;
     final cost = gameState.renewalCostFor(player.id) +
         gameState.signingBonusFor(player.id);
     gameState.save!.budget = cost;
@@ -729,7 +755,8 @@ void main() {
     final ok = await gameState.renewContract(player.id);
 
     expect(ok, isTrue);
-    expect(player.contractWeeksRemaining, ContractEngine.renewalWeeks);
+    expect(
+        player.contractYearsRemaining, ContractEngine.negotiatedYears(player));
     expect(gameState.save!.budget, 0);
   });
 
@@ -1034,7 +1061,7 @@ void main() {
     final sorted = [...offers]
       ..sort((a, b) => a.weeklyIncome.compareTo(b.weeklyIncome));
     expect(
-        sorted.first.weeksRemaining, greaterThan(sorted.last.weeksRemaining));
+        sorted.first.yearsRemaining, greaterThan(sorted.last.yearsRemaining));
   });
 
   test('GameState.chooseSponsor applies the selected deal and clears offers',
@@ -1293,7 +1320,7 @@ void main() {
   });
 
   test(
-      'ContractEngine.advanceWeek removes a loan player once loanWeeksRemaining reaches 0',
+      'ContractEngine.advanceLoanWeek removes a loan player once loanWeeksRemaining reaches 0',
       () {
     final team = PlayerGenerator.generateSquad(
         id: 'lteam', name: 'Loan FC', strengthTier: 60);
@@ -1301,26 +1328,10 @@ void main() {
     loanPlayer.isLoan = true;
     loanPlayer.loanWeeksRemaining = 1;
 
-    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 20);
+    final expired = ContractEngine.advanceLoanWeek(team);
 
-    expect(result.expired.any((p) => p.id == loanPlayer.id), isTrue);
+    expect(expired.any((p) => p.id == loanPlayer.id), isTrue);
     expect(team.players.any((p) => p.id == loanPlayer.id), isFalse);
-  });
-
-  test(
-      'ContractEngine.advanceWeek extends a contract to the season\'s final '
-      'matchday instead of letting it expire mid-season', () {
-    final team = PlayerGenerator.generateSquad(
-        id: 't3b', name: 'Test FC', strengthTier: 60);
-    final player = team.players.first;
-    player.contractWeeksRemaining = 1;
-    final beforeCount = team.players.length;
-
-    final result = ContractEngine.advanceWeek(team, weeksRemainingInSeason: 15);
-
-    expect(result.expired, isEmpty);
-    expect(team.players.length, beforeCount);
-    expect(player.contractWeeksRemaining, 15);
   });
 
   test(
@@ -1512,7 +1523,7 @@ void main() {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     for (final p in gameState.userTeam.players) {
-      p.contractWeeksRemaining = 999;
+      p.contractYearsRemaining = 99;
     }
 
     for (int i = 0; i < 20; i++) {
@@ -1796,35 +1807,27 @@ void main() {
   });
 
   test(
-      'GameState.playNextMatchday auto-signs free agents when contract expirations '
-      'would drop the squad below the minimum size', () async {
+      'GameState.startNextSeason auto-signs free agents when contract '
+      'expirations would drop the squad below the minimum size', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final team = gameState.userTeam;
 
-    // 契約は最終節までシーズン途中で切れないため、最終節の直前まで進めてから検証する。
-    while (gameState.save!.league.fixtures
-            .where((f) => f.result == null)
-            .map((f) => f.matchday)
-            .toSet()
-            .length >
-        1) {
+    // 契約(年単位)はシーズン境界でのみ消化されるため、シーズンを完走させる。
+    while (!gameState.save!.league.isSeasonComplete) {
       await gameState.playNextMatchdayQuickSim();
     }
 
-    // 最低人数ぎりぎりまで減らした上で、残り全員の契約を今週切れさせる。
+    // 最低人数ぎりぎりまで減らした上で、残り全員の契約を今シーズン限りにする。
     while (team.players.length > minSquadSize) {
       team.players.removeLast();
     }
     for (final p in team.players) {
       p.isLoan = false;
-      p.contractWeeksRemaining = 1;
+      p.contractYearsRemaining = 1;
     }
 
-    await gameState.playNextMatchday();
-    if (gameState.isHalfTime) {
-      await gameState.playSecondHalf();
-    }
+    await gameState.startNextSeason();
 
     expect(team.players.length, greaterThanOrEqualTo(minSquadSize));
     expect(gameState.lastEmergencySignings, isNotEmpty);
@@ -2855,7 +2858,7 @@ void main() {
     await gameState.startNewGame('テストFC');
     // 契約切れによる離脱と混同しないよう、ユーザークラブの契約を十分延長しておく。
     for (final p in gameState.userTeam.players) {
-      p.contractWeeksRemaining = 999;
+      p.contractYearsRemaining = 99;
     }
     final userCountBefore = gameState.userTeam.players.length;
 
@@ -2893,7 +2896,7 @@ void main() {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
-    player.contractWeeksRemaining = 2;
+    player.contractYearsRemaining = 1;
     final baseCost = gameState.renewalCostFor(player.id);
     final bonus = gameState.signingBonusFor(player.id);
     expect(bonus, greaterThan(0));
@@ -3432,15 +3435,30 @@ void main() {
   });
 
   test(
-      'ContractEngine.yearsLabel/yearsShortLabel round remaining contract '
-      'weeks to years, selecting the pending-expiry wording at zero or below',
+      'ContractEngine.yearsLabel/yearsShortLabel show the remaining contract '
+      'years directly, selecting the pending-expiry wording at zero or below',
       () {
     expect(ContractEngine.yearsLabel(0), '契約満了間近');
     expect(ContractEngine.yearsLabel(-3), '契約満了間近');
-    expect(ContractEngine.yearsLabel(52), contains('約1.0年'));
-    expect(ContractEngine.yearsLabel(52), contains('52週'));
+    expect(ContractEngine.yearsLabel(1), '契約残り1年');
     expect(ContractEngine.yearsShortLabel(0), '契約満了間近');
-    expect(ContractEngine.yearsShortLabel(104), '残り約2.0年');
+    expect(ContractEngine.yearsShortLabel(2), '残り2年');
+  });
+
+  test(
+      'ContractEngine.negotiatedYears grants longer contracts to younger '
+      'players and shorter ones to veterans', () {
+    final young = PlayerGenerator.generate(
+        position: Position.st, strengthTier: 60, ageOverride: 20);
+    final prime = PlayerGenerator.generate(
+        position: Position.st, strengthTier: 60, ageOverride: 25);
+    final veteran = PlayerGenerator.generate(
+        position: Position.st, strengthTier: 60, ageOverride: 33);
+
+    expect(ContractEngine.negotiatedYears(young),
+        greaterThan(ContractEngine.negotiatedYears(prime)));
+    expect(ContractEngine.negotiatedYears(prime),
+        greaterThan(ContractEngine.negotiatedYears(veteran)));
   });
 
   test(
@@ -3509,7 +3527,7 @@ void main() {
     await gameState.startNewGame('テストFC');
     final player = gameState.userTeam.players.first;
     player.personality = PlayerPersonality.balanced;
-    player.contractWeeksRemaining = 2;
+    player.contractYearsRemaining = 1;
     gameState.startContractNegotiation(player.id);
     final minAcceptable = ContractEngine.minimumAcceptableWage(player);
     final cost = gameState.renewalCostFor(player.id) +
@@ -3520,7 +3538,8 @@ void main() {
 
     expect(result, ContractOfferResult.accepted);
     expect(player.wage, minAcceptable);
-    expect(player.contractWeeksRemaining, ContractEngine.renewalWeeks);
+    expect(
+        player.contractYearsRemaining, ContractEngine.negotiatedYears(player));
     expect(gameState.save!.budget, 0);
     expect(gameState.pendingContractNegotiation, isNull);
   });

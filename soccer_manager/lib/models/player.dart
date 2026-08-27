@@ -375,8 +375,9 @@ class Player {
   /// 週俸（万円）
   int wage;
 
-  /// 契約残り週数。0になると自由契約としてチームを去る。
-  int contractWeeksRemaining;
+  /// 契約残り年数。0になると自由契約としてチームを去る(シーズン開始時に
+  /// 1年ずつ消化する)。
+  int contractYearsRemaining;
 
   /// 性格。不満度の変動しやすさ・移籍希望の出やすさに影響する。
   PlayerPersonality personality;
@@ -473,7 +474,7 @@ class Player {
     this.careerGoals = 0,
     this.individualFocus,
     this.wage = 20,
-    this.contractWeeksRemaining = 20,
+    this.contractYearsRemaining = 2,
     this.personality = PlayerPersonality.balanced,
     this.happiness = 70,
     this.reassureCooldownWeeks = 0,
@@ -645,7 +646,7 @@ class Player {
         'careerGoals': careerGoals,
         'individualFocus': individualFocus?.name,
         'wage': wage,
-        'contractWeeksRemaining': contractWeeksRemaining,
+        'contractYearsRemaining': contractYearsRemaining,
         'personality': personality.name,
         'happiness': happiness,
         'reassureCooldownWeeks': reassureCooldownWeeks,
@@ -708,7 +709,7 @@ class Player {
           : enumFromName(TrainingFocus.values,
               json['individualFocus'] as String?, TrainingFocus.rest),
       wage: json['wage'] as int? ?? 20,
-      contractWeeksRemaining: json['contractWeeksRemaining'] as int? ?? 20,
+      contractYearsRemaining: _migrateContractYears(json),
       personality: enumFromName(PlayerPersonality.values,
           json['personality'] as String?, PlayerPersonality.balanced),
       happiness: json['happiness'] as int? ?? 70,
@@ -781,5 +782,16 @@ class Player {
       map[k] = legacyStamina;
     }
     return map;
+  }
+
+  /// 旧セーブ(契約を週数で管理していた版)からの移行用。新フィールドが
+  /// あればそれを使い、なければ旧フィールドの週数を年数に丸めて引き継ぐ。
+  static int _migrateContractYears(Map<String, dynamic> json) {
+    final years = json['contractYearsRemaining'] as int?;
+    if (years != null) return years;
+    final legacyWeeks = json['contractWeeksRemaining'] as int?;
+    if (legacyWeeks == null) return 2;
+    if (legacyWeeks <= 0) return 0;
+    return (legacyWeeks / 52).ceil().clamp(1, 10);
   }
 }

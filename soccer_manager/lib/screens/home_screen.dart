@@ -708,7 +708,7 @@ class HomeScreen extends StatelessWidget {
 
     final expired = gameState.lastContractExpirations;
     if (expired.isNotEmpty) {
-      messages.add(('契約満了で退団: ${expired.join('、')}', false));
+      messages.add(('ローン期間満了で契約元クラブへ復帰: ${expired.join('、')}', false));
       gameState.lastContractExpirations = [];
     }
     final autoSold = gameState.lastReleaseClauseSales;
@@ -855,6 +855,36 @@ class HomeScreen extends StatelessWidget {
         ),
       );
       gameState.lastRetirements = [];
+    }
+    final contractExpired = gameState.lastContractExpirations;
+    if (context.mounted && contractExpired.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('契約満了で退団: ${contractExpired.join('、')}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      gameState.lastContractExpirations = [];
+    }
+    final contractWarnings = gameState.lastContractWarnings;
+    if (context.mounted && contractWarnings.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('契約最終年に突入: ${contractWarnings.join('、')}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      gameState.lastContractWarnings = [];
+    }
+    final emergencySignings = gameState.lastEmergencySignings;
+    if (context.mounted && emergencySignings.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('緊急補強: ${emergencySignings.join('、')}'),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      gameState.lastEmergencySignings = [];
     }
     if (context.mounted && gameState.lastSeasonManagerAwardWon) {
       ScaffoldMessenger.of(context).showSnackBar(

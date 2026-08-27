@@ -64,7 +64,7 @@ class AiTransferEngine {
       }
       if (wasStarter) LineupUtils.autoFill(fromTeam);
       toTeam.players.add(player);
-      player.contractWeeksRemaining = 40 + random.nextInt(40);
+      player.contractYearsRemaining = 2 + random.nextInt(3);
       // 移籍直後の不満度は、元クラブでの状態からの落差(環境変化)を軽く
       // 反映しつつ、より力のあるクラブへの移籍ならやや上向きにする。
       final moveUp = toTeam.overallRating >= fromTeam.overallRating;

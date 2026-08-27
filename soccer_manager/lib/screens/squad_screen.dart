@@ -124,7 +124,7 @@ class _SquadScreenState extends State<SquadScreen> {
                 Text(p.name, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
                 Text(
-                    '週俸: ${p.wage}万円 / ${ContractEngine.yearsLabel(p.contractWeeksRemaining)}'),
+                    '週俸: ${p.wage}万円 / ${ContractEngine.yearsLabel(p.contractYearsRemaining)}'),
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -452,7 +452,7 @@ class _SquadScreenState extends State<SquadScreen> {
                                               ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
                                               : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
                                                   '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}'
-                                                  '${p.isLoan ? '' : ' / ${ContractEngine.yearsLabel(p.contractWeeksRemaining)}'}',
+                                                  '${p.isLoan ? '' : ' / ${ContractEngine.yearsLabel(p.contractYearsRemaining)}'}',
                               style: (p.isInjured ||
                                       p.isSuspended ||
                                       p.isOnInternationalDuty ||

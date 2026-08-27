@@ -305,7 +305,7 @@ class PlayerGenerator {
       happiness: 55 + _rng.nextInt(30),
     );
     player.wage = (player.marketValue / 40).round().clamp(5, 500);
-    player.contractWeeksRemaining = 15 + _rng.nextInt(30);
+    player.contractYearsRemaining = 1 + _rng.nextInt(4);
     player.role = _pickRole(player);
     player.duty = _pickDuty(player);
     return player;

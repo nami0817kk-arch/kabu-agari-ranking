@@ -7,59 +7,56 @@ class ContractEngine {
       .where((p) => !p.isLoanedOut)
       .fold<int>(0, (s, p) => s + p.wage);
 
-  /// 残り契約週数を「約◯年」表記に丸める。選手・スポンサーいずれの契約も
-  /// 週単位で内部管理しているため、UI表示側でこの丸めを一貫して使う。
-  static String yearsLabel(int weeksRemaining) {
-    if (weeksRemaining <= 0) return '契約満了間近';
-    final years = weeksRemaining / 52;
-    return '契約残り$weeksRemaining週(約${years.toStringAsFixed(1)}年)';
+  /// 残り契約年数の表示ラベル。契約は年単位で結ばれるため、そのまま表示する。
+  static String yearsLabel(int yearsRemaining) {
+    if (yearsRemaining <= 0) return '契約満了間近';
+    return '契約残り$yearsRemaining年';
   }
 
   /// [yearsLabel]の短縮版(トレーリング領域など表示幅が限られる箇所向け)。
-  static String yearsShortLabel(int weeksRemaining) {
-    if (weeksRemaining <= 0) return '契約満了間近';
-    final years = weeksRemaining / 52;
-    return '残り約${years.toStringAsFixed(1)}年';
+  static String yearsShortLabel(int yearsRemaining) {
+    if (yearsRemaining <= 0) return '契約満了間近';
+    return '残り$yearsRemaining年';
   }
 
-  /// 契約満了が近づいたことを事前に警告する残り週数(この週数になった
-  /// タイミングで一度だけ通知する)。
-  static const int expiryWarningWeeks = 4;
+  /// ローン期間(週単位)を1週分消化させ、ローン満了となった選手を
+  /// チームから除外して返す(元クラブへ復帰するため、フリーエージェントには
+  /// 加えない)。契約(年単位)自体はシーズン開始時に[advanceSeason]でまとめて
+  /// 処理する。
+  static List<Player> advanceLoanWeek(Team team) {
+    final expired = <Player>[];
+    for (final p in List<Player>.from(team.players)) {
+      if (!p.isLoan) continue;
+      if (p.loanWeeksRemaining > 0) {
+        p.loanWeeksRemaining -= 1;
+      }
+      if (p.loanWeeksRemaining <= 0) {
+        expired.add(p);
+      }
+    }
+    for (final p in expired) {
+      team.players.remove(p);
+      team.startingXI.remove(p.id);
+    }
+    return expired;
+  }
 
-  /// 契約(またはローン期間)を1週分消化させ、契約切れ・ローン満了となった
-  /// 選手をチームから除外する。除外された選手と、契約満了が間近になった
-  /// 選手(事前警告用)をそれぞれ返す(UI通知用)。
-  ///
-  /// [weeksRemainingInSeason]は今節を含めた今シーズンの残り節数(今節が
-  /// 最終節なら0)。現実のクラブ経営では契約はシーズンの区切りで満了する
-  /// ため、シーズン途中で契約が0になった場合は最終節まで自動延長し、
-  /// シーズン最終節でのみ実際に契約満了とする(ローンは対象外。ローン期間は
-  /// 移籍時に個別合意された期間のため、シーズン境界に揃える対象ではない)。
-  static ({List<Player> expired, List<Player> nearingExpiry}) advanceWeek(
-      Team team,
-      {required int weeksRemainingInSeason}) {
+  /// 契約(年単位)をシーズン境界で1年分消化させ、契約切れとなった選手を
+  /// チームから除外する。除外された選手と、最終年に入り契約満了が近づいた
+  /// 選手(事前警告用)をそれぞれ返す(UI通知用)。ローン選手は対象外
+  /// (ローン期間は個別合意された週数で管理し、[advanceLoanWeek]で扱う)。
+  static ({List<Player> expired, List<Player> nearingExpiry}) advanceSeason(
+      Team team) {
     final expired = <Player>[];
     final nearingExpiry = <Player>[];
     for (final p in List<Player>.from(team.players)) {
-      if (p.isLoan) {
-        if (p.loanWeeksRemaining > 0) {
-          p.loanWeeksRemaining -= 1;
-        }
-        if (p.loanWeeksRemaining <= 0) {
-          expired.add(p);
-        }
-        continue;
+      if (p.isLoan) continue;
+      if (p.contractYearsRemaining > 0) {
+        p.contractYearsRemaining -= 1;
       }
-      if (p.contractWeeksRemaining > 0) {
-        p.contractWeeksRemaining -= 1;
-      }
-      if (p.contractWeeksRemaining <= 0) {
-        if (weeksRemainingInSeason > 0) {
-          p.contractWeeksRemaining = weeksRemainingInSeason;
-        } else {
-          expired.add(p);
-        }
-      } else if (p.contractWeeksRemaining == expiryWarningWeeks) {
+      if (p.contractYearsRemaining <= 0) {
+        expired.add(p);
+      } else if (p.contractYearsRemaining == 1) {
         nearingExpiry.add(p);
       }
     }
@@ -82,10 +79,18 @@ class ContractEngine {
   static int appearanceFeeFor(Player p) =>
       (p.overall * 0.5 * p.personality.wageSensitivity).round().clamp(1, 60);
 
-  static const int renewalWeeks = 40;
+  /// 新規契約・更新時に結ばれる契約年数。若い選手ほど長期契約を結びやすく、
+  /// ベテランほど短期契約になる(現実のクラブ経営に合わせた簡易モデル)。
+  static int negotiatedYears(Player p) {
+    if (p.age <= 23) return 4;
+    if (p.age <= 27) return 3;
+    if (p.age <= 31) return 2;
+    return 1;
+  }
 
-  static void renewContract(Player p) {
-    p.contractWeeksRemaining = renewalWeeks;
+  /// [years]を指定しない場合は[negotiatedYears]で年齢に応じた契約年数を結ぶ。
+  static void renewContract(Player p, {int? years}) {
+    p.contractYearsRemaining = years ?? negotiatedYears(p);
     p.appearanceFee = appearanceFeeFor(p);
   }
 
