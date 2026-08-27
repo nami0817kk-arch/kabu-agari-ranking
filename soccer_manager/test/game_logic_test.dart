@@ -131,6 +131,33 @@ void main() {
   });
 
   test(
+      'BoardEngine.negativeBudgetConfidenceDelta only penalizes at the '
+      'threshold multiple of consecutive negative-budget weeks', () {
+    expect(BoardEngine.negativeBudgetConfidenceDelta(0), 0);
+    expect(BoardEngine.negativeBudgetConfidenceDelta(7), 0);
+    expect(BoardEngine.negativeBudgetConfidenceDelta(8), lessThan(0));
+    expect(BoardEngine.negativeBudgetConfidenceDelta(9), 0);
+    expect(BoardEngine.negativeBudgetConfidenceDelta(16), lessThan(0));
+  });
+
+  test(
+      'GameState.playNextMatchday raises consecutiveNegativeBudgetWeeks while '
+      'the budget stays negative and resets it once the budget recovers',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = -999999;
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) await gameState.playSecondHalf();
+    expect(gameState.save!.consecutiveNegativeBudgetWeeks, 1);
+
+    gameState.save!.budget = 999999;
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) await gameState.playSecondHalf();
+    expect(gameState.save!.consecutiveNegativeBudgetWeeks, 0);
+  });
+
+  test(
       'BoardEngine.midSeasonReviewDelta rewards being on pace and punishes '
       'badly trailing the target', () {
     expect(BoardEngine.midSeasonReviewDelta(currentRank: 2, targetRank: 4),
@@ -182,6 +209,34 @@ void main() {
 
     await gameState.startNextSeason();
     expect(gameState.save!.lastManagerOfMonthCheckpoint, 0);
+  });
+
+  test(
+      'GameState.playSecondHalf records a career milestone once a userTeam '
+      "player's careerGoals crosses a round-number threshold", () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    for (final p in gameState.userTeam.players) {
+      p.careerGoals = 49;
+    }
+
+    var found = false;
+    for (int i = 0;
+        i < 10 && !found && !gameState.save!.league.isSeasonComplete;
+        i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+        if (gameState.lastMilestones.any((m) => m.contains('通算50得点'))) {
+          found = true;
+        }
+      }
+      for (final p in gameState.userTeam.players) {
+        if (p.careerGoals > 49) p.careerGoals = 49;
+      }
+    }
+
+    expect(found, isTrue);
   });
 
   test('GameState.buyPlayer deducts budget and adds the player to the squad',
@@ -1725,6 +1780,56 @@ void main() {
   });
 
   test(
+      'AwardsEngine.computeAwards picks the Golden Glove winner by clean sheet count',
+      () {
+    final home = PlayerGenerator.generateSquad(
+        id: 'gg-h', name: 'Home FC', strengthTier: 60);
+    final away = PlayerGenerator.generateSquad(
+        id: 'gg-a', name: 'Away FC', strengthTier: 60);
+    LineupUtils.autoFill(home);
+    LineupUtils.autoFill(away);
+    final homeGk = home.players.firstWhere((p) => p.position == Position.gk);
+    final awayGk = away.players.firstWhere((p) => p.position == Position.gk);
+    final fixtures = [
+      Fixture(
+        matchday: 1,
+        homeTeamId: home.id,
+        awayTeamId: away.id,
+        result: MatchResult(
+          matchday: 1,
+          homeTeamId: home.id,
+          awayTeamId: away.id,
+          homeGoals: 1,
+          awayGoals: 0,
+          events: [],
+          playerRatings: {homeGk.id: 7.0, awayGk.id: 6.0},
+        ),
+      ),
+      Fixture(
+        matchday: 2,
+        homeTeamId: home.id,
+        awayTeamId: away.id,
+        result: MatchResult(
+          matchday: 2,
+          homeTeamId: home.id,
+          awayTeamId: away.id,
+          homeGoals: 3,
+          awayGoals: 0,
+          events: [],
+          playerRatings: {homeGk.id: 7.0, awayGk.id: 6.0},
+        ),
+      ),
+    ];
+    final league = League(teams: [home, away], fixtures: fixtures, season: 1);
+
+    final award = AwardsEngine.computeAwards(league, 1);
+
+    expect(award.goldenGloveName, homeGk.name);
+    expect(award.goldenGloveTeamId, home.id);
+    expect(award.goldenGloveCleanSheets, 2);
+  });
+
+  test(
       'AwardsEngine.computeManagerOfPeriod picks the best record within the '
       'matchday range and ignores fixtures outside it', () {
     final home = PlayerGenerator.generateSquad(
@@ -2977,7 +3082,8 @@ void main() {
   });
 
   test(
-      'GameState.startContractNegotiation initializes a negotiation demanding at least the minimum acceptable wage',
+      'GameState.startContractNegotiation opens with a bluffed demand above '
+      'the true minimum acceptable wage instead of revealing it immediately',
       () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
@@ -2990,8 +3096,9 @@ void main() {
     expect(negotiation, isNotNull);
     expect(negotiation!.playerId, player.id);
     expect(negotiation.initialWage, player.wage);
-    expect(
-        negotiation.counterWage, ContractEngine.minimumAcceptableWage(player));
+    expect(negotiation.counterWage, ContractEngine.initialDemand(player));
+    expect(negotiation.counterWage,
+        greaterThan(ContractEngine.minimumAcceptableWage(player)));
     expect(negotiation.roundsUsed, 0);
   });
 
@@ -4051,6 +4158,35 @@ void main() {
     final withTimeWasting = averageFatigueGain(true);
     final normal = averageFatigueGain(false);
     expect(withTimeWasting, lessThan(normal));
+  });
+
+  test(
+      'timeWastingMode increases the average number of yellow cards a team '
+      'picks up over many matches, offsetting its fatigue benefit', () {
+    double averageYellowCards(bool timeWasting) {
+      var total = 0;
+      const trials = 150;
+      for (int i = 0; i < trials; i++) {
+        final home = PlayerGenerator.generateSquad(
+            id: 'home', name: 'Home FC', strengthTier: 60);
+        final away = PlayerGenerator.generateSquad(
+            id: 'away', name: 'Away FC', strengthTier: 60);
+        LineupUtils.autoFill(home);
+        LineupUtils.autoFill(away);
+        home.timeWastingMode = timeWasting;
+        final result =
+            MatchEngine.simulate(home: home, away: away, matchday: 1);
+        total += result.events
+            .where((e) =>
+                e.teamId == home.id && e.type == MatchEventType.yellowCard)
+            .length;
+      }
+      return total / trials;
+    }
+
+    final withTimeWasting = averageYellowCards(true);
+    final normal = averageYellowCards(false);
+    expect(withTimeWasting, greaterThan(normal));
   });
 
   test(

@@ -229,16 +229,28 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   void _showDrillPicker(BuildContext context, Player p) {
+    final gameState = context.read<GameState>();
+    final activeCount = gameState.userTeam.players
+        .where((x) => x.drillAttributeKey != null)
+        .length;
+    final maxSlots = gameState.maxDrillSlots;
     showModalBottomSheet(
       context: context,
       builder: (sheetContext) => SafeArea(
         child: ListView(
           shrinkWrap: true,
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                  '特訓ドリル指定中: $activeCount / $maxSlots人'
+                  '（ヘッドコーチのレベルを上げると上限が増える）',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
             ListTile(
               title: const Text('特訓ドリルを解除する'),
               onTap: () {
-                context.read<GameState>().setDrillAttribute(p.id, null);
+                gameState.setDrillAttribute(p.id, null);
                 Navigator.of(sheetContext).pop();
               },
             ),
@@ -249,8 +261,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
                     ? const Icon(Icons.check, color: Colors.deepPurple)
                     : null,
                 onTap: () {
-                  context.read<GameState>().setDrillAttribute(p.id, key);
+                  final ok = gameState.setDrillAttribute(p.id, key);
                   Navigator.of(sheetContext).pop();
+                  if (!ok) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('特訓ドリルは同時に$maxSlots人までしか指定できません')),
+                    );
+                  }
                 },
               ),
           ],

@@ -45,6 +45,7 @@ class AwardsScreen extends StatelessWidget {
                   final mvpIsOwnClub = a.mvpTeamId != null
                       ? a.mvpTeamId == userTeamId
                       : a.mvpTeamName == clubName;
+                  final gloveIsOwnClub = a.goldenGloveTeamId == userTeamId;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     child: Padding(
@@ -91,6 +92,26 @@ class AwardsScreen extends StatelessWidget {
                             subtitle: a.mvpName == null
                                 ? const Text('該当者なし')
                                 : Text('${a.mvpName}（${a.mvpTeamName}）'),
+                          ),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading:
+                                const Icon(Icons.sports, color: Colors.indigo),
+                            title: Row(
+                              children: [
+                                const Text('ゴールデングラブ'),
+                                if (gloveIsOwnClub) ...[
+                                  const SizedBox(width: 6),
+                                  const Icon(Icons.shield,
+                                      size: 14, color: Colors.blueAccent),
+                                ],
+                              ],
+                            ),
+                            subtitle: a.goldenGloveName == null
+                                ? const Text('該当者なし')
+                                : Text(
+                                    '${a.goldenGloveName}（${a.goldenGloveTeamName}） - '
+                                    '無失点${a.goldenGloveCleanSheets}試合'),
                           ),
                         ],
                       ),

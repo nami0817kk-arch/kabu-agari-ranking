@@ -1,3 +1,5 @@
+import 'player.dart';
+
 /// 試合前・ハーフタイムに監督が飛ばす檄のトーン。士気(morale)に一時的な
 /// 補正を与える。効果の大きさは選手の性格(結果感応度)によって変わる。
 enum TeamTalkTone { encouraging, calm, critical }
@@ -22,4 +24,18 @@ extension TeamTalkToneInfo on TeamTalkTone {
         TeamTalkTone.calm => 3,
         TeamTalkTone.critical => -2,
       };
+
+  /// 選手の性格を踏まえた実際の士気変動ベース値。「厳しく叱咤する」は
+  /// description通り一枚岩の効果ではなく、気性が激しい・野心的な選手には
+  /// 逆に火がつき、それ以外の選手は素直に士気を落とす。
+  int baseMoraleDeltaFor(PlayerPersonality personality) {
+    if (this != TeamTalkTone.critical) return baseMoraleDelta;
+    switch (personality) {
+      case PlayerPersonality.temperamental:
+      case PlayerPersonality.ambitious:
+        return 4;
+      default:
+        return baseMoraleDelta;
+    }
+  }
 }

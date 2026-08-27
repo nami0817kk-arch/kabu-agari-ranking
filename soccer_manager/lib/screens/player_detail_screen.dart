@@ -324,8 +324,11 @@ class PlayerDetailScreen extends StatelessWidget {
           const SizedBox(height: 8),
           OutlinedButton.icon(
             icon: const Icon(Icons.chat_bubble_outline),
-            onPressed: () => _reassure(context),
-            label: const Text('話し合う（不満度を和らげる）'),
+            onPressed:
+                p.reassureCooldownWeeks > 0 ? null : () => _reassure(context),
+            label: Text(p.reassureCooldownWeeks > 0
+                ? '話し合う（あと${p.reassureCooldownWeeks}週は待つ必要がある）'
+                : '話し合う（不満度を和らげる）'),
           ),
           if (!p.isLoan && !p.isLoanedOut) ...[
             const SizedBox(height: 8),

@@ -1,5 +1,6 @@
 import '../models/league.dart';
 import '../models/match_result.dart';
+import '../models/player.dart';
 import '../models/season_award.dart';
 
 class AwardsEngine {
@@ -90,6 +91,42 @@ class AwardsEngine {
       }
     }
 
+    // ゴールデングラブ(無失点王): 実際に出場した(playerRatingsに記録がある)
+    // GKのうち、最も多く無失点試合を守った選手を選ぶ。得点王・MVPと異なり、
+    // 出場記録から選手を特定する必要があるため対象は現在のロースターに
+    // 限られる(シーズン中に放出されたGKは対象外)。
+    final cleanSheets = <String, int>{};
+    for (final f in league.fixtures) {
+      final r = f.result;
+      if (r == null) continue;
+      if (r.awayGoals == 0) {
+        final gk = _startingGoalkeeper(league, f.homeTeamId, r);
+        if (gk != null) cleanSheets[gk.id] = (cleanSheets[gk.id] ?? 0) + 1;
+      }
+      if (r.homeGoals == 0) {
+        final gk = _startingGoalkeeper(league, f.awayTeamId, r);
+        if (gk != null) cleanSheets[gk.id] = (cleanSheets[gk.id] ?? 0) + 1;
+      }
+    }
+    String? goldenGloveName;
+    String? goldenGloveTeamName;
+    String? goldenGloveTeamId;
+    int goldenGloveCleanSheets = 0;
+    for (final entry in cleanSheets.entries) {
+      if (entry.value > goldenGloveCleanSheets) {
+        goldenGloveCleanSheets = entry.value;
+        for (final t in league.teams) {
+          for (final p in t.players) {
+            if (p.id == entry.key) {
+              goldenGloveName = p.name;
+              goldenGloveTeamName = t.name;
+              goldenGloveTeamId = t.id;
+            }
+          }
+        }
+      }
+    }
+
     return SeasonAward(
       season: season,
       topScorerName: topScorerName,
@@ -99,7 +136,26 @@ class AwardsEngine {
       mvpName: mvpName,
       mvpTeamName: mvpTeamName,
       mvpTeamId: mvpTeamId,
+      goldenGloveName: goldenGloveName,
+      goldenGloveTeamName: goldenGloveTeamName,
+      goldenGloveTeamId: goldenGloveTeamId,
+      goldenGloveCleanSheets: goldenGloveCleanSheets,
     );
+  }
+
+  /// 指定チームがその試合で実際に出場させていたGKを1人特定する
+  /// (playerRatingsに記録があるGKポジションの選手)。
+  static Player? _startingGoalkeeper(
+      League league, String teamId, MatchResult r) {
+    for (final t in league.teams) {
+      if (t.id != teamId) continue;
+      for (final p in t.players) {
+        if (p.position == Position.gk && r.playerRatings.containsKey(p.id)) {
+          return p;
+        }
+      }
+    }
+    return null;
   }
 
   /// 指定した節の範囲([fromMatchday, toMatchday]、両端含む)で最も良い成績

@@ -643,6 +643,14 @@ class HomeScreen extends StatelessWidget {
       );
       gameState.lastAiTransferNews = null;
     }
+    final budgetCrisis = gameState.lastBudgetCrisisWarning;
+    if (budgetCrisis != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(budgetCrisis), backgroundColor: Colors.red.shade700),
+      );
+      gameState.lastBudgetCrisisWarning = null;
+    }
   }
 
   void _showMonthlyAwardNotification(

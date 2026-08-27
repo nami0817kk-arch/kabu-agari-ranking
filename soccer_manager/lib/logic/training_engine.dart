@@ -203,6 +203,46 @@ class TrainingEngine {
     _grow(p, key, 0.06);
   }
 
+  /// CPUクラブ向けの簡易的な週次成長。個別方針・メンター・ドリルといった
+  /// ユーザー専用の仕組みは適用しないが、何もしないとユーザーだけが
+  /// 育成システムで伸び続け、CPUの相対的な強さが何シーズンも停滞して
+  /// しまう(=対戦相手として意味を失う)ため、ポジションに応じた基本成長を
+  /// 通常のトレーニングより控えめな確率で与える。高齢選手の衰えも
+  /// applyWeeklyTrainingと同様に適用する。
+  static const double passiveGrowthFactor = 0.4;
+
+  static void applyPassiveCpuGrowth(Team team) {
+    for (final p in team.players) {
+      if (p.isLoanedOut) continue;
+      if (p.position.group == PositionGroup.gk) {
+        for (final k in AttributeKeys.goalkeeping) {
+          _grow(p, k, 0.5 * passiveGrowthFactor);
+        }
+      } else if (p.position.group == PositionGroup.def) {
+        for (final k in [
+          AttributeKeys.tackling,
+          AttributeKeys.marking,
+          AttributeKeys.positioning,
+          AttributeKeys.anticipation,
+        ]) {
+          _grow(p, k, 0.5 * passiveGrowthFactor);
+        }
+      } else {
+        for (final k in [
+          AttributeKeys.finishing,
+          AttributeKeys.longShots,
+          AttributeKeys.dribbling,
+          AttributeKeys.offTheBall,
+        ]) {
+          _grow(p, k, 0.5 * passiveGrowthFactor);
+        }
+      }
+      if (p.age >= 31 && _rng.nextDouble() < 0.1) {
+        _decline(p);
+      }
+    }
+  }
+
   static void _grow(Player p, String key, double chance) {
     var c = chance;
     if (p.age > 30) c *= 0.4;

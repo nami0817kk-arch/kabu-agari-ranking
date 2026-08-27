@@ -101,6 +101,10 @@ class GameState extends ChangeNotifier {
   /// 直近のstartNextSeasonで引退した選手名(1回表示したら呼び出し側でクリアする想定)。
   List<String> lastRetirements = [];
 
+  /// 直近の自クラブの試合で達成された節目(ハットトリック・通算記録)の説明文
+  /// (1回表示したら呼び出し側でクリアする想定)。
+  List<String> lastMilestones = [];
+
   SaveGame? get save => _save;
   bool get hasSave => _save != null;
   Team get userTeam =>
@@ -421,13 +425,26 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
+  /// 同時にピンポイント特訓ドリルを指定できる人数の上限。ヘッドコーチの
+  /// レベルが高いほど、より多くの選手を同時に個別指導できる。
+  int get maxDrillSlots =>
+      _save == null ? 1 : _save!.infrastructure.staffLevel(StaffRole.headCoach);
+
   /// 選手のピンポイント特訓ドリル(重点的に伸ばす1属性)を設定する。nullで解除。
-  void setDrillAttribute(String playerId, String? attributeKey) {
-    if (_save == null) return;
+  /// 既に[maxDrillSlots]人が指定済みの場合、新規の指定はfalseを返し失敗する
+  /// (解除・指定済み選手の対象属性変更は上限に関係なく常に可能)。
+  bool setDrillAttribute(String playerId, String? attributeKey) {
+    if (_save == null) return false;
     final player = userTeam.players.firstWhere((p) => p.id == playerId);
+    if (attributeKey != null && player.drillAttributeKey == null) {
+      final activeCount =
+          userTeam.players.where((p) => p.drillAttributeKey != null).length;
+      if (activeCount >= maxDrillSlots) return false;
+    }
     player.drillAttributeKey = attributeKey;
     notifyListeners();
     _persist();
+    return true;
   }
 
   Future<void> runWeeklyTraining() async {
@@ -607,9 +624,9 @@ class GameState extends ChangeNotifier {
   /// 変動幅が大きい。
   void giveTeamTalk(TeamTalkTone tone) {
     if (_save == null) return;
-    final base = tone.baseMoraleDelta;
     for (final p
         in userTeam.players.where((p) => userTeam.startingXI.contains(p.id))) {
+      final base = tone.baseMoraleDeltaFor(p.personality);
       final delta = (base * p.personality.resultSensitivity).round();
       p.morale = (p.morale + delta).clamp(0, 100);
     }
@@ -841,7 +858,7 @@ class GameState extends ChangeNotifier {
       playerId: playerId,
       initialWage: player.wage,
       offeredWage: player.wage,
-      counterWage: ContractEngine.minimumAcceptableWage(player),
+      counterWage: ContractEngine.initialDemand(player),
     );
     notifyListeners();
     _persist();
@@ -1409,6 +1426,9 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayでスタメン出場手当として支払った総額(万円)。
   int lastAppearanceFeesPaid = 0;
 
+  /// 資金マイナスの長期化により理事会の信頼度が下がった場合の警告文。ない場合はnull。
+  String? lastBudgetCrisisWarning;
+
   static final Random _dutyRng = Random();
   static final Random _aiTransferRng = Random();
 
@@ -1801,6 +1821,15 @@ class GameState extends ChangeNotifier {
     lastAiTransferNews = AiTransferEngine.maybeGenerate(
         league.teams, _save!.userTeamId, _aiTransferRng);
 
+    // CPUクラブの簡易的な週次成長(ユーザーのように個別指導はできないが、
+    // 何もしないとユーザーだけがドリル等で伸び続けリーグ全体が停滞するため)。
+    // あわせてセットプレー担当も自動更新し、移籍で放出入りした穴を埋める。
+    for (final t in league.teams) {
+      if (t.id == _save!.userTeamId) continue;
+      TrainingEngine.applyPassiveCpuGrowth(t);
+      LineupUtils.autoAssignSetPieceRoles(t);
+    }
+
     // ローン放出の週次処理(期間終了で自動的にチームへ復帰する)。
     lastLoanReturns = [];
     for (final p in userTeam.players.where((p) => p.isLoanedOut)) {
@@ -1862,6 +1891,21 @@ class GameState extends ChangeNotifier {
     } else {
       lastAppearanceFeesPaid = 0;
     }
+
+    if (_save!.budget < 0) {
+      _save!.consecutiveNegativeBudgetWeeks += 1;
+    } else {
+      _save!.consecutiveNegativeBudgetWeeks = 0;
+    }
+    final budgetConfidenceDelta = BoardEngine.negativeBudgetConfidenceDelta(
+        _save!.consecutiveNegativeBudgetWeeks);
+    if (budgetConfidenceDelta != 0) {
+      _save!.confidence =
+          (_save!.confidence + budgetConfidenceDelta).clamp(0, 100);
+      lastBudgetCrisisWarning =
+          '資金マイナスが${_save!.consecutiveNegativeBudgetWeeks}週続いています。理事会の信頼度が低下しました。';
+    }
+
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
 
@@ -1906,6 +1950,10 @@ class GameState extends ChangeNotifier {
       homeGoals: homeGoals,
       awayGoals: awayGoals,
     );
+    final statsBefore = {
+      for (final p in userTeam.players)
+        p.id: (goals: p.careerGoals, apps: p.careerAppearances)
+    };
     MatchEngine.applyPostMatchEffects(
       home: home,
       away: away,
@@ -1914,6 +1962,10 @@ class GameState extends ChangeNotifier {
       events: allEvents,
       weather: weather,
     );
+    lastMilestones = _detectMilestones(userTeam, allEvents, statsBefore);
+    for (final m in lastMilestones) {
+      _save!.trophyHistory.add('シーズン${league.season}: $m');
+    }
 
     final merged = MatchResult(
       matchday: f.matchday,
@@ -1955,6 +2007,44 @@ class GameState extends ChangeNotifier {
     notifyListeners();
     await _persist();
     return merged;
+  }
+
+  static const List<int> _goalMilestones = [50, 100, 150, 200, 250, 300];
+  static const List<int> _appearanceMilestones = [100, 200, 300, 400, 500];
+
+  /// 今節の試合で自クラブの選手が達成したハットトリック・通算記録の
+  /// 節目を検出し、表示・記録用の説明文リストとして返す。
+  List<String> _detectMilestones(
+    Team team,
+    List<MatchEvent> events,
+    Map<String, ({int goals, int apps})> before,
+  ) {
+    final milestones = <String>[];
+    final goalsThisMatch = <String, int>{};
+    for (final e in events) {
+      if (e.type == MatchEventType.goal && e.scorerId != null) {
+        goalsThisMatch[e.scorerId!] = (goalsThisMatch[e.scorerId!] ?? 0) + 1;
+      }
+    }
+    for (final p in team.players) {
+      final scored = goalsThisMatch[p.id] ?? 0;
+      if (scored >= 3) {
+        milestones.add('${p.name}がハットトリック達成($scored得点)');
+      }
+      final prev = before[p.id];
+      if (prev == null) continue;
+      for (final m in _goalMilestones) {
+        if (prev.goals < m && p.careerGoals >= m) {
+          milestones.add('${p.name}が通算$m得点を達成');
+        }
+      }
+      for (final m in _appearanceMilestones) {
+        if (prev.apps < m && p.careerAppearances >= m) {
+          milestones.add('${p.name}が通算$m試合出場を達成');
+        }
+      }
+    }
+    return milestones;
   }
 
   /// ライブ観戦せず、前半・後半を一括で消化して確定結果のみを返す

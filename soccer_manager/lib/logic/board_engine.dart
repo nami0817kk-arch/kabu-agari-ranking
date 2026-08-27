@@ -54,6 +54,19 @@ class BoardEngine {
         '引き続き注視しています。';
   }
 
+  /// 資金がマイナスのまま連続した週数がこの値に達するたびに信頼度が下がる。
+  static const int negativeBudgetPenaltyThresholdWeeks = 8;
+
+  /// 資金マイナスが続いている週数を受けて信頼度の増減量を返す。
+  /// 閾値に達するたびに(閾値の倍数ごとに)ペナルティが発生する。
+  static int negativeBudgetConfidenceDelta(int consecutiveNegativeWeeks) {
+    if (consecutiveNegativeWeeks <= 0) return 0;
+    if (consecutiveNegativeWeeks % negativeBudgetPenaltyThresholdWeeks != 0) {
+      return 0;
+    }
+    return -8;
+  }
+
   /// 最終順位に応じた賞金（万円）。
   static int seasonPrizeMoney(
       {required int finalRank, required int teamCount}) {

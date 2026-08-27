@@ -59,6 +59,12 @@ class ContractEngine {
   static int minimumAcceptableWage(Player p) =>
       (p.wage * (1.05 + p.personality.wageSensitivity * 0.15)).round();
 
+  /// 交渉開始時に選手側がまず提示する要求額(万円)。本当の最低希望額を
+  /// 開始直後にそのまま見せてしまうと駆け引きが成立しなくなるため、
+  /// 実際の最低ラインより高めに構えさせる(以降の対案と同じ上乗せ率)。
+  static int initialDemand(Player p) =>
+      (minimumAcceptableWage(p) * 1.15).round();
+
   /// この回数を超えて折り合わない場合、選手は交渉から離脱する。
   static const int maxNegotiationRounds = 3;
 

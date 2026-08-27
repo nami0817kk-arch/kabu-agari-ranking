@@ -384,6 +384,10 @@ class Player {
   /// 不満度（0-100）。低いほど移籍を希望しやすくなる。
   int happiness;
 
+  /// 話し合い(reassure)の再実施までの残り週数。0なら実施可能。
+  /// 連発による不満度管理の形骸化を防ぐためのクールダウン。
+  int reassureCooldownWeeks;
+
   /// ローンでの加入かどうか。ローン選手は契約更新・放出の対象外で、
   /// [loanWeeksRemaining]が0になると自動的にチームを離れる。
   bool isLoan;
@@ -461,6 +465,7 @@ class Player {
     this.contractWeeksRemaining = 20,
     this.personality = PlayerPersonality.balanced,
     this.happiness = 70,
+    this.reassureCooldownWeeks = 0,
     this.isLoan = false,
     this.loanWeeksRemaining = 0,
     this.loanBuyOptionFee,
@@ -516,7 +521,9 @@ class Player {
     return (total / weightSum).round();
   }
 
-  /// 攻撃力（シュート・崩し・オフザボールの複合値）
+  /// 攻撃力（シュート・崩し・オフザボールの複合値）。ひらめき(flair)は
+  /// 意表を突く仕掛け、バランス(balance)は競り合い下でのドリブル/仕掛けの
+  /// 質に寄与するため軽い重みで加える。
   int get attack => _weightedAverage({
         AttributeKeys.finishing: 3,
         AttributeKeys.longShots: 2,
@@ -524,9 +531,13 @@ class Player {
         AttributeKeys.offTheBall: 2,
         AttributeKeys.composure: 1,
         AttributeKeys.pace: 1,
+        AttributeKeys.flair: 1,
+        AttributeKeys.balance: 1,
       });
 
-  /// 守備力（対人・ポジショニングの複合値）
+  /// 守備力（対人・ポジショニングの複合値）。集中力(concentration)は
+  /// 守備での注意散漫による失点を減らし、勇敢さ(bravery)は際どい競り合い・
+  /// 最後の一枚での対応に寄与するため軽い重みで加える。
   int get defense => _weightedAverage({
         AttributeKeys.tackling: 3,
         AttributeKeys.marking: 3,
@@ -534,9 +545,12 @@ class Player {
         AttributeKeys.anticipation: 2,
         AttributeKeys.strength: 1,
         AttributeKeys.aggression: 1,
+        AttributeKeys.concentration: 1,
+        AttributeKeys.bravery: 1,
       });
 
-  /// 技術（パス・ボールコントロールの複合値）
+  /// 技術（パス・ボールコントロールの複合値）。連係(teamwork)は周囲との
+  /// コンビネーションプレーの質に寄与するため軽い重みで加える。
   int get technique => _weightedAverage({
         AttributeKeys.passing: 3,
         AttributeKeys.firstTouch: 2,
@@ -544,6 +558,7 @@ class Player {
         AttributeKeys.technique: 2,
         AttributeKeys.crossing: 1,
         AttributeKeys.decisions: 1,
+        AttributeKeys.teamwork: 1,
       });
 
   /// スタミナ（持久力・運動量の複合値）
@@ -620,6 +635,7 @@ class Player {
         'contractWeeksRemaining': contractWeeksRemaining,
         'personality': personality.name,
         'happiness': happiness,
+        'reassureCooldownWeeks': reassureCooldownWeeks,
         'isLoan': isLoan,
         'loanWeeksRemaining': loanWeeksRemaining,
         'loanBuyOptionFee': loanBuyOptionFee,
@@ -681,6 +697,7 @@ class Player {
       personality: enumFromName(PlayerPersonality.values,
           json['personality'] as String?, PlayerPersonality.balanced),
       happiness: json['happiness'] as int? ?? 70,
+      reassureCooldownWeeks: json['reassureCooldownWeeks'] as int? ?? 0,
       isLoan: json['isLoan'] as bool? ?? false,
       loanWeeksRemaining: json['loanWeeksRemaining'] as int? ?? 0,
       loanBuyOptionFee: json['loanBuyOptionFee'] as int?,

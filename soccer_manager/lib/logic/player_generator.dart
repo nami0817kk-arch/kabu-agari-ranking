@@ -298,7 +298,52 @@ class PlayerGenerator {
     );
     player.wage = (player.marketValue / 40).round().clamp(5, 500);
     player.contractWeeksRemaining = 15 + _rng.nextInt(30);
+    player.role = _pickRole(player);
+    player.duty = _pickDuty(player);
     return player;
+  }
+
+  /// 選手のポジション・能力値からロール(プレースタイル)を割り当てる。
+  /// CPU選手は手動でロールを設定できないため、ここで割り当てないと
+  /// duty/roleに基づく戦術ボーナス・ペナルティがユーザー専用のまま
+  /// 一方的になってしまう。適性(keyAttributes平均)が基礎能力を明確に
+  /// 上回るロールがなければstandardのまま(無理に決め打ちしない)。
+  static PlayerRole _pickRole(Player p) {
+    final candidates = PlayerRole.values
+        .where((r) =>
+            r != PlayerRole.standard &&
+            r.allowedGroups.contains(p.position.group))
+        .toList();
+    if (candidates.isEmpty) return PlayerRole.standard;
+    PlayerRole? best;
+    double bestAvg = -1;
+    for (final r in candidates) {
+      final avg =
+          r.keyAttributes.fold<int>(0, (s, k) => s + p.attributeValue(k)) /
+              r.keyAttributes.length;
+      if (avg > bestAvg) {
+        bestAvg = avg;
+        best = r;
+      }
+    }
+    if (best == null || bestAvg < p.overall + 5) return PlayerRole.standard;
+    return best;
+  }
+
+  /// 選手のポジション大分類から、デューティ(攻守の重心)を確率的に割り当てる。
+  static PlayerDuty _pickDuty(Player p) {
+    final roll = _rng.nextDouble();
+    switch (p.position.group) {
+      case PositionGroup.gk:
+        return PlayerDuty.support;
+      case PositionGroup.def:
+        return roll < 0.7 ? PlayerDuty.defend : PlayerDuty.support;
+      case PositionGroup.mid:
+        if (roll < 0.5) return PlayerDuty.support;
+        return roll < 0.75 ? PlayerDuty.attack : PlayerDuty.defend;
+      case PositionGroup.att:
+        return roll < 0.7 ? PlayerDuty.attack : PlayerDuty.support;
+    }
   }
 
   /// 1チーム分のスカッド構成（計23名）。

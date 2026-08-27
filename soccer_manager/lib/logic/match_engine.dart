@@ -309,6 +309,23 @@ class MatchEngine {
     return InjuryType.bruise;
   }
 
+  /// 規律ボーナスの対象となるリーダーを探す。キャプテンが出場していれば
+  /// それを、出場していなければ(負傷・出場停止・ベンチ等で)副キャプテンを
+  /// 代わりに用いる。どちらも出場していなければnull。
+  static Player? _findCaptainOrVice(Team team, List<Player> lineup) {
+    if (team.captainId != null) {
+      for (final p in lineup) {
+        if (p.id == team.captainId) return p;
+      }
+    }
+    if (team.viceCaptainId != null) {
+      for (final p in lineup) {
+        if (p.id == team.viceCaptainId) return p;
+      }
+    }
+    return null;
+  }
+
   static Player? _pickCardTarget(List<Player> lineup) {
     final candidates =
         lineup.where((p) => p.position.group != PositionGroup.gk).toList();
@@ -377,10 +394,13 @@ class MatchEngine {
       final isHomeTeam = _rng.nextBool();
       final lineup = isHomeTeam ? homeLineup : awayLineup;
       final team = isHomeTeam ? home : away;
-      // キャプテンが出場しているチームは規律が保たれ、カードをやや受けにくい。
-      if (team.captainId != null &&
-          lineup.any((p) => p.id == team.captainId) &&
-          _rng.nextDouble() < 0.25) {
+      // キャプテン(不在なら副キャプテン)が出場しているチームは規律が保たれ、
+      // カードをやや受けにくい。効果の大きさはそのリーダーのleadership値で
+      // 変わる(値が高いほど効果的、というのはグロッサリーの説明にも合わせる)。
+      final leader = _findCaptainOrVice(team, lineup);
+      if (leader != null &&
+          _rng.nextDouble() <
+              (0.15 + leader.attributeValue(AttributeKeys.leadership) / 400)) {
         continue;
       }
       final target = _pickCardTarget(lineup);
@@ -405,6 +425,26 @@ class MatchEngine {
       // 警告・退場の累積処理は試合終了後にapplyPostMatchEffectsでまとめて行う
       // (出場停止の消化判定より後に反映しないと、今節退場した選手の出場停止が
       // 同じ試合の後処理で即座に解除されてしまうため)。
+    }
+
+    // 時間稼ぎモードは疲労軽減の恩恵がある一方、遅延行為として審判の
+    // 目を引きやすくなるリスクを負う(追加の警告チャンスを1回だけ判定)。
+    for (final t in [home, away]) {
+      if (!t.timeWastingMode) continue;
+      if (_rng.nextDouble() >= 0.18 * span / 90) continue;
+      final minute = startMinute + _rng.nextInt(span);
+      if (minutesUsed.contains(minute)) continue;
+      final lineup = t.id == home.id ? homeLineup : awayLineup;
+      final target = _pickCardTarget(lineup);
+      if (target == null) continue;
+      minutesUsed.add(minute);
+      events.add(MatchEvent(
+        minute: minute,
+        teamId: t.id,
+        scorerName: target.name,
+        scorerId: target.id,
+        type: MatchEventType.yellowCard,
+      ));
     }
 
     // ゴールチャンスは時系列(分)順に評価し、退場による数的不利と
@@ -476,8 +516,14 @@ class MatchEngine {
           if (cornerTaker != null) {
             final cornersAttr =
                 cornerTaker.attributeValue(AttributeKeys.corners);
-            scoreProb =
-                (scoreProb * (1 + (cornersAttr - 50) / 200)).clamp(0.05, 0.75);
+            // ロングスローもコーナーと同様に、ワイドからの精度あるボールの
+            // 供給という点で質に少し寄与させる(コーナーの専門性を主としつつ)。
+            final longThrowsAttr =
+                cornerTaker.attributeValue(AttributeKeys.longThrows);
+            final deliveryQuality =
+                (cornersAttr * 0.8 + longThrowsAttr * 0.2).round();
+            scoreProb = (scoreProb * (1 + (deliveryQuality - 50) / 200))
+                .clamp(0.05, 0.75);
           }
           scoreProb =
               applySetPieceDefense(scoreProb, defendingTeam, defendingLineup);
@@ -673,6 +719,26 @@ class MatchEngine {
 
   /// 前半・後半をまとめて一括シミュレートする(CPU同士の試合・カップ戦など、
   /// ハーフタイム操作が不要な場合に使う)。
+  /// マンマーク指令が未指定のチームに対し、相手のキープレイヤーが自チームの
+  /// 平均総合力を大きく上回る場合に限り、守備力最高の選手へ自動で指令する。
+  /// 既に指名済み(=ユーザーが手動で指名した、または前節までに自動指令済み)
+  /// の場合は上書きしない。CPUクラブが一切マンマークを使わず、ユーザーの
+  /// キープレイヤーが常にノーマークになる一方的な状況を防ぐための処置。
+  static void _maybeAutoAssignManMarker(Team team, List<Player> oppLineup) {
+    if (team.manMarkerId != null) return;
+    if (team.players.isEmpty) return;
+    final keyPlayer = identifyKeyPlayer(oppLineup);
+    if (keyPlayer == null) return;
+    final avgOverall = team.players.fold<int>(0, (s, p) => s + p.overall) /
+        team.players.length;
+    if (keyPlayer.overall - avgOverall < 8) return;
+    Player? marker;
+    for (final p in team.players) {
+      if (marker == null || p.defense > marker.defense) marker = p;
+    }
+    team.manMarkerId = marker?.id;
+  }
+
   static MatchResult simulate({
     required Team home,
     required Team away,
@@ -682,6 +748,8 @@ class MatchEngine {
     Weather weather = Weather.clear,
     double homeAdvantageFactor = 1.06,
   }) {
+    _maybeAutoAssignManMarker(home, lineupOf(away));
+    _maybeAutoAssignManMarker(away, lineupOf(home));
     final first = simulateMinutes(
         home: home,
         away: away,

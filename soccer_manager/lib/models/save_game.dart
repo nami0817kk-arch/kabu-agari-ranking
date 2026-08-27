@@ -138,6 +138,10 @@ class SaveGame {
   /// ユーザークラブが出場する場合のみ、結果が未確定のまま保持される。
   CupMatch? pendingSuperCup;
 
+  /// 資金がマイナスのまま連続している週数(黒字化した時点で0にリセットされる)。
+  /// 一定週数を超えると理事会の信頼度にペナルティが科される。
+  int consecutiveNegativeBudgetWeeks;
+
   SaveGame({
     required this.clubName,
     required this.userTeamId,
@@ -182,6 +186,7 @@ class SaveGame {
     this.lastManagerOfMonthCheckpoint = 0,
     this.pendingContractNegotiation,
     this.pendingSuperCup,
+    this.consecutiveNegativeBudgetWeeks = 0,
   })  : trophyHistory = trophyHistory ?? [],
         clubHistory = clubHistory ?? [],
         freeAgents = freeAgents ?? [],
@@ -249,6 +254,7 @@ class SaveGame {
         'lastManagerOfMonthCheckpoint': lastManagerOfMonthCheckpoint,
         'pendingContractNegotiation': pendingContractNegotiation?.toJson(),
         'pendingSuperCup': pendingSuperCup?.toJson(),
+        'consecutiveNegativeBudgetWeeks': consecutiveNegativeBudgetWeeks,
       };
 
   factory SaveGame.fromJson(Map<String, dynamic> json) => SaveGame(
@@ -363,5 +369,7 @@ class SaveGame {
             ? null
             : CupMatch.fromJson(
                 json['pendingSuperCup'] as Map<String, dynamic>),
+        consecutiveNegativeBudgetWeeks:
+            json['consecutiveNegativeBudgetWeeks'] as int? ?? 0,
       );
 }

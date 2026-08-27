@@ -1,3 +1,4 @@
+import '../models/attributes.dart';
 import '../models/formation.dart';
 import '../models/player.dart';
 import '../models/team.dart';
@@ -112,5 +113,34 @@ class LineupUtils {
       if (p != null) map[p.id] = slots[i];
     }
     return map;
+  }
+
+  /// CPUクラブ向けに、PK・直接FK・CK・守備セットプレー担当を能力値の
+  /// 最も高い選手へ自動的に割り当てる(ユーザーは戦術画面で手動指名する)。
+  /// これがないとCPUは常にセットプレー担当不在のままになり、チャンスの
+  /// 約4分の1を占めるセットプレーの得点力・失点抑止力で一方的に不利になる。
+  static void autoAssignSetPieceRoles(Team team) {
+    if (team.players.isEmpty) return;
+    String bestBy(int Function(Player) score) {
+      var best = team.players.first;
+      var bestScore = score(best);
+      for (final p in team.players.skip(1)) {
+        final s = score(p);
+        if (s > bestScore) {
+          best = p;
+          bestScore = s;
+        }
+      }
+      return best.id;
+    }
+
+    team.penaltyTakerId =
+        bestBy((p) => p.attributeValue(AttributeKeys.penalties));
+    team.freeKickTakerId =
+        bestBy((p) => p.attributeValue(AttributeKeys.freeKick));
+    team.cornerTakerId = bestBy((p) => p.attributeValue(AttributeKeys.corners));
+    team.setPieceDefenderId = bestBy((p) =>
+        p.attributeValue(AttributeKeys.heading) +
+        p.attributeValue(AttributeKeys.jumpingReach));
   }
 }

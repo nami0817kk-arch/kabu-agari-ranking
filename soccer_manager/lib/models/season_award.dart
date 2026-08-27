@@ -1,4 +1,4 @@
-/// シーズン終了時に確定する個人タイトル(得点王・年間MVP)の記録。
+/// シーズン終了時に確定する個人タイトル(得点王・年間MVP・ゴールデングラブ)の記録。
 class SeasonAward {
   final int season;
   final String? topScorerName;
@@ -8,6 +8,10 @@ class SeasonAward {
   final String? mvpName;
   final String? mvpTeamName;
   final String? mvpTeamId;
+  final String? goldenGloveName;
+  final String? goldenGloveTeamName;
+  final String? goldenGloveTeamId;
+  final int goldenGloveCleanSheets;
 
   SeasonAward({
     required this.season,
@@ -18,6 +22,10 @@ class SeasonAward {
     this.mvpName,
     this.mvpTeamName,
     this.mvpTeamId,
+    this.goldenGloveName,
+    this.goldenGloveTeamName,
+    this.goldenGloveTeamId,
+    this.goldenGloveCleanSheets = 0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -29,6 +37,10 @@ class SeasonAward {
         'mvpName': mvpName,
         'mvpTeamName': mvpTeamName,
         'mvpTeamId': mvpTeamId,
+        'goldenGloveName': goldenGloveName,
+        'goldenGloveTeamName': goldenGloveTeamName,
+        'goldenGloveTeamId': goldenGloveTeamId,
+        'goldenGloveCleanSheets': goldenGloveCleanSheets,
       };
 
   factory SeasonAward.fromJson(Map<String, dynamic> json) => SeasonAward(
@@ -40,5 +52,9 @@ class SeasonAward {
         mvpName: json['mvpName'] as String?,
         mvpTeamName: json['mvpTeamName'] as String?,
         mvpTeamId: json['mvpTeamId'] as String?,
+        goldenGloveName: json['goldenGloveName'] as String?,
+        goldenGloveTeamName: json['goldenGloveTeamName'] as String?,
+        goldenGloveTeamId: json['goldenGloveTeamId'] as String?,
+        goldenGloveCleanSheets: json['goldenGloveCleanSheets'] as int? ?? 0,
       );
 }
