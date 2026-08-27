@@ -343,6 +343,19 @@ class _TacticalImpactSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final impact = MatchEngine.tacticalImpact(team);
+    final lineup = MatchEngine.lineupOf(team);
+    final avgWorkRate = lineup.isEmpty
+        ? 50.0
+        : lineup.fold<double>(
+                0, (s, p) => s + p.attributeValue(AttributeKeys.workRate)) /
+            lineup.length;
+    final avgStamina = lineup.isEmpty
+        ? 50.0
+        : lineup.fold<double>(
+                0, (s, p) => s + p.attributeValue(AttributeKeys.stamina)) /
+            lineup.length;
+    final pressingFit = MatchEngine.tacticalFitFactor(avgWorkRate);
+    final tempoFit = MatchEngine.tacticalFitFactor(avgStamina);
     String pct(double multiplier) {
       final delta = ((multiplier - 1) * 100).round();
       return delta >= 0 ? '+$delta%' : '$delta%';
@@ -384,6 +397,13 @@ class _TacticalImpactSummary extends StatelessWidget {
               label: '疲労蓄積',
               text: pct(impact.fatigueMultiplier),
               color: colorFor(impact.fatigueMultiplier, higherIsWorse: true)),
+          const SizedBox(height: 4),
+          Text(
+            'スカッド適性: プレッシング x${pressingFit.toStringAsFixed(2)}'
+            '(労働量平均${avgWorkRate.round()}) / '
+            'テンポ x${tempoFit.toStringAsFixed(2)}(スタミナ平均${avgStamina.round()})',
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
         ],
       ),
     );

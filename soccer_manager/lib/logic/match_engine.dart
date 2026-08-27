@@ -131,11 +131,12 @@ class MatchEngine {
               positionFitMultiplier(p, slotById[p.id] ?? p.position) *
               (p.id == suppressedId ? 0.8 : 1.0),
     );
+    final avgStamina = _avgAttribute(lineup, AttributeKeys.stamina);
     final result = (total / relevant.length) *
         t.formation.attackBias *
         lineHeightAttackFactor(t.lineHeight) *
         widthAttackFactor(t.width) *
-        tempoAttackFactor(t.tempo);
+        tempoAttackFactor(t.tempo, avgStamina);
     return t.timeWastingMode ? result * 0.92 : result;
   }
 
@@ -157,9 +158,10 @@ class MatchEngine {
               roleMultiplier(p, forAttack: false) *
               positionFitMultiplier(p, slotById[p.id] ?? p.position),
     );
+    final avgWorkRate = _avgAttribute(lineup, AttributeKeys.workRate);
     final result = (total / relevant.length) *
         t.formation.defenseBias *
-        pressingDefenseFactor(t.pressing) *
+        pressingDefenseFactor(t.pressing, avgWorkRate) *
         lineHeightDefenseRiskFactor(t.lineHeight) *
         widthDefenseRiskFactor(t.width);
     return t.timeWastingMode ? result * 1.08 : result;
@@ -224,12 +226,29 @@ class MatchEngine {
   /// 攻撃の幅がチームの攻撃力に与える倍率。
   static double widthAttackFactor(int width) => 1 + (width - 50) / 500;
 
-  /// テンポがチームの攻撃力に与える倍率。
-  static double tempoAttackFactor(int tempo) => 1 + (tempo - 50) / 500;
+  /// 選手のある能力値の、出場メンバー内での平均値。
+  static double _avgAttribute(List<Player> lineup, String key) {
+    if (lineup.isEmpty) return 50;
+    final total = lineup.fold<double>(0, (s, p) => s + p.attributeValue(key));
+    return total / lineup.length;
+  }
 
-  /// プレッシングがチームの守備力(ボール奪取)に与える倍率。
-  static double pressingDefenseFactor(int pressing) =>
-      1 + (pressing - 50) / 400;
+  /// 戦術とスカッドの適性係数(0.7〜1.3)。狙った戦術に必要な能力値が
+  /// 高い選手が多いほど、その戦術のボーナス(またはリスク)がより強く出る。
+  /// 低いと「やろうとしていることに選手がついていけない」形で減衰する。
+  static double tacticalFitFactor(double avgAttribute) =>
+      (0.7 + avgAttribute / 165).clamp(0.7, 1.3);
+
+  /// テンポがチームの攻撃力に与える倍率。スタミナの高い選手が多いほど
+  /// 高テンポのメリットを最大限に活かせる。
+  static double tempoAttackFactor(int tempo, [double avgStamina = 50]) =>
+      1 + (tempo - 50) / 500 * tacticalFitFactor(avgStamina);
+
+  /// プレッシングがチームの守備力(ボール奪取)に与える倍率。労働量
+  /// (workRate)の高い選手が多いほど、狙い通りにボールを奪いにいける。
+  static double pressingDefenseFactor(int pressing,
+          [double avgWorkRate = 50]) =>
+      1 + (pressing - 50) / 400 * tacticalFitFactor(avgWorkRate);
 
   /// ライン高さがチームの守備力に与えるリスク倍率(高いラインほど守備が手薄になる)。
   static double lineHeightDefenseRiskFactor(int lineHeight) =>
@@ -252,11 +271,14 @@ class MatchEngine {
     double defenseMultiplier,
     double fatigueMultiplier
   }) tacticalImpact(Team t) {
+    final lineup = lineupOf(t);
+    final avgStamina = _avgAttribute(lineup, AttributeKeys.stamina);
+    final avgWorkRate = _avgAttribute(lineup, AttributeKeys.workRate);
     return (
       attackMultiplier: lineHeightAttackFactor(t.lineHeight) *
           widthAttackFactor(t.width) *
-          tempoAttackFactor(t.tempo),
-      defenseMultiplier: pressingDefenseFactor(t.pressing) *
+          tempoAttackFactor(t.tempo, avgStamina),
+      defenseMultiplier: pressingDefenseFactor(t.pressing, avgWorkRate) *
           lineHeightDefenseRiskFactor(t.lineHeight) *
           widthDefenseRiskFactor(t.width),
       fatigueMultiplier:

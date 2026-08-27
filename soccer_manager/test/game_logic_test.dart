@@ -3944,6 +3944,51 @@ void main() {
   });
 
   test(
+      'MatchEngine.tacticalFitFactor rewards higher attribute averages, and '
+      'a high-workRate/high-stamina squad benefits more from aggressive '
+      'pressing/tempo than a low one, all else being equal', () {
+    expect(MatchEngine.tacticalFitFactor(90),
+        greaterThan(MatchEngine.tacticalFitFactor(30)));
+
+    Team buildTeam(int workRate, int stamina) {
+      final players = <Player>[];
+      for (int i = 0; i < 11; i++) {
+        final p = Player(
+            id: 'p$i',
+            name: 'p$i',
+            age: 25,
+            position: i == 0 ? Position.gk : Position.mc,
+            potential: 80);
+        for (final k in AttributeKeys.all) {
+          p.setAttributeValue(k, 70);
+        }
+        p.setAttributeValue(AttributeKeys.workRate, workRate);
+        p.setAttributeValue(AttributeKeys.stamina, stamina);
+        players.add(p);
+      }
+      final team = Team(
+          id: 't',
+          name: 'T',
+          players: players,
+          startingXI: players.map((p) => p.id).toList());
+      team.pressing = 90;
+      team.tempo = 90;
+      return team;
+    }
+
+    final highFitTeam = buildTeam(90, 90);
+    final lowFitTeam = buildTeam(20, 20);
+
+    final highImpact = MatchEngine.tacticalImpact(highFitTeam);
+    final lowImpact = MatchEngine.tacticalImpact(lowFitTeam);
+
+    expect(
+        highImpact.defenseMultiplier, greaterThan(lowImpact.defenseMultiplier));
+    expect(
+        highImpact.attackMultiplier, greaterThan(lowImpact.attackMultiplier));
+  });
+
+  test(
       'MatchEngine.roleMultiplier rewards attributes matching the role and '
       'penalizes a mismatch, while standard is always neutral', () {
     Player make(String id, {required int uniform}) {
