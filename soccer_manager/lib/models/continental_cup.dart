@@ -72,12 +72,18 @@ class ContinentalCup {
   /// 優勝報酬(賞金・信頼度)を既に付与済みかどうか。二重付与を防ぐためのフラグ。
   bool rewardClaimed;
 
+  /// 直近の試合を消化した時点でのリーグの節数(未消化ならnull)。
+  /// 現実の試合間隔を再現するため、次の試合はリーグがこの節から
+  /// 1節以上進むまで消化できないようにする。
+  int? lastPlayedAtMatchday;
+
   ContinentalCup({
     required this.name,
     required this.groups,
     List<CupMatch>? groupMatches,
     List<List<CupTie>>? knockoutRounds,
     this.rewardClaimed = false,
+    this.lastPlayedAtMatchday,
   })  : groupMatches = groupMatches ?? [],
         knockoutRounds = knockoutRounds ?? [];
 
@@ -123,6 +129,7 @@ class ContinentalCup {
             .map((round) => round.map((t) => t.toJson()).toList())
             .toList(),
         'rewardClaimed': rewardClaimed,
+        'lastPlayedAtMatchday': lastPlayedAtMatchday,
       };
 
   factory ContinentalCup.fromJson(Map<String, dynamic> json) => ContinentalCup(
@@ -139,5 +146,6 @@ class ContinentalCup {
                 .toList())
             .toList(),
         rewardClaimed: json['rewardClaimed'] as bool? ?? false,
+        lastPlayedAtMatchday: json['lastPlayedAtMatchday'] as int?,
       );
 }

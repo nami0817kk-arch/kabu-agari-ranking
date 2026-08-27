@@ -94,12 +94,24 @@ class _DomesticCupTab extends StatelessWidget {
         if (nextMatch != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => _playNext(context),
-                child: const Text('次の試合を消化'),
-              ),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: gameState.canPlayNextDomesticCupMatch
+                        ? () => _playNext(context)
+                        : null,
+                    child: const Text('次の試合を消化'),
+                  ),
+                ),
+                if (!gameState.canPlayNextDomesticCupMatch)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('リーグ戦を1節進めると次の試合を消化できます',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+              ],
             ),
           ),
         for (final round in cup.rounds) ...[
@@ -194,23 +206,47 @@ class _ContinentalCupTab extends StatelessWidget {
         if (nextGroupMatch != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => _playNextGroup(context),
-                child: const Text('次のグループステージの試合を消化'),
-              ),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: gameState.canPlayNextContinentalMatch
+                        ? () => _playNextGroup(context)
+                        : null,
+                    child: const Text('次のグループステージの試合を消化'),
+                  ),
+                ),
+                if (!gameState.canPlayNextContinentalMatch)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('リーグ戦を1節進めると次の試合を消化できます',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+              ],
             ),
           )
         else if (knockoutPending)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => _playNextKnockoutLeg(context),
-                child: const Text('次の決勝トーナメントのレグを消化'),
-              ),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: gameState.canPlayNextContinentalMatch
+                        ? () => _playNextKnockoutLeg(context)
+                        : null,
+                    child: const Text('次の決勝トーナメントのレグを消化'),
+                  ),
+                ),
+                if (!gameState.canPlayNextContinentalMatch)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('リーグ戦を1節進めると次の試合を消化できます',
+                        style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  ),
+              ],
             ),
           ),
         _RoundSection(

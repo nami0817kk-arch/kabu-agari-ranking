@@ -66,11 +66,18 @@ class Cup {
   /// 優勝報酬(賞金・信頼度)を既に付与済みかどうか。二重付与を防ぐためのフラグ。
   bool rewardClaimed;
 
-  Cup(
-      {required this.type,
-      required this.name,
-      required this.rounds,
-      this.rewardClaimed = false});
+  /// 直近の試合を消化した時点でのリーグの節数(未消化ならnull)。
+  /// 現実の試合間隔を再現するため、次の試合はリーグがこの節から
+  /// 1節以上進むまで消化できないようにする。
+  int? lastPlayedAtMatchday;
+
+  Cup({
+    required this.type,
+    required this.name,
+    required this.rounds,
+    this.rewardClaimed = false,
+    this.lastPlayedAtMatchday,
+  });
 
   bool get isComplete =>
       rounds.isNotEmpty &&
@@ -112,6 +119,7 @@ class Cup {
         'name': name,
         'rounds': rounds.map((r) => r.map((m) => m.toJson()).toList()).toList(),
         'rewardClaimed': rewardClaimed,
+        'lastPlayedAtMatchday': lastPlayedAtMatchday,
       };
 
   factory Cup.fromJson(Map<String, dynamic> json) => Cup(
@@ -124,5 +132,6 @@ class Cup {
                 .toList())
             .toList(),
         rewardClaimed: json['rewardClaimed'] as bool? ?? false,
+        lastPlayedAtMatchday: json['lastPlayedAtMatchday'] as int?,
       );
 }

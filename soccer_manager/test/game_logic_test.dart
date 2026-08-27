@@ -820,11 +820,14 @@ void main() {
     expect(gameState.domesticCup, isNotNull);
     expect(gameState.continentalCup, isNull);
 
+    // カップ戦は現実の試合間隔を再現するため、直前の消化からリーグが1節
+    // 進むまで次の試合を消化できない。そのため毎回リーグも1節進める。
     int guard = 0;
     do {
       await gameState.playNextCupMatch();
+      await gameState.playNextMatchdayQuickSim();
       guard++;
-    } while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20);
+    } while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 60);
 
     expect(gameState.domesticCup!.isComplete, isTrue);
   });
@@ -837,11 +840,14 @@ void main() {
     final userId = gameState.userTeam.id;
 
     int guard = 0;
-    while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 20) {
+    while (gameState.domesticCup!.nextUnplayedMatch != null && guard < 60) {
       final next = gameState.domesticCup!.nextUnplayedMatch!;
       final expected = next.homeTeamId == userId || next.awayTeamId == userId;
       expect(gameState.isUserDomesticCupMatchUpNext, expected);
       await gameState.playNextCupMatch();
+      // カップ戦は現実の試合間隔を再現するため、直前の消化からリーグが
+      // 1節進むまで次の試合を消化できない。そのため毎回リーグも1節進める。
+      await gameState.playNextMatchdayQuickSim();
       guard++;
     }
 
@@ -5269,5 +5275,60 @@ void main() {
     final nonMatchNonTrainingDay = days.firstWhere(
         (d) => !d.isLeagueMatchDay && d.date.weekday != matchDate.weekday);
     expect(nonMatchNonTrainingDay.isTrainingFocusDay, isFalse);
+  });
+
+  test(
+      'GameState blocks a second domestic cup match until the league '
+      'advances at least one matchday, then allows it', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+
+    expect(gameState.canPlayNextDomesticCupMatch, isTrue);
+    final firstMatchBefore = gameState.domesticCup!.nextUnplayedMatch;
+    final firstResult = await gameState.playNextCupMatch();
+    expect(firstResult, isNotNull);
+    expect(gameState.domesticCup!.nextUnplayedMatch, isNot(firstMatchBefore));
+
+    // リーグ戦を1節も進めていないので、次のカップ戦は消化できない。
+    expect(gameState.canPlayNextDomesticCupMatch, isFalse);
+    final blockedMatch = gameState.domesticCup!.nextUnplayedMatch;
+    final blockedResult = await gameState.playNextCupMatch();
+    expect(blockedResult, isNull);
+    expect(gameState.domesticCup!.nextUnplayedMatch, blockedMatch);
+
+    // リーグを1節進めると、次のカップ戦を消化できるようになる。
+    await gameState.playNextMatchdayQuickSim();
+    expect(gameState.canPlayNextDomesticCupMatch, isTrue);
+    final secondResult = await gameState.playNextCupMatch();
+    expect(secondResult, isNotNull);
+  });
+
+  test(
+      'GameState allows unrestricted cup progress once the league season is '
+      'fully complete, so a pending cup never gets stuck forever', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final userId = gameState.userTeam.id;
+    for (final f in gameState.save!.league.fixtures) {
+      final userIsHome = f.homeTeamId == userId;
+      f.result = MatchResult(
+        matchday: f.matchday,
+        homeTeamId: f.homeTeamId,
+        awayTeamId: f.awayTeamId,
+        homeGoals: userIsHome ? 2 : 1,
+        awayGoals: userIsHome ? 1 : 2,
+        events: [],
+      );
+    }
+    expect(gameState.save!.league.nextUnplayedFixture, isNull);
+
+    int guard = 0;
+    while (gameState.domesticCup?.nextUnplayedMatch != null && guard < 100) {
+      expect(gameState.canPlayNextDomesticCupMatch, isTrue);
+      await gameState.playNextCupMatch();
+      guard++;
+    }
+
+    expect(gameState.domesticCup!.isComplete, isTrue);
   });
 }

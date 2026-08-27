@@ -2314,13 +2314,38 @@ class GameState extends ChangeNotifier {
     return match.homeTeamId == userId || match.awayTeamId == userId;
   }
 
+  /// リーグの現在の節番号(シーズン終了後は最終節+1)。カップ戦の消化間隔
+  /// (現実の試合間隔の再現)を判定する基準として使う。
+  int get _currentLeagueMatchdayMarker {
+    final nextMd = _save!.league.nextUnplayedFixture?.matchday;
+    return nextMd ?? (_totalMatchdaysThisSeason + 1);
+  }
+
+  bool _canAdvanceCup(int? lastPlayedAtMatchday) {
+    if (_save == null) return false;
+    // リーグ戦が全節消化済み(オフシーズン)の間は、もう間隔を置く相手がいない
+    // ため無制限に消化できる。そうしないと、リーグ完了後に残ったカップ戦は
+    // 節数が二度と進まず永久に足止めされてしまう。
+    if (_save!.league.nextUnplayedFixture == null) return true;
+    return lastPlayedAtMatchday == null ||
+        _currentLeagueMatchdayMarker > lastPlayedAtMatchday;
+  }
+
+  /// 国内カップ戦の次の試合を消化できるか。直前の消化からリーグが1節も
+  /// 進んでいない場合は、現実の試合間隔を再現するためfalseになる。
+  bool get canPlayNextDomesticCupMatch =>
+      domesticCup?.nextUnplayedMatch != null &&
+      _canAdvanceCup(domesticCup!.lastPlayedAtMatchday);
+
   Future<MatchResult?> playNextCupMatch() async {
     if (_save == null) return null;
     final cup = domesticCup;
-    if (cup == null) return null;
+    if (cup == null || cup.nextUnplayedMatch == null) return null;
+    if (!_canAdvanceCup(cup.lastPlayedAtMatchday)) return null;
     final userId = _save!.userTeamId;
 
     final result = CupEngine.playNextMatch(cup, allTeamsForCups);
+    cup.lastPlayedAtMatchday = _currentLeagueMatchdayMarker;
     if (result != null &&
         (result.homeTeamId == userId || result.awayTeamId == userId)) {
       if (cup.isEliminated(userId)) {
@@ -2338,14 +2363,35 @@ class GameState extends ChangeNotifier {
     return result;
   }
 
+  /// 大陸カップに次に消化すべき試合(グループステージ、または決勝
+  /// トーナメント)が残っているか。
+  bool _continentalHasNextMatch(ContinentalCup cup) {
+    if (!cup.isGroupStageComplete) {
+      return ContinentalCupEngine.nextGroupMatch(cup) != null;
+    }
+    return cup.knockoutRounds.isNotEmpty &&
+        cup.knockoutRounds.last.any((t) => !t.isComplete);
+  }
+
+  /// 大陸カップの次の試合を消化できるか。直前の消化からリーグが1節も
+  /// 進んでいない場合は、現実の試合間隔を再現するためfalseになる。
+  bool get canPlayNextContinentalMatch {
+    final cup = _save?.continentalCup;
+    if (cup == null || !_continentalHasNextMatch(cup)) return false;
+    return _canAdvanceCup(cup.lastPlayedAtMatchday);
+  }
+
   /// 大陸カップのグループステージ次の1試合を消化する。全組が終わると
   /// 自動的に決勝トーナメントの組み合わせが決定される。
   Future<MatchResult?> playNextContinentalGroupMatch() async {
     if (_save == null || _save!.continentalCup == null) return null;
     final cup = _save!.continentalCup!;
+    if (!_continentalHasNextMatch(cup)) return null;
+    if (!_canAdvanceCup(cup.lastPlayedAtMatchday)) return null;
     final userId = _save!.userTeamId;
     final result =
         ContinentalCupEngine.playNextGroupMatch(cup, allTeamsForCups);
+    cup.lastPlayedAtMatchday = _currentLeagueMatchdayMarker;
     if (result != null &&
         (result.homeTeamId == userId || result.awayTeamId == userId) &&
         cup.isEliminated(userId)) {
@@ -2360,9 +2406,12 @@ class GameState extends ChangeNotifier {
   Future<MatchResult?> playNextContinentalKnockoutLeg() async {
     if (_save == null || _save!.continentalCup == null) return null;
     final cup = _save!.continentalCup!;
+    if (!_continentalHasNextMatch(cup)) return null;
+    if (!_canAdvanceCup(cup.lastPlayedAtMatchday)) return null;
     final userId = _save!.userTeamId;
     final result =
         ContinentalCupEngine.playNextKnockoutLeg(cup, allTeamsForCups);
+    cup.lastPlayedAtMatchday = _currentLeagueMatchdayMarker;
     if (result != null &&
         (result.homeTeamId == userId || result.awayTeamId == userId) &&
         cup.isEliminated(userId)) {
