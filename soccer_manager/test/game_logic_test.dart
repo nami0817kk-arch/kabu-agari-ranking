@@ -4690,6 +4690,68 @@ void main() {
   });
 
   test(
+      'Player.marketValue rewards professional/ambitious personalities and '
+      'discounts temperamental ones, all else being equal', () {
+    Player makePlayerWithPersonality(PlayerPersonality personality) {
+      final p = Player(
+          id: 'p-$personality',
+          name: 'p',
+          age: 25,
+          position: Position.st,
+          potential: 80);
+      for (final k in AttributeKeys.all) {
+        p.setAttributeValue(k, 70);
+      }
+      p.personality = personality;
+      return p;
+    }
+
+    final professional =
+        makePlayerWithPersonality(PlayerPersonality.professional);
+    final balanced = makePlayerWithPersonality(PlayerPersonality.balanced);
+    final temperamental =
+        makePlayerWithPersonality(PlayerPersonality.temperamental);
+
+    expect(professional.marketValue, greaterThan(balanced.marketValue));
+    expect(balanced.marketValue, greaterThan(temperamental.marketValue));
+  });
+
+  test('Player.marketValue rises with leadership, all else being equal', () {
+    final lowLeadership = Player(
+        id: 'p1', name: 'p', age: 25, position: Position.st, potential: 80);
+    final highLeadership = Player(
+        id: 'p2', name: 'p', age: 25, position: Position.st, potential: 80);
+    for (final k in AttributeKeys.all) {
+      lowLeadership.setAttributeValue(k, 70);
+      highLeadership.setAttributeValue(k, 70);
+    }
+    lowLeadership.setAttributeValue(AttributeKeys.leadership, 20);
+    highLeadership.setAttributeValue(AttributeKeys.leadership, 90);
+
+    expect(highLeadership.marketValue, greaterThan(lowLeadership.marketValue));
+  });
+
+  test(
+      'a professional personality grows an attribute more often than a '
+      'temperamental one, all else being equal', () {
+    int countFinishingGrowths(PlayerPersonality personality) {
+      var growths = 0;
+      for (int i = 0; i < 400; i++) {
+        final p = makeFreshPlayer();
+        p.personality = personality;
+        TrainingEngine.applyYouthAcademyGrowth([p], 1);
+        if (p.attributeValue(AttributeKeys.finishing) > 50) growths++;
+      }
+      return growths;
+    }
+
+    final professional = countFinishingGrowths(PlayerPersonality.professional);
+    final temperamental =
+        countFinishingGrowths(PlayerPersonality.temperamental);
+    expect(professional, greaterThan(temperamental));
+  });
+
+  test(
       'GameState.giveTeamTalk moves starters\' morale by an amount scaled by '
       'their personality\'s result sensitivity', () async {
     final gameState = GameState();

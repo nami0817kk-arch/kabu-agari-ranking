@@ -309,6 +309,8 @@ class TrainingEngine {
     if (p.age > 30) c *= 0.4;
     // 闘志(determination)が高い選手ほど伸びやすく、低い選手は伸びにくい。
     c *= 0.7 + p.attributeValue(AttributeKeys.determination) / 165;
+    // 性格によって自主練習への取り組み方が異なり、成長効率に差が出る。
+    c *= p.personality.growthFactor;
     // 出場機会が乏しく実戦感覚(マッチシャープネス)が低い選手は伸び悩む。
     if (p.matchSharpness < 40) c *= 0.7;
     if (_rng.nextDouble() > c) return;

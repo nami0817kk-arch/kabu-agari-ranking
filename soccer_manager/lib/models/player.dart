@@ -314,6 +314,41 @@ extension PlayerPersonalityInfo on PlayerPersonality {
         return 30;
     }
   }
+
+  /// トレーニングでの成長効率倍率。プロフェッショナルな選手ほど自主練習に
+  /// 励んで伸びやすく、気分屋は取り組みにムラがあり伸び悩みやすい。
+  double get growthFactor {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 1.15;
+      case PlayerPersonality.ambitious:
+        return 1.08;
+      case PlayerPersonality.balanced:
+        return 1.0;
+      case PlayerPersonality.loyal:
+        return 0.97;
+      case PlayerPersonality.temperamental:
+        return 0.85;
+    }
+  }
+
+  /// 想定移籍金への性格による倍率。プロ意識・野心の高さは他クラブからの
+  /// 評価(=市場価値)を押し上げ、気分屋は「扱いにくさ」を敬遠されて
+  /// 割り引かれる。忠誠心は移籍する気の薄さから買い手がつきにくい。
+  double get marketValueFactor {
+    switch (this) {
+      case PlayerPersonality.professional:
+        return 1.1;
+      case PlayerPersonality.ambitious:
+        return 1.08;
+      case PlayerPersonality.balanced:
+        return 1.0;
+      case PlayerPersonality.loyal:
+        return 0.95;
+      case PlayerPersonality.temperamental:
+        return 0.88;
+    }
+  }
 }
 
 /// 旧バージョン（gk/df/mf/fwの4区分）のセーブデータからポジション名を解決する。
@@ -623,7 +658,14 @@ class Player {
     } else {
       ageFactor = 0.4;
     }
-    final value = (base + potentialBonus) * ageFactor;
+    // リーダーシップが高い選手は主将候補として、低い選手はロッカールームへの
+    // 悪影響を懸念されてわずかに評価が振れる(±10%)。
+    final leadershipFactor = 1 +
+        (attributeValue(AttributeKeys.leadership) - 50).clamp(-50, 50) / 500;
+    final value = (base + potentialBonus) *
+        ageFactor *
+        personality.marketValueFactor *
+        leadershipFactor;
     return value.round().clamp(50, 20000);
   }
 
