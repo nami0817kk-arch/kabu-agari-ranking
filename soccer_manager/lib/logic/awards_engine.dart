@@ -18,9 +18,30 @@ class AwardsEngine {
     return goals;
   }
 
+  /// 得点イベント自体が持つ選手名・チームIDを選手IDごとに記録する。
+  /// シーズン中に移籍・退団した得点王でも、現在のロースター検索に頼らず
+  /// 表彰記録の氏名を確定できるようにするため。
+  static Map<String, ({String name, String teamId})> _scorerInfoByPlayer(
+      League league) {
+    final info = <String, ({String name, String teamId})>{};
+    for (final f in league.fixtures) {
+      final result = f.result;
+      if (result == null) continue;
+      for (final e in result.events) {
+        if (e.type == MatchEventType.goal &&
+            e.scorerId != null &&
+            e.scorerName != null) {
+          info[e.scorerId!] = (name: e.scorerName!, teamId: e.teamId);
+        }
+      }
+    }
+    return info;
+  }
+
   /// シーズン終了時に得点王・年間MVPを確定する。得点イベントが1件もない場合はnullを返す項目もある。
   static SeasonAward computeAwards(League league, int season) {
     final goals = _goalsByPlayer(league);
+    final scorerInfo = _scorerInfoByPlayer(league);
 
     String? topScorerId;
     int topScorerGoals = 0;
@@ -35,12 +56,14 @@ class AwardsEngine {
     String? topScorerTeamName;
     String? topScorerTeamId;
     if (topScorerId != null) {
-      for (final t in league.teams) {
-        for (final p in t.players) {
-          if (p.id == topScorerId) {
-            topScorerName = p.name;
+      final info = scorerInfo[topScorerId];
+      if (info != null) {
+        topScorerName = info.name;
+        topScorerTeamId = info.teamId;
+        for (final t in league.teams) {
+          if (t.id == info.teamId) {
             topScorerTeamName = t.name;
-            topScorerTeamId = t.id;
+            break;
           }
         }
       }

@@ -357,13 +357,15 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
   }
 
   Future<void> _confirm(BuildContext context, int amount, LoanTerm term) async {
+    // シートを閉じる前にScaffoldMessengerを確保しておく。閉じた後のcontextで
+    // 取得・mounted判定すると、閉じるアニメーションと非同期処理の完了が
+    // 競合し、成否のフィードバックが表示されないことがあるため。
+    final messenger = ScaffoldMessenger.of(context);
     Navigator.pop(context);
     final ok = await widget.gameState.takeLoan(amount, term);
     ok ? FeedbackService.success() : FeedbackService.error();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? '$amount万円を借り入れました' : '融資を申し込めませんでした')),
-      );
-    }
+    messenger.showSnackBar(
+      SnackBar(content: Text(ok ? '$amount万円を借り入れました' : '融資を申し込めませんでした')),
+    );
   }
 }

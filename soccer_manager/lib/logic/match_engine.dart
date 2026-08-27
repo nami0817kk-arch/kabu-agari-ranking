@@ -104,6 +104,13 @@ class MatchEngine {
     return 0.75 + 0.15 * familiarity;
   }
 
+  /// スカッド崩壊などで該当グループの選手が1人もいない場合の攻守力。
+  /// フォーメーション上想定されない稀なケースの安全策であり、通常の
+  /// チーム(40〜90程度)と互角に渡り合えてしまわないよう、明確に低い
+  /// 値にする(先発全体も空なら、なお一段と低い値にする)。
+  static double _emptyGroupPower(List<Player> lineup) =>
+      lineup.isEmpty ? 8 : 15;
+
   static double _attackPower(Team t, List<Player> lineup,
       {String? suppressedId}) {
     final relevant = lineup
@@ -111,7 +118,7 @@ class MatchEngine {
             p.position.group == PositionGroup.att ||
             p.position.group == PositionGroup.mid)
         .toList();
-    if (relevant.isEmpty) return 40;
+    if (relevant.isEmpty) return _emptyGroupPower(lineup);
     final slotById = LineupUtils.assignedSlotByPlayerId(t);
     final total = relevant.fold<double>(
       0,
@@ -141,7 +148,7 @@ class MatchEngine {
             p.position.group == PositionGroup.def ||
             p.position.group == PositionGroup.gk)
         .toList();
-    if (relevant.isEmpty) return 40;
+    if (relevant.isEmpty) return _emptyGroupPower(lineup);
     final slotById = LineupUtils.assignedSlotByPlayerId(t);
     final total = relevant.fold<double>(
       0,

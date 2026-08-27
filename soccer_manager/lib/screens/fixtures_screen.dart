@@ -48,7 +48,10 @@ class FixturesScreen extends StatelessWidget {
         body: ResponsiveBody(
           child: TabBarView(
             children: [
-              _StandingsTab(league: league, userTeamId: userTeamId),
+              _StandingsTab(
+                  league: league,
+                  userTeamId: userTeamId,
+                  divisionTier: gameState.save!.currentDivisionTier),
               _ScheduleTab(league: league, userTeamId: userTeamId),
             ],
           ),
@@ -235,13 +238,20 @@ class FixturesScreen extends StatelessWidget {
 class _StandingsTab extends StatelessWidget {
   final League league;
   final String userTeamId;
+  final int divisionTier;
 
-  const _StandingsTab({required this.league, required this.userTeamId});
+  const _StandingsTab(
+      {required this.league,
+      required this.userTeamId,
+      required this.divisionTier});
 
   @override
   Widget build(BuildContext context) {
     final rows = league.sortedStandings;
+    final isTier1 = divisionTier == 1;
     final relegationStart = rows.length - PromotionEngine.swapCount;
+    const autoPromotionEnd = PromotionEngine.automaticPromotionCount;
+    const playoffEnd = autoPromotionEnd + PromotionEngine.playoffPoolSize;
     return Column(
       children: [
         Padding(
@@ -249,11 +259,20 @@ class _StandingsTab extends StatelessWidget {
           child: Wrap(
             spacing: 12,
             runSpacing: 4,
-            children: [
-              _ZoneLegend(color: Colors.amber.shade700, label: '大陸カップ出場圏'),
-              _ZoneLegend(
-                  color: SemanticColors.negative(context), label: '降格圏'),
-            ],
+            children: isTier1
+                ? [
+                    _ZoneLegend(
+                        color: Colors.amber.shade700, label: '大陸カップ出場圏'),
+                    _ZoneLegend(
+                        color: SemanticColors.negative(context), label: '降格圏'),
+                  ]
+                : [
+                    _ZoneLegend(
+                        color: SemanticColors.positive(context),
+                        label: '自動昇格圏'),
+                    _ZoneLegend(
+                        color: Colors.deepPurple.shade300, label: '昇格プレーオフ圏'),
+                  ],
           ),
         ),
         Expanded(
@@ -263,11 +282,17 @@ class _StandingsTab extends StatelessWidget {
               final r = rows[i];
               final team = league.teams.firstWhere((t) => t.id == r.teamId);
               final isUser = r.teamId == userTeamId;
-              final zoneColor = i < _continentalQualifyCount
-                  ? Colors.amber.shade700
-                  : i >= relegationStart
-                      ? SemanticColors.negative(context)
-                      : null;
+              final zoneColor = isTier1
+                  ? (i < _continentalQualifyCount
+                      ? Colors.amber.shade700
+                      : i >= relegationStart
+                          ? SemanticColors.negative(context)
+                          : null)
+                  : (i < autoPromotionEnd
+                      ? SemanticColors.positive(context)
+                      : i < playoffEnd
+                          ? Colors.deepPurple.shade300
+                          : null);
               final row = Container(
                 decoration: BoxDecoration(
                   color: isUser

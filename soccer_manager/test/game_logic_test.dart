@@ -4469,4 +4469,150 @@ void main() {
       expect(p.continentalProbability, 0.0);
     }
   });
+
+  test(
+      'GameState.startNextSeason clears a retiring captain\'s role '
+      'references instead of leaving a dangling ID', () async {
+    bool observed = false;
+    for (int attempt = 0; attempt < 30 && !observed; attempt++) {
+      SharedPreferences.setMockInitialValues({});
+      final gameState = GameState();
+      await gameState.startNewGame('テストFC');
+      final captain = gameState.userTeam.players.first;
+      // 引退確率は年齢とともに上がり32歳以降0.9で頭打ちになるため、
+      // 高齢に設定して30回試行のうちほぼ確実に引退させる。
+      captain.age = 45;
+      await gameState.setCaptain(captain.id);
+      gameState.userTeam.penaltyTakerId = captain.id;
+
+      await gameState.startNextSeason();
+
+      final team = gameState.userTeam;
+      if (!team.players.any((p) => p.id == captain.id)) {
+        observed = true;
+        expect(team.captainId, isNull);
+        expect(team.penaltyTakerId, isNull);
+      }
+    }
+    expect(observed, isTrue, reason: '45歳のキャプテンが30回の試行内で一度も引退しなかった');
+  });
+
+  test(
+      'GameState.sellPlayer cancels that player\'s pending installment plan '
+      'instead of continuing to charge the club for a player it no longer '
+      'owns', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    gameState.save!.budget = target.marketValue;
+
+    final bought = await gameState.buyPlayerOnInstallments(target.id);
+    expect(bought, isTrue);
+    expect(gameState.save!.pendingInstallments, isNotEmpty);
+    gameState.save!.budget = 999999;
+
+    final sold = await gameState.sellPlayer(target.id);
+
+    expect(sold, isTrue);
+    expect(
+        gameState.save!.pendingInstallments.any((i) => i.playerId == target.id),
+        isFalse);
+  });
+
+  test(
+      'AwardsEngine.computeAwards still names the season top scorer even '
+      'after they left every current roster before the season ended', () {
+    final star = Player(
+        id: 'star', name: 'エース', age: 25, position: Position.st, potential: 60);
+    final other = Player(
+        id: 'other',
+        name: 'その他',
+        age: 25,
+        position: Position.st,
+        potential: 60);
+    // starは移籍・退団済みでどのチームのロースターにも存在しない。
+    final team = Team(id: 't', name: 'T', players: [other]);
+    final league = League(
+      teams: [team],
+      fixtures: [
+        Fixture(
+          matchday: 1,
+          homeTeamId: 't',
+          awayTeamId: 't',
+          result: MatchResult(
+            matchday: 1,
+            homeTeamId: 't',
+            awayTeamId: 't',
+            homeGoals: 2,
+            awayGoals: 0,
+            events: [
+              MatchEvent(
+                  minute: 10,
+                  teamId: 't',
+                  scorerName: star.name,
+                  scorerId: star.id,
+                  type: MatchEventType.goal),
+              MatchEvent(
+                  minute: 20,
+                  teamId: 't',
+                  scorerName: star.name,
+                  scorerId: star.id,
+                  type: MatchEventType.goal),
+            ],
+          ),
+        ),
+      ],
+      season: 1,
+    );
+
+    final award = AwardsEngine.computeAwards(league, 1);
+
+    expect(award.topScorerName, star.name);
+    expect(award.topScorerGoals, 2);
+    expect(award.topScorerTeamId, 't');
+    expect(award.topScorerTeamName, 'T');
+  });
+
+  test(
+      'GameState.exerciseLoanBuyOption restores the pre-loan wage instead '
+      'of permanently keeping the loan-period discount', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final target = gameState.transferMarket.first;
+    final wageBeforeLoan = target.wage;
+    final expectedFee =
+        (target.marketValue * GameState.loanBuyOptionRatio).round();
+    gameState.save!.budget = target.marketValue + expectedFee;
+
+    await gameState.signLoanPlayer(target.id, withBuyOption: true);
+    final player =
+        gameState.userTeam.players.firstWhere((p) => p.id == target.id);
+    expect(player.wage, lessThan(wageBeforeLoan));
+
+    await gameState.exerciseLoanBuyOption(target.id);
+
+    expect(player.wage, closeTo(wageBeforeLoan.toDouble(), 2));
+  });
+
+  test(
+      'GameState.applyTacticPreset drops a set-piece taker who has since '
+      'left the roster instead of reinstating a stale player ID', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final team = gameState.userTeam;
+    while (team.players.length > minSquadSize + 1) {
+      team.players.removeLast();
+    }
+    final taker = team.players.first;
+    team.penaltyTakerId = taker.id;
+    gameState.saveTacticPreset('セット専用');
+
+    final sold = await gameState.sellPlayer(taker.id);
+    expect(sold, isTrue);
+    expect(team.penaltyTakerId, isNull);
+
+    gameState.applyTacticPreset('セット専用');
+
+    expect(team.penaltyTakerId, isNull);
+  });
 }

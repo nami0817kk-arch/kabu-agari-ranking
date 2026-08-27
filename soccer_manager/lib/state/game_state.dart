@@ -667,9 +667,17 @@ class GameState extends ChangeNotifier {
     team.lineHeight = preset.lineHeight;
     team.width = preset.width;
     team.tempo = preset.tempo;
-    team.penaltyTakerId = preset.penaltyTakerId;
-    team.freeKickTakerId = preset.freeKickTakerId;
-    team.cornerTakerId = preset.cornerTakerId;
+    final rosterIds = team.players.map((p) => p.id).toSet();
+    // プリセット保存後に売却・引き抜き等で離脱した選手が指名されたままに
+    // ならないよう、現在のスカッドに残っている場合のみ復元する。
+    team.penaltyTakerId = rosterIds.contains(preset.penaltyTakerId)
+        ? preset.penaltyTakerId
+        : null;
+    team.freeKickTakerId = rosterIds.contains(preset.freeKickTakerId)
+        ? preset.freeKickTakerId
+        : null;
+    team.cornerTakerId =
+        rosterIds.contains(preset.cornerTakerId) ? preset.cornerTakerId : null;
     LineupUtils.autoFill(team);
     notifyListeners();
     _persist();
@@ -757,7 +765,7 @@ class GameState extends ChangeNotifier {
 
   /// 選手がチームを離れる際、キャプテンやセットプレー担当など個別の役割
   /// 指名にその選手のIDが残ったままにならないよう解除する。あわせて、
-  /// その選手を対象にした契約交渉が進行中であれば破棄する。
+  /// その選手を対象にした契約交渉・分割払い残金が進行中であれば破棄する。
   void _clearPlayerRoleReferences(Team team, String playerId) {
     if (team.captainId == playerId) team.captainId = null;
     if (team.viceCaptainId == playerId) team.viceCaptainId = null;
@@ -769,6 +777,7 @@ class GameState extends ChangeNotifier {
     if (_save?.pendingContractNegotiation?.playerId == playerId) {
       _save!.pendingContractNegotiation = null;
     }
+    _save?.pendingInstallments.removeWhere((i) => i.playerId == playerId);
   }
 
   Future<bool> sellPlayer(String playerId) async {
@@ -927,6 +936,7 @@ class GameState extends ChangeNotifier {
       description: '${player.name} 分割払い残金',
       weeklyAmount: (remaining / weeks).ceil(),
       weeksRemaining: weeks,
+      playerId: player.id,
     ));
     userTeam.players.add(player);
     transferMarket.removeAt(idx);
@@ -984,6 +994,9 @@ class GameState extends ChangeNotifier {
     player.isLoan = false;
     player.loanWeeksRemaining = 0;
     player.loanBuyOptionFee = null;
+    // ローン中は週俸を6割に軽減していた(signLoanPlayer)ため、完全移籍化に
+    // あたって元の水準に戻す。そのままだと恒久的に割引契約のままになる。
+    player.wage = (player.wage / 0.6).round().clamp(1, 999);
     player.contractWeeksRemaining = ContractEngine.renewalWeeks;
     notifyListeners();
     await _persist();
@@ -2279,6 +2292,9 @@ class GameState extends ChangeNotifier {
 
     // 高齢選手の引退判定(ユースプロスペクトは対象外)。
     final retirees = RetirementEngine.resolveRetirements(userTeam);
+    for (final p in retirees) {
+      _clearPlayerRoleReferences(userTeam, p.id);
+    }
     _save!.retiredLegends.addAll(retirees);
     lastRetirements = retirees.map((p) => p.name).toList();
 
