@@ -17,14 +17,18 @@ class TrainingEngine {
   /// それを優先し、未設定の選手はチームの既定方針に従う。
   /// [headCoachLevel]は成長効率、[trainingGroundLevel]は成長効率と疲労回復を高める。
   /// [injuryFactor]はフィジオのレベルに応じた練習中の負傷リスク軽減係数。
+  /// [careerGrowthBonus]は監督としての生涯成長(通算実績)に応じた成長効率の
+  /// 追加倍率(1.0でボーナスなし)。
   static void applyWeeklyTraining(
     Team team, {
     int headCoachLevel = 1,
     int trainingGroundLevel = 1,
     double injuryFactor = 1.0,
+    double careerGrowthBonus = 1.0,
   }) {
     final growthMultiplier = ClubInfrastructure.trainingGrowthMultiplier(
-        headCoachLevel, trainingGroundLevel);
+            headCoachLevel, trainingGroundLevel) *
+        careerGrowthBonus;
     final fatigueRecoveryBonus =
         ClubInfrastructure.fatigueRecoveryBonus(trainingGroundLevel);
     final byId = {for (final p in team.players) p.id: p};

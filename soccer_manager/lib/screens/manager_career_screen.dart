@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../logic/manager_career_engine.dart';
 import '../state/game_state.dart';
 import '../theme/semantic_colors.dart';
 import '../widgets/quick_access_drawer.dart';
@@ -60,6 +61,58 @@ class ManagerCareerScreen extends StatelessWidget {
                             color: SemanticColors.negative(context)),
                         _StatColumn(label: '勝率', value: '$winRate%'),
                       ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('生涯成長',
+                            style: Theme.of(context).textTheme.titleMedium),
+                        Chip(
+                          label: Text('Lv.${gameState.managerCareerLevel}'
+                              '${gameState.managerCareerLevel >= ManagerCareerEngine.maxLevel ? ' (MAX)' : ''}'),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      '通算勝敗・獲得タイトル・実績解除数の積み重ねで監督として'
+                      '成長し、選手の成長効率がわずかに上がり続ける',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    if (gameState.managerCareerLevel <
+                        ManagerCareerEngine.maxLevel) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: gameState.managerCareerProgressFraction,
+                          minHeight: 8,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                          '次のレベルまであとXP ${gameState.managerCareerXpToNextLevel}',
+                          style: const TextStyle(
+                              fontSize: 11, color: Colors.grey)),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '選手成長効率 x${gameState.managerCareerGrowthBonus.toStringAsFixed(2)}',
+                      style: TextStyle(
+                          color: SemanticColors.positive(context),
+                          fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),

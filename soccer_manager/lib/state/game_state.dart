@@ -41,6 +41,7 @@ import '../logic/cup_engine.dart';
 import '../logic/happiness_engine.dart';
 import '../logic/investment_engine.dart';
 import '../logic/loan_engine.dart';
+import '../logic/manager_career_engine.dart';
 import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
 import '../logic/promotion_engine.dart';
@@ -569,6 +570,31 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
+  /// 監督としての生涯経験値(通算勝敗・トロフィー・実績解除数から算出)。
+  int get managerCareerXp => _save == null
+      ? 0
+      : ManagerCareerEngine.xpFor(
+          careerWins: _save!.careerWins,
+          careerDraws: _save!.careerDraws,
+          trophyCount: _save!.trophyHistory.length,
+          unlockedAchievementCount: _save!.unlockedAchievements.length,
+        );
+
+  /// 監督としての生涯成長レベル(1〜[ManagerCareerEngine.maxLevel])。
+  int get managerCareerLevel => ManagerCareerEngine.levelFor(managerCareerXp);
+
+  /// 次のレベルまでに必要な残り経験値。
+  int get managerCareerXpToNextLevel =>
+      ManagerCareerEngine.xpToNextLevel(managerCareerXp);
+
+  /// 現在のレベル内での経験値の進捗割合(0.0〜1.0)。
+  double get managerCareerProgressFraction =>
+      ManagerCareerEngine.progressFractionFor(managerCareerXp);
+
+  /// 生涯成長レベルによる選手成長効率の永続ボーナス倍率。
+  double get managerCareerGrowthBonus =>
+      ManagerCareerEngine.growthBonusFor(managerCareerLevel);
+
   Future<bool> runWeeklyTraining() async {
     if (_save == null) return false;
     if (_save!.trainingDoneThisWeek) return false;
@@ -583,6 +609,7 @@ class GameState extends ChangeNotifier {
       headCoachLevel: infra.staffLevel(StaffRole.headCoach),
       trainingGroundLevel: infra.facilityLevel(FacilityType.trainingGround),
       injuryFactor: _userInjuryFactor,
+      careerGrowthBonus: managerCareerGrowthBonus,
     );
     _save!.trainingDoneThisWeek = true;
     lastTrainingResults = _diffTrainingResults(overallBefore, attrsBefore);

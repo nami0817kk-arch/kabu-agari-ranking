@@ -15,6 +15,7 @@ import 'package:soccer_manager/logic/happiness_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
 import 'package:soccer_manager/logic/investment_engine.dart';
 import 'package:soccer_manager/logic/loan_engine.dart';
+import 'package:soccer_manager/logic/manager_career_engine.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
 import 'package:soccer_manager/logic/promotion_engine.dart';
@@ -4641,6 +4642,51 @@ void main() {
 
     expect(gameState.save!.youthProspects.first.overall,
         greaterThan(overallBefore));
+  });
+
+  test(
+      'ManagerCareerEngine.levelFor rises with accumulated career XP and '
+      'growthBonusFor scales accordingly', () {
+    final lowXp = ManagerCareerEngine.xpFor(
+        careerWins: 5,
+        careerDraws: 2,
+        trophyCount: 0,
+        unlockedAchievementCount: 0);
+    final highXp = ManagerCareerEngine.xpFor(
+        careerWins: 500,
+        careerDraws: 100,
+        trophyCount: 10,
+        unlockedAchievementCount: 20);
+
+    final lowLevel = ManagerCareerEngine.levelFor(lowXp);
+    final highLevel = ManagerCareerEngine.levelFor(highXp);
+
+    expect(lowLevel, 1);
+    expect(highLevel, greaterThan(lowLevel));
+    expect(highLevel, lessThanOrEqualTo(ManagerCareerEngine.maxLevel));
+    expect(ManagerCareerEngine.growthBonusFor(highLevel),
+        greaterThan(ManagerCareerEngine.growthBonusFor(lowLevel)));
+    // 最大レベルに達すると経験値の残りは0になる。
+    final maxXp = ManagerCareerEngine.xpFor(
+        careerWins: 100000,
+        careerDraws: 0,
+        trophyCount: 0,
+        unlockedAchievementCount: 0);
+    expect(ManagerCareerEngine.levelFor(maxXp), ManagerCareerEngine.maxLevel);
+    expect(ManagerCareerEngine.xpToNextLevel(maxXp), 0);
+  });
+
+  test(
+      'GameState.managerCareerGrowthBonus rises with career wins and speeds '
+      'up weekly training growth', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final bonusAtStart = gameState.managerCareerGrowthBonus;
+
+    gameState.save!.careerWins = 1000;
+
+    expect(gameState.managerCareerGrowthBonus, greaterThan(bonusAtStart));
+    expect(gameState.managerCareerLevel, greaterThan(1));
   });
 
   test(
