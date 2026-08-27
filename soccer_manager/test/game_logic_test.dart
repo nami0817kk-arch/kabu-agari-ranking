@@ -13,6 +13,7 @@ import 'package:soccer_manager/logic/continental_cup_engine.dart';
 import 'package:soccer_manager/logic/cup_engine.dart';
 import 'package:soccer_manager/logic/happiness_engine.dart';
 import 'package:soccer_manager/logic/lineup_utils.dart';
+import 'package:soccer_manager/logic/investment_engine.dart';
 import 'package:soccer_manager/logic/loan_engine.dart';
 import 'package:soccer_manager/logic/match_engine.dart';
 import 'package:soccer_manager/logic/player_generator.dart';
@@ -1824,6 +1825,72 @@ void main() {
     }
 
     expect(gameState.bankLoans, isEmpty);
+  });
+
+  test(
+      'InvestmentEngine.maturityValueFor pays out more for the longer, higher-yield term',
+      () {
+    const principal = 1000;
+    final shortTerm = InvestmentEngine.terms.firstWhere((t) => t.weeks == 12);
+    final longTerm = InvestmentEngine.terms.firstWhere((t) => t.weeks == 26);
+
+    final shortMaturity =
+        InvestmentEngine.maturityValueFor(principal, shortTerm);
+    final longMaturity = InvestmentEngine.maturityValueFor(principal, longTerm);
+
+    expect(shortMaturity, greaterThan(principal));
+    expect(longMaturity, greaterThan(shortMaturity));
+    expect(InvestmentEngine.interestFor(principal, shortTerm),
+        shortMaturity - principal);
+  });
+
+  test(
+      'GameState.openFixedDeposit locks the deposited funds and refuses amounts above the budget',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = 1000;
+    final term = InvestmentEngine.terms.first;
+
+    final tooMuch = await gameState.openFixedDeposit(2000, term);
+    expect(tooMuch, isFalse);
+    expect(gameState.fixedDeposits, isEmpty);
+
+    final ok = await gameState.openFixedDeposit(500, term);
+
+    expect(ok, isTrue);
+    expect(gameState.save!.budget, 500);
+    expect(gameState.fixedDeposits.length, 1);
+    expect(gameState.fixedDeposits.first.weeksRemaining, term.weeks);
+    expect(gameState.totalDepositedFunds, 500);
+  });
+
+  test(
+      'GameState.playNextMatchday counts down a fixed deposit and pays out principal plus interest at maturity',
+      () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    final term = InvestmentEngine.terms.firstWhere((t) => t.weeks == 12);
+    await gameState.openFixedDeposit(500, term);
+    final maturityValue = gameState.fixedDeposits.first.maturityValue;
+
+    await gameState.playNextMatchday();
+    if (gameState.isHalfTime) {
+      await gameState.playSecondHalf();
+    }
+
+    expect(gameState.fixedDeposits.first.weeksRemaining, term.weeks - 1);
+
+    for (int i = 1; i < term.weeks; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    expect(gameState.fixedDeposits, isEmpty);
+    expect(gameState.lastMaturedDeposits.length, 1);
+    expect(gameState.lastMaturedDeposits.first.maturityValue, maturityValue);
   });
 
   test(

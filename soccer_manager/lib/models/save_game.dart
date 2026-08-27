@@ -7,6 +7,7 @@ import 'contract_negotiation.dart';
 import 'cup.dart';
 import 'incoming_offer.dart';
 import 'installment.dart';
+import 'investment.dart';
 import 'league.dart';
 import 'player.dart';
 import 'press_question.dart';
@@ -85,6 +86,9 @@ class SaveGame {
 
   /// 銀行から借り入れている融資。
   List<BankLoan> bankLoans;
+
+  /// 銀行に預け入れている定期預金(資金運用)。満期まで引き出せない。
+  List<FixedDeposit> fixedDeposits;
 
   /// シーズンごとに確定した個人タイトル(得点王・年間MVP)の履歴。
   List<SeasonAward> seasonAwards;
@@ -190,6 +194,7 @@ class SaveGame {
     List<Fixture>? friendlies,
     List<IncomingOffer>? incomingOffers,
     List<BankLoan>? bankLoans,
+    List<FixedDeposit>? fixedDeposits,
     List<SeasonAward>? seasonAwards,
     this.rivalTeamId,
     this.rivalTeamName,
@@ -235,6 +240,7 @@ class SaveGame {
         friendlies = friendlies ?? [],
         incomingOffers = incomingOffers ?? [],
         bankLoans = bankLoans ?? [],
+        fixedDeposits = fixedDeposits ?? [],
         seasonAwards = seasonAwards ?? [],
         secondDivisionTeams = secondDivisionTeams ?? [];
 
@@ -266,6 +272,7 @@ class SaveGame {
         'friendlies': friendlies.map((f) => f.toJson()).toList(),
         'incomingOffers': incomingOffers.map((o) => o.toJson()).toList(),
         'bankLoans': bankLoans.map((l) => l.toJson()).toList(),
+        'fixedDeposits': fixedDeposits.map((d) => d.toJson()).toList(),
         'seasonAwards': seasonAwards.map((a) => a.toJson()).toList(),
         'rivalTeamId': rivalTeamId,
         'rivalTeamName': rivalTeamName,
@@ -355,6 +362,10 @@ class SaveGame {
             [],
         bankLoans: (json['bankLoans'] as List?)
                 ?.map((e) => BankLoan.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+        fixedDeposits: (json['fixedDeposits'] as List?)
+                ?.map((e) => FixedDeposit.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
         seasonAwards: (json['seasonAwards'] as List?)

@@ -726,6 +726,12 @@ class HomeScreen extends StatelessWidget {
       messages.add(('ローン放出から復帰: ${loanReturns.join('、')}', false));
       gameState.lastLoanReturns = [];
     }
+    final maturedDeposits = gameState.lastMaturedDeposits;
+    if (maturedDeposits.isNotEmpty) {
+      final total = maturedDeposits.fold<int>(0, (s, d) => s + d.maturityValue);
+      messages.add(('定期預金が満期を迎え、$total万円が払い戻されました', false));
+      gameState.lastMaturedDeposits = [];
+    }
     final aiTransferNews = gameState.lastAiTransferNews;
     if (aiTransferNews != null) {
       messages.add(('移籍市場: $aiTransferNews', false));

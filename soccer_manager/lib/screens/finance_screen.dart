@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../logic/contract_engine.dart';
+import '../logic/investment_engine.dart';
 import '../logic/loan_engine.dart';
 import '../models/player.dart';
 import '../services/feedback_service.dart';
@@ -73,6 +74,10 @@ class FinanceScreen extends StatelessWidget {
             Text('資金調達（銀行融資）', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _LoanSection(gameState: gameState),
+            const SizedBox(height: 16),
+            Text('資金運用（定期預金）', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _InvestmentSection(gameState: gameState),
             const SizedBox(height: 16),
             Text('スポンサー契約', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -385,6 +390,145 @@ class _LoanRequestSheetState extends State<_LoanRequestSheet> {
     ok ? FeedbackService.success() : FeedbackService.error();
     messenger.showSnackBar(
       SnackBar(content: Text(ok ? '$amount万円を借り入れました' : '融資を申し込めませんでした')),
+    );
+  }
+}
+
+class _InvestmentSection extends StatelessWidget {
+  final GameState gameState;
+
+  const _InvestmentSection({required this.gameState});
+
+  @override
+  Widget build(BuildContext context) {
+    final deposits = gameState.fixedDeposits;
+    final available = gameState.save!.budget;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final deposit in deposits)
+          Card(
+            margin: const EdgeInsets.only(bottom: 6),
+            child: ListTile(
+              leading: const Icon(Icons.savings),
+              title: Text('預入元本 ${deposit.principal}万円'),
+              subtitle: Text(
+                  '残り${deposit.weeksRemaining}週 / 満期時+${deposit.interestEarned}万円'),
+              trailing: Text('満期${deposit.maturityValue}万円',
+                  style: TextStyle(color: SemanticColors.positive(context))),
+            ),
+          ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.account_balance_outlined),
+            title: Text('運用可能な資金: $available万円'),
+            subtitle: const Text('満期まで引き出せない代わりに、満期時にまとまった利息を受け取れる'),
+            trailing: FilledButton(
+              onPressed:
+                  available <= 0 ? null : () => _showDepositSheet(context),
+              child: const Text('定期預金を組む'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDepositSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => _DepositRequestSheet(gameState: gameState),
+    );
+  }
+}
+
+class _DepositRequestSheet extends StatefulWidget {
+  final GameState gameState;
+
+  const _DepositRequestSheet({required this.gameState});
+
+  @override
+  State<_DepositRequestSheet> createState() => _DepositRequestSheetState();
+}
+
+class _DepositRequestSheetState extends State<_DepositRequestSheet> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        TextEditingController(text: widget.gameState.save!.budget.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxAmount = widget.gameState.save!.budget;
+    final amount = int.tryParse(_controller.text)?.clamp(0, maxAmount) ?? 0;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('定期預金を組む', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text('運用可能な資金: $maxAmount万円',
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: '預入額(万円)', border: OutlineInputBorder()),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            for (final term in InvestmentEngine.terms)
+              ListTile(
+                leading: Icon(
+                    term.weeks <= 12 ? Icons.speed : Icons.hourglass_bottom),
+                title: Text(
+                    '${term.label}（${term.weeks}週・利回り${term.interestRatePercent.toStringAsFixed(0)}%）'),
+                subtitle: Text(
+                  amount <= 0
+                      ? '預入額を入力してください'
+                      : '満期時 ${InvestmentEngine.maturityValueFor(amount, term)}万円'
+                          '(利息+${InvestmentEngine.interestFor(amount, term)}万円)',
+                ),
+                enabled: amount > 0,
+                onTap:
+                    amount <= 0 ? null : () => _confirm(context, amount, term),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirm(
+      BuildContext context, int amount, DepositTerm term) async {
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    final ok = await widget.gameState.openFixedDeposit(amount, term);
+    ok ? FeedbackService.success() : FeedbackService.error();
+    messenger.showSnackBar(
+      SnackBar(content: Text(ok ? '$amount万円を預け入れました' : '定期預金を組めませんでした')),
     );
   }
 }

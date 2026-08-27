@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/achievement.dart';
 import '../models/bank_loan.dart';
+import '../models/investment.dart';
 import '../models/best_eleven.dart';
 import '../models/club_infrastructure.dart';
 import '../models/continental_cup.dart';
@@ -38,6 +39,7 @@ import '../logic/contract_engine.dart';
 import '../logic/continental_cup_engine.dart';
 import '../logic/cup_engine.dart';
 import '../logic/happiness_engine.dart';
+import '../logic/investment_engine.dart';
 import '../logic/loan_engine.dart';
 import '../logic/press_conference_engine.dart';
 import '../logic/player_generator.dart';
@@ -1633,6 +1635,9 @@ class GameState extends ChangeNotifier {
   /// 直近のplayNextMatchdayでローン放出から復帰した選手名。
   List<String> lastLoanReturns = [];
 
+  /// 直近のplayNextMatchdayで満期を迎え、利息込みで払い戻された定期預金。
+  List<FixedDeposit> lastMaturedDeposits = [];
+
   /// 直近のplayNextMatchdayで発生したCPUクラブ同士の移籍ニュース。ない場合はnull。
   String? lastAiTransferNews;
 
@@ -1893,6 +1898,33 @@ class GameState extends ChangeNotifier {
     return true;
   }
 
+  /// 預け入れ中の定期預金一覧。
+  List<FixedDeposit> get fixedDeposits => _save?.fixedDeposits ?? [];
+
+  /// 定期預金として運用中の資金の合計(元本ベース)。
+  int get totalDepositedFunds =>
+      fixedDeposits.fold<int>(0, (s, d) => s + d.principal);
+
+  int _depositSeq = 0;
+
+  /// 定期預金を組む。指定額をただちに資金から差し引いて預け入れ、満期まで
+  /// 引き出せない代わりに満期時に利息込みでまとめて払い戻される。
+  Future<bool> openFixedDeposit(int amount, DepositTerm term) async {
+    if (_save == null || amount <= 0) return false;
+    if (amount > _save!.budget) return false;
+    _save!.budget -= amount;
+    _save!.fixedDeposits.add(FixedDeposit(
+      id: 'deposit${_depositSeq++}',
+      principal: amount,
+      maturityValue: InvestmentEngine.maturityValueFor(amount, term),
+      termWeeks: term.weeks,
+      weeksRemaining: term.weeks,
+    ));
+    notifyListeners();
+    await _persist();
+    return true;
+  }
+
   /// フィジオのレベルに応じた負傷の発生率・療養期間の軽減係数(1.0で軽減なし)。
   double get _userInjuryFactor => ClubInfrastructure.injuryFactor(
       _save!.infrastructure.staffLevel(StaffRole.physio));
@@ -2037,6 +2069,17 @@ class GameState extends ChangeNotifier {
       loan.weeksRemaining -= 1;
       if (loan.weeksRemaining <= 0) {
         _save!.bankLoans.remove(loan);
+      }
+    }
+
+    // 定期預金の週次経過。満期を迎えたものは利息込みで払い戻す。
+    lastMaturedDeposits = [];
+    for (final deposit in List<FixedDeposit>.from(_save!.fixedDeposits)) {
+      deposit.weeksRemaining -= 1;
+      if (deposit.weeksRemaining <= 0) {
+        _save!.budget += deposit.maturityValue;
+        _save!.fixedDeposits.remove(deposit);
+        lastMaturedDeposits.add(deposit);
       }
     }
 
