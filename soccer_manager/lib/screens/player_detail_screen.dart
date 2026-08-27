@@ -237,51 +237,8 @@ class PlayerDetailScreen extends StatelessWidget {
           _MatchImpactSummary(
               player: p, isStarting: isStarting, assignedSlot: assignedSlot),
           const SizedBox(height: 16),
-          StatBar(label: '攻撃', value: p.attack),
-          StatBar(label: '守備', value: p.defense),
-          StatBar(label: '技術', value: p.technique),
-          StatBar(label: 'スタミナ', value: p.stamina),
-          const Divider(height: 32),
-          StatBar(label: '潜在能力', value: p.potential, color: Colors.purple),
-          StatBar(
-              label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
-          StatBar(
-              label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
-          StatBar(
-              label: 'マッチシャープネス',
-              value: p.matchSharpness,
-              max: 100,
-              color: Colors.teal),
-          StatBar(
-            label: '不満度(高いほど満足)',
-            value: p.happiness,
-            max: 100,
-            color: p.happiness < 30
-                ? SemanticColors.negative(context)
-                : SemanticColors.positive(context),
-          ),
-          const Divider(height: 32),
-          Text('詳細能力値', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          for (final category in categories)
-            Theme(
-              data:
-                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                title: Text('${category.label}（${category.keys.length}項目）'),
-                initiallyExpanded: true,
-                children: [
-                  for (final key in category.keys)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: StatBar(
-                          label: AttributeKeys.labelOf(key),
-                          value: p.attributeValue(key)),
-                    ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 24),
+          Text('選手を操作', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
           if (p.isLoan)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -405,6 +362,51 @@ class PlayerDetailScreen extends StatelessWidget {
                   team.viceCaptainId == p.id ? '副キャプテンを解任する' : '副キャプテンに任命する'),
             ),
           ],
+          const Divider(height: 32),
+          StatBar(label: '攻撃', value: p.attack),
+          StatBar(label: '守備', value: p.defense),
+          StatBar(label: '技術', value: p.technique),
+          StatBar(label: 'スタミナ', value: p.stamina),
+          const Divider(height: 32),
+          StatBar(label: '潜在能力', value: p.potential, color: Colors.purple),
+          StatBar(
+              label: '疲労', value: p.fatigue, max: 100, color: Colors.redAccent),
+          StatBar(
+              label: '士気', value: p.morale, max: 100, color: Colors.blueAccent),
+          StatBar(
+              label: 'マッチシャープネス',
+              value: p.matchSharpness,
+              max: 100,
+              color: Colors.teal),
+          StatBar(
+            label: '不満度(高いほど満足)',
+            value: p.happiness,
+            max: 100,
+            color: p.happiness < 30
+                ? SemanticColors.negative(context)
+                : SemanticColors.positive(context),
+          ),
+          const Divider(height: 32),
+          Text('詳細能力値', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          for (final category in categories)
+            Theme(
+              data:
+                  Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                title: Text('${category.label}（${category.keys.length}項目）'),
+                initiallyExpanded: true,
+                children: [
+                  for (final key in category.keys)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: StatBar(
+                          label: AttributeKeys.labelOf(key),
+                          value: p.attributeValue(key)),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );

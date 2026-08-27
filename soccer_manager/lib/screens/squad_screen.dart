@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../logic/contract_engine.dart';
 import '../models/player.dart';
 import '../models/team.dart';
+import '../services/feedback_service.dart';
 import '../state/game_state.dart';
 import '../widgets/player_face_avatar.dart';
 import '../widgets/position_filter_bar.dart';
@@ -11,6 +12,13 @@ import '../widgets/responsive_body.dart';
 import 'glossary_screen.dart';
 import 'player_compare_screen.dart';
 import 'player_detail_screen.dart';
+
+/// 残り契約週数を「約◯年」表記に丸める(スカッド画面の一覧表示用)。
+String contractYearsLabel(int weeksRemaining) {
+  if (weeksRemaining <= 0) return '契約満了間近';
+  final years = weeksRemaining / 52;
+  return '契約残り$weeksRemaining週(約${years.toStringAsFixed(1)}年)';
+}
 
 enum SquadSortOption { position, overall, age, potential, wage }
 
@@ -102,6 +110,75 @@ class _SquadScreenState extends State<SquadScreen> {
         _selected.add(playerId);
       }
     });
+  }
+
+  void _showContractSheet(BuildContext context, Player p) {
+    final gameState = context.read<GameState>();
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) {
+        final renewalCost = gameState.renewalCostFor(p.id);
+        final signingBonus = gameState.signingBonusFor(p.id);
+        final newAppearanceFee = gameState.appearanceFeeFor(p.id);
+        final totalCost = renewalCost + signingBonus;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(p.name, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                    '週俸: ${p.wage}万円 / ${contractYearsLabel(p.contractWeeksRemaining)}'),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: gameState.save!.budget < totalCost
+                        ? null
+                        : () async {
+                            Navigator.pop(sheetContext);
+                            final ok = await gameState.renewContract(p.id);
+                            ok
+                                ? FeedbackService.success()
+                                : FeedbackService.error();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(
+                                        ok ? '契約を更新しました' : '契約を更新できませんでした')),
+                              );
+                            }
+                          },
+                    child: Text(
+                      '契約更新する（基本$renewalCost万円 + サインボーナス$signingBonus万円 / '
+                      '+40週 / 新出場手当$newAppearanceFee万円）',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => PlayerDetailScreen(playerId: p.id)),
+                      );
+                    },
+                    child: const Text('週俸交渉・放出など詳しい操作を開く'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showIconLegend(BuildContext context) {
@@ -381,7 +458,8 @@ class _SquadScreenState extends State<SquadScreen> {
                                           : p.isLoanedOut
                                               ? '${p.loanedOutToClubName}へローン放出中（あと${p.loanedOutWeeksRemaining}週）'
                                               : '${p.age}歳 / ${p.position.label} / 総合 ${p.overall}'
-                                                  '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}',
+                                                  '${lastRatings?[p.id] != null ? ' / 前節 ${lastRatings![p.id]!.toStringAsFixed(1)}' : ''}'
+                                                  '${p.isLoan ? '' : ' / ${contractYearsLabel(p.contractWeeksRemaining)}'}',
                               style: (p.isInjured ||
                                       p.isSuspended ||
                                       p.isOnInternationalDuty ||
@@ -393,13 +471,29 @@ class _SquadScreenState extends State<SquadScreen> {
                                 ? Text('${p.overall}',
                                     style:
                                         Theme.of(context).textTheme.titleMedium)
-                                : p.fatigue > 70
-                                    ? const Icon(Icons.battery_alert,
-                                        color: Colors.orange)
-                                    : Text('${p.overall}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleMedium),
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      p.fatigue > 70
+                                          ? const Icon(Icons.battery_alert,
+                                              color: Colors.orange)
+                                          : Text('${p.overall}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium),
+                                      if (!p.isLoan && !p.isLoanedOut) ...[
+                                        const SizedBox(width: 4),
+                                        IconButton(
+                                          icon: const Icon(
+                                              Icons.description_outlined,
+                                              size: 20),
+                                          tooltip: '契約を操作',
+                                          onPressed: () =>
+                                              _showContractSheet(context, p),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                             onTap: _compareMode
                                 ? () => _toggleSelected(p.id)
                                 : () => Navigator.of(context).push(
