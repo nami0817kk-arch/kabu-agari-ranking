@@ -225,6 +225,15 @@ class _YouthScreenState extends State<YouthScreen> {
               child:
                   Text('昇格候補', style: Theme.of(context).textTheme.titleMedium),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                '昇格候補はユース施設で育成され続けます'
+                '(成長係数 x${gameState.youthAcademyGrowthFactor.toStringAsFixed(2)}。'
+                'ユース施設のレベルを上げるとじっくり育てる価値が高まります)',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
             const SizedBox(height: 8),
             if (prospects.isEmpty)
               Padding(

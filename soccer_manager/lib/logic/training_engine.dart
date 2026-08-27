@@ -262,6 +262,44 @@ class TrainingEngine {
     }
   }
 
+  /// ユース施設のレベルに応じた昇格候補(有望株)の週次成長係数。
+  /// レベルが高いほど、昇格を焦らずじっくり育てる価値が生まれる。
+  static double youthAcademyGrowthFactor(int facilityLevel) =>
+      0.5 + facilityLevel * 0.2;
+
+  /// スカウトした昇格候補は、昇格させるまでユース施設で育成され続ける。
+  /// 実戦がない分CPUの週次成長よりは緩やかだが、ユース施設のレベルが
+  /// 高いほど伸びが早く、昇格のタイミングを見極めるゲーム性が生まれる。
+  static void applyYouthAcademyGrowth(
+      List<Player> prospects, int facilityLevel) {
+    final factor = youthAcademyGrowthFactor(facilityLevel);
+    for (final p in prospects) {
+      if (p.position.group == PositionGroup.gk) {
+        for (final k in AttributeKeys.goalkeeping) {
+          _grow(p, k, 0.5 * factor);
+        }
+      } else if (p.position.group == PositionGroup.def) {
+        for (final k in [
+          AttributeKeys.tackling,
+          AttributeKeys.marking,
+          AttributeKeys.positioning,
+          AttributeKeys.anticipation,
+        ]) {
+          _grow(p, k, 0.5 * factor);
+        }
+      } else {
+        for (final k in [
+          AttributeKeys.finishing,
+          AttributeKeys.longShots,
+          AttributeKeys.dribbling,
+          AttributeKeys.offTheBall,
+        ]) {
+          _grow(p, k, 0.5 * factor);
+        }
+      }
+    }
+  }
+
   static void _grow(Player p, String key, double chance) {
     var c = chance;
     if (p.age > 30) c *= 0.4;

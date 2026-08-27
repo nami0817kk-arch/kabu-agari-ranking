@@ -4596,6 +4596,54 @@ void main() {
   });
 
   test(
+      'TrainingEngine.applyYouthAcademyGrowth grows youth prospects faster '
+      'at a higher youth facility level', () {
+    int countFinishingGrowths(int facilityLevel) {
+      var growths = 0;
+      for (int i = 0; i < 400; i++) {
+        final p = makeFreshPlayer();
+        TrainingEngine.applyYouthAcademyGrowth([p], facilityLevel);
+        if (p.attributeValue(AttributeKeys.finishing) > 50) growths++;
+      }
+      return growths;
+    }
+
+    final atLevel1 = countFinishingGrowths(1);
+    final atLevel5 = countFinishingGrowths(5);
+    expect(atLevel5, greaterThan(atLevel1));
+    expect(
+      TrainingEngine.youthAcademyGrowthFactor(5),
+      greaterThan(TrainingEngine.youthAcademyGrowthFactor(1)),
+    );
+  });
+
+  test(
+      'GameState.playNextMatchday grows a youth prospect while it waits in '
+      'the academy', () async {
+    final gameState = GameState();
+    await gameState.startNewGame('テストFC');
+    gameState.save!.budget = ScoutingEngine.scoutCost;
+    final candidateId = gameState.scoutCandidates.first.id;
+    await gameState.scoutProspect(candidateId);
+    final prospect = gameState.save!.youthProspects.first;
+    for (final k in AttributeKeys.all) {
+      prospect.setAttributeValue(k, 50);
+    }
+    prospect.potential = 99;
+    final overallBefore = prospect.overall;
+
+    for (int i = 0; i < 20; i++) {
+      await gameState.playNextMatchday();
+      if (gameState.isHalfTime) {
+        await gameState.playSecondHalf();
+      }
+    }
+
+    expect(gameState.save!.youthProspects.first.overall,
+        greaterThan(overallBefore));
+  });
+
+  test(
       'GameState.giveTeamTalk moves starters\' morale by an amount scaled by '
       'their personality\'s result sensitivity', () async {
     final gameState = GameState();

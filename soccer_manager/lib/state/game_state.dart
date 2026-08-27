@@ -1252,6 +1252,13 @@ class GameState extends ChangeNotifier {
       : ScoutingEngine.maxProspectsFor(
           _save!.infrastructure.facilityLevel(FacilityType.youthFacility));
 
+  /// 昇格候補がユース施設で育つ速さの係数(表示用)。ユース施設のレベルが
+  /// 高いほど、昇格を焦らずじっくり育てる価値が生まれる。
+  double get youthAcademyGrowthFactor => _save == null
+      ? 0
+      : TrainingEngine.youthAcademyGrowthFactor(
+          _save!.infrastructure.facilityLevel(FacilityType.youthFacility));
+
   /// スカウト網が一度に見つけてくる候補選手の人数(スカウトのレベルが高いほど広がる)。
   int get scoutCandidateCount => _save == null
       ? 0
@@ -2101,6 +2108,13 @@ class GameState extends ChangeNotifier {
       TrainingEngine.applyPassiveCpuGrowth(t);
       LineupUtils.autoAssignSetPieceRoles(t);
     }
+
+    // 昇格候補(有望株)はユース施設で育成され続ける。施設レベルが高いほど
+    // 伸びが早く、じっくり育ててから昇格させる判断に意味を持たせる。
+    TrainingEngine.applyYouthAcademyGrowth(
+      _save!.youthProspects,
+      _save!.infrastructure.facilityLevel(FacilityType.youthFacility),
+    );
 
     // ローン放出の週次処理(期間終了で自動的にチームへ復帰する)。
     lastLoanReturns = [];
