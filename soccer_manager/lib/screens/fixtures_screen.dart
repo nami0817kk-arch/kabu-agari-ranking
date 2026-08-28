@@ -26,19 +26,26 @@ class FixturesScreen extends StatelessWidget {
     final userTeamId = gameState.userTeam.id;
     final seasonComplete = league.isSeasonComplete;
     final divisionTier = gameState.save!.currentDivisionTier;
-    final otherLeague = gameState.save!.otherDivisionLeague;
-    final otherDivisionLabel = divisionTier == 1 ? '2部' : '1部';
+    final otherDivisions = <(int tier, League league)>[
+      for (int tier = 1; tier <= totalDivisionTiers; tier++)
+        if (tier != divisionTier &&
+            gameState.save!.otherDivisionLeagues[tier - 1] != null)
+          (tier, gameState.save!.otherDivisionLeagues[tier - 1]!),
+    ];
 
     return DefaultTabController(
-      length: otherLeague == null ? 2 : 3,
+      length: 2 + otherDivisions.length,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('日程・順位表'),
-          bottom: TabBar(tabs: [
-            const Tab(text: '順位表'),
-            const Tab(text: '日程'),
-            if (otherLeague != null) Tab(text: '$otherDivisionLabel順位表'),
-          ]),
+          bottom: TabBar(
+            isScrollable: otherDivisions.isNotEmpty,
+            tabs: [
+              const Tab(text: '順位表'),
+              const Tab(text: '日程'),
+              for (final (tier, _) in otherDivisions) Tab(text: '$tier部順位表'),
+            ],
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.query_stats),
@@ -63,11 +70,11 @@ class FixturesScreen extends StatelessWidget {
                   userTeamId: userTeamId,
                   divisionTier: divisionTier),
               _ScheduleTab(league: league, userTeamId: userTeamId),
-              if (otherLeague != null)
+              for (final (tier, otherLeague) in otherDivisions)
                 _StandingsTab(
                     league: otherLeague,
                     userTeamId: userTeamId,
-                    divisionTier: divisionTier == 1 ? 2 : 1),
+                    divisionTier: tier),
             ],
           ),
         ),
@@ -278,7 +285,9 @@ class _StandingsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rows = league.sortedStandings;
-    final isTier1 = divisionTier == 1;
+    final showContinental = divisionTier == 1;
+    final showPromotion = divisionTier > 1;
+    final showRelegation = divisionTier < totalDivisionTiers;
     final maxOverall = league.teams
         .fold<int>(1, (m, t) => t.overallRating > m ? t.overallRating : m);
     final relegationStart = rows.length - PromotionEngine.swapCount;
@@ -291,20 +300,19 @@ class _StandingsTab extends StatelessWidget {
           child: Wrap(
             spacing: 12,
             runSpacing: 4,
-            children: isTier1
-                ? [
-                    _ZoneLegend(
-                        color: Colors.amber.shade700, label: '大陸カップ出場圏'),
-                    _ZoneLegend(
-                        color: SemanticColors.negative(context), label: '降格圏'),
-                  ]
-                : [
-                    _ZoneLegend(
-                        color: SemanticColors.positive(context),
-                        label: '自動昇格圏'),
-                    _ZoneLegend(
-                        color: Colors.deepPurple.shade300, label: '昇格プレーオフ圏'),
-                  ],
+            children: [
+              if (showContinental)
+                _ZoneLegend(color: Colors.amber.shade700, label: '大陸カップ出場圏'),
+              if (showPromotion) ...[
+                _ZoneLegend(
+                    color: SemanticColors.positive(context), label: '自動昇格圏'),
+                _ZoneLegend(
+                    color: Colors.deepPurple.shade300, label: '昇格プレーオフ圏'),
+              ],
+              if (showRelegation)
+                _ZoneLegend(
+                    color: SemanticColors.negative(context), label: '降格圏'),
+            ],
           ),
         ),
         Expanded(
@@ -314,17 +322,16 @@ class _StandingsTab extends StatelessWidget {
               final r = rows[i];
               final team = league.teams.firstWhere((t) => t.id == r.teamId);
               final isUser = r.teamId == userTeamId;
-              final zoneColor = isTier1
-                  ? (i < _continentalQualifyCount
-                      ? Colors.amber.shade700
-                      : i >= relegationStart
-                          ? SemanticColors.negative(context)
-                          : null)
-                  : (i < autoPromotionEnd
-                      ? SemanticColors.positive(context)
-                      : i < playoffEnd
-                          ? Colors.deepPurple.shade300
-                          : null);
+              Color? zoneColor;
+              if (showContinental && i < _continentalQualifyCount) {
+                zoneColor = Colors.amber.shade700;
+              } else if (showPromotion && i < autoPromotionEnd) {
+                zoneColor = SemanticColors.positive(context);
+              } else if (showPromotion && i < playoffEnd) {
+                zoneColor = Colors.deepPurple.shade300;
+              } else if (showRelegation && i >= relegationStart) {
+                zoneColor = SemanticColors.negative(context);
+              }
               final row = Container(
                 decoration: BoxDecoration(
                   color: isUser

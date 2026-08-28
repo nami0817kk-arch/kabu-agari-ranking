@@ -126,14 +126,14 @@ class AchievementEngine {
       id: 'promoted',
       category: AchievementCategory.management,
       name: '昇格達成',
-      description: '2部リーグから1部リーグへの昇格を果たす',
+      description: '下位ディビジョンから上位ディビジョンへの昇格を果たす',
       isUnlocked: (save, team) => save.seasonHistory.any((r) => r.promoted),
     ),
     Achievement(
       id: 'bounce_back',
       category: AchievementCategory.management,
       name: '即時昇格',
-      description: '降格した翌シーズンに即座に1部へ復帰する',
+      description: '降格した翌シーズンに即座に昇格を果たす',
       isUnlocked: (save, team) =>
           _anyConsecutivePair(save, (a, b) => a.relegated && b.promoted),
     ),

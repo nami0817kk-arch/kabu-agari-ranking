@@ -1015,6 +1015,13 @@ void main() {
       "groups when the user finishes in the league's top two", () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
+    // 大陸カップは1部限定のため、1部でプレー中という前提に切り替える
+    // (5部の枠は元々nullなので、1部の枠にあった実データを5部の枠へ移し、
+    // 1部の枠をnull化して整合を取る)。
+    final vacatedTier1League = gameState.save!.otherDivisionLeagues[0];
+    gameState.save!.otherDivisionLeagues[0] = null;
+    gameState.save!.otherDivisionLeagues[4] = vacatedTier1League;
+    gameState.save!.currentDivisionTier = 1;
     final userId = gameState.userTeam.id;
     for (final f in gameState.save!.league.fixtures) {
       final userIsHome = f.homeTeamId == userId;
@@ -2318,32 +2325,30 @@ void main() {
 
   test(
       'GameState maintains a live, week-by-week simulated standings table for '
-      'the division the user is not currently in', () async {
+      'every division the user is not currently in', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
-    expect(gameState.save!.otherDivisionLeague, isNotNull);
-    final otherLeague = gameState.save!.otherDivisionLeague!;
-    expect(otherLeague.teams.map((t) => t.id).toSet(),
-        gameState.save!.secondDivisionTeams.map((t) => t.id).toSet());
-    expect(otherLeague.fixturesForMatchday(1).every((f) => f.result == null),
-        isTrue);
+    final otherLeagues = gameState.save!.otherDivisionLeagues;
+    expect(otherLeagues.where((l) => l != null).length, totalDivisionTiers - 1);
+    for (final league in otherLeagues) {
+      if (league == null) continue;
+      expect(
+          league.fixturesForMatchday(1).every((f) => f.result == null), isTrue);
+    }
 
     await gameState.playNextMatchday();
     if (gameState.isHalfTime) {
       await gameState.playSecondHalf();
     }
 
-    // ユーザーのリーグと同じ1節分が、裏側のディビジョンでも消化されているはず。
-    expect(
-        gameState.save!.otherDivisionLeague!
-            .fixturesForMatchday(1)
-            .every((f) => f.result != null),
-        isTrue);
-    expect(
-        gameState.save!.otherDivisionLeague!
-            .fixturesForMatchday(2)
-            .every((f) => f.result == null),
-        isTrue);
+    // ユーザーのリーグと同じ1節分が、他の全ディビジョンでも消化されているはず。
+    for (final league in gameState.save!.otherDivisionLeagues) {
+      if (league == null) continue;
+      expect(
+          league.fixturesForMatchday(1).every((f) => f.result != null), isTrue);
+      expect(
+          league.fixturesForMatchday(2).every((f) => f.result == null), isTrue);
+    }
   });
 
   test(
@@ -2355,7 +2360,8 @@ void main() {
 
     // 何らかの理由で裏ディビジョンのチーム一覧とフィクスチャの参照が
     // ずれてしまった状態を模倣する(存在しないチームIDの試合を混入させる)。
-    final otherLeague = gameState.save!.otherDivisionLeague!;
+    final otherLeague =
+        gameState.save!.otherDivisionLeagues.firstWhere((l) => l != null)!;
     otherLeague.fixtures.add(Fixture(
       matchday: 1,
       homeTeamId: 'ghost-team-a',
@@ -2588,6 +2594,14 @@ void main() {
       () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
+    // ユーザーは5部制の最下層(5部)から始まるため降格が起きない。降格の
+    // 挙動そのものを検証するため、1部でプレー中という前提に切り替える。
+    // 5部の枠(ユーザーの現在の所属)は元々nullなので、1部の枠にあった
+    // 実データを5部の枠へ移し、1部の枠をnull化して整合を取る。
+    final vacatedTier1League = gameState.save!.otherDivisionLeagues[0];
+    gameState.save!.otherDivisionLeagues[0] = null;
+    gameState.save!.otherDivisionLeagues[4] = vacatedTier1League;
+    gameState.save!.currentDivisionTier = 1;
     final userId = gameState.userTeam.id;
     for (final f in gameState.save!.league.fixtures) {
       final userIsHome = f.homeTeamId == userId;
@@ -2619,7 +2633,9 @@ void main() {
     expect(gameState.lastDivisionChangeMessage, contains('降格'));
     expect(() => gameState.userTeam, returnsNormally);
     expect(gameState.save!.league.teams.length, teamsPerLeague);
-    expect(gameState.save!.secondDivisionTeams.length, teamsPerLeague);
+    expect(gameState.save!.otherDivisionLeagues[1], isNull);
+    expect(
+        gameState.save!.otherDivisionLeagues[0]!.teams.length, teamsPerLeague);
   });
 
   test(
@@ -5405,10 +5421,16 @@ void main() {
 
   test(
       'GameState.seasonProjection reports zero continental-qualify slots '
-      'once the user is relegated to the second division', () async {
+      'outside the top division', () async {
     final gameState = GameState();
     await gameState.startNewGame('テストFC');
-    expect(gameState.save!.currentDivisionTier, 1);
+    // ユーザーは5部制の最下層(5部)から始まるため、大陸カップ出場枠は0のはず。
+    expect(gameState.save!.currentDivisionTier, totalDivisionTiers);
+    for (final p in gameState.seasonProjection) {
+      expect(p.continentalProbability, 0.0);
+    }
+
+    gameState.save!.currentDivisionTier = 1;
     for (final p in gameState.seasonProjection) {
       expect(p.continentalProbability, greaterThanOrEqualTo(0.0));
     }

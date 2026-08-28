@@ -212,7 +212,7 @@ class GameState extends ChangeNotifier {
     }
     if (_save != null) {
       _reseedPlayerIdCounter(_save!);
-      _backfillOtherDivisionLeagueIfNeeded();
+      _migrateDivisionPyramidIfNeeded();
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     }
@@ -223,7 +223,7 @@ class GameState extends ChangeNotifier {
   /// セーブデータ内の全選手IDを集め、[PlayerGenerator]のIDカウンターへ反映する。
   void _reseedPlayerIdCounter(SaveGame save) {
     final ids = <String>[
-      for (final t in [...save.league.teams, ...save.secondDivisionTeams])
+      for (final t in save.allTeams)
         for (final p in t.players) p.id,
       for (final p in save.youthProspects) p.id,
       for (final p in save.pendingYouthIntake) p.id,
@@ -243,23 +243,52 @@ class GameState extends ChangeNotifier {
     return null;
   }
 
-  /// 旧セーブデータ(otherDivisionLeague未生成)を読み込んだ場合、現在の
-  /// リーグの節数まで裏のディビジョンの日程をまとめて消化して追いつかせる。
-  void _backfillOtherDivisionLeagueIfNeeded() {
-    if (_save == null || _save!.otherDivisionLeague != null) return;
-    final teams = _save!.secondDivisionTeams;
-    if (teams.isEmpty) return;
-    final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
+  /// 旧セーブデータ(5部制ピラミッド導入前、または一部ディビジョンの日程が
+  /// 未生成)を読み込んだ場合に、不足しているディビジョンを補充し、現在の
+  /// リーグの節数までその日程をまとめて消化して追いつかせる。
+  void _migrateDivisionPyramidIfNeeded() {
+    if (_save == null) return;
     final catchUpTo = _currentLeagueMatchdayMarker - 1;
-    for (final f in fixtures) {
-      if (f.matchday > catchUpTo) continue;
-      final home = teams.firstWhere((t) => t.id == f.homeTeamId);
-      final away = teams.firstWhere((t) => t.id == f.awayTeamId);
-      f.result = BackgroundMatchEngine.simulate(
-          home: home, away: away, matchday: f.matchday);
+    final rng = Random();
+    for (int tier = 1; tier <= totalDivisionTiers; tier++) {
+      if (tier == _save!.currentDivisionTier) continue;
+      final idx = tier - 1;
+      final existing = _save!.otherDivisionLeagues[idx];
+      if (existing != null && existing.fixtures.isNotEmpty) continue;
+
+      List<Team> teams;
+      if (existing != null) {
+        // 旧セーブ(secondDivisionTeamsのみ)からの移行: チーム自体は既にある。
+        teams = existing.teams;
+      } else {
+        // 5部制導入前は存在しなかったティア。新規にチームを生成する。
+        final names =
+            NamePool.themedClubNames(currentLeagueTheme, teamsPerLeague);
+        teams = [
+          for (int i = 0; i < teamsPerLeague; i++)
+            PlayerGenerator.generateSquad(
+              id: 'migrated_t${tier}_$i',
+              name: names[i],
+              strengthTier:
+                  (55 - (tier - 1) * 10 + rng.nextInt(20)).clamp(15, 90),
+            ),
+        ];
+        for (final t in teams) {
+          LineupUtils.autoFill(t);
+        }
+      }
+
+      final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
+      for (final f in fixtures) {
+        if (f.matchday > catchUpTo) continue;
+        final home = teams.firstWhere((t) => t.id == f.homeTeamId);
+        final away = teams.firstWhere((t) => t.id == f.awayTeamId);
+        f.result = BackgroundMatchEngine.simulate(
+            home: home, away: away, matchday: f.matchday);
+      }
+      _save!.otherDivisionLeagues[idx] = League(
+          teams: teams, fixtures: fixtures, season: _save!.league.season);
     }
-    _save!.otherDivisionLeague =
-        League(teams: teams, fixtures: fixtures, season: _save!.league.season);
   }
 
   Future<void> _persist() async {
@@ -314,7 +343,7 @@ class GameState extends ChangeNotifier {
     }
     if (_save != null) {
       _reseedPlayerIdCounter(_save!);
-      _backfillOtherDivisionLeagueIfNeeded();
+      _migrateDivisionPyramidIfNeeded();
       transferMarket = TransferMarket.generate();
       _refreshScoutCandidates();
     } else {
@@ -350,36 +379,59 @@ class GameState extends ChangeNotifier {
       name: clubName,
       strengthTier: 60,
     );
-    const cpuCount = teamsPerLeague - 1;
-    final allNames = NamePool.themedClubNames(theme, cpuCount + teamsPerLeague);
-    final cpuNames = allNames.take(cpuCount).toList();
-    final secondDivisionNames = allNames.skip(cpuCount).toList();
-    final cpuTeams = <Team>[];
     final rng = Random();
+    // 5部制ピラミッドの最下層(5部)からスタートする。
+    const userStartTier = totalDivisionTiers;
+    final allNames = NamePool.themedClubNames(
+        theme, teamsPerLeague * totalDivisionTiers - 1);
+    var nameIndex = 0;
+    String nextName() => allNames[nameIndex++];
+
+    // 上位ティアほど平均的なチーム力が高くなるようにする(1部が最強)。
+    // ユーザーの開始ティアでの強さ幅は、旧来の1部CPUと同じ(40-74)に揃え、
+    // 従来通りの難易度バランスを保つ。
+    int strengthForTier(int tier) {
+      final tiersAboveUser = userStartTier - tier;
+      final base = 40 + tiersAboveUser * 10;
+      return (base + rng.nextInt(35)).clamp(20, 99);
+    }
+
+    const cpuCount = teamsPerLeague - 1;
+    final cpuTeams = <Team>[];
     for (int i = 0; i < cpuCount; i++) {
-      final tier = 40 + rng.nextInt(35);
       cpuTeams.add(PlayerGenerator.generateSquad(
-          id: 'cpu$i', name: cpuNames[i], strengthTier: tier));
+          id: 'cpu$i',
+          name: nextName(),
+          strengthTier: strengthForTier(userStartTier)));
     }
     final teams = [userTeam, ...cpuTeams];
     for (final t in teams) {
       LineupUtils.autoFill(t);
     }
-    final secondDivisionTeams = <Team>[];
-    for (int i = 0; i < teamsPerLeague; i++) {
-      final tier = 30 + rng.nextInt(30);
-      final t = PlayerGenerator.generateSquad(
-          id: 'd2cpu$i', name: secondDivisionNames[i], strengthTier: tier);
-      LineupUtils.autoFill(t);
-      secondDivisionTeams.add(t);
+
+    final otherDivisionLeagues = List<League?>.filled(totalDivisionTiers, null);
+    for (int tier = 1; tier <= totalDivisionTiers; tier++) {
+      if (tier == userStartTier) continue;
+      final tierTeams = <Team>[
+        for (int i = 0; i < teamsPerLeague; i++)
+          PlayerGenerator.generateSquad(
+            id: 'div${tier}_$i',
+            name: nextName(),
+            strengthTier: strengthForTier(tier),
+          ),
+      ];
+      for (final t in tierTeams) {
+        LineupUtils.autoFill(t);
+      }
+      otherDivisionLeagues[tier - 1] = League(
+        teams: tierTeams,
+        fixtures: FixtureGenerator.generateDoubleRoundRobin(tierTeams),
+        season: 1,
+      );
     }
+
     final fixtures = FixtureGenerator.generateDoubleRoundRobin(teams);
     final league = League(teams: teams, fixtures: fixtures, season: 1);
-    final otherDivisionLeague = League(
-        teams: secondDivisionTeams,
-        fixtures:
-            FixtureGenerator.generateDoubleRoundRobin(secondDivisionTeams),
-        season: 1);
     _save = SaveGame(
       clubName: clubName,
       userTeamId: 'user',
@@ -396,9 +448,8 @@ class GameState extends ChangeNotifier {
       pendingSponsorOffers:
           SponsorEngine.generateOffers(userTeam.overallRating),
       friendlies: _generateFriendlies(teams, 'user'),
-      secondDivisionTeams: secondDivisionTeams,
-      otherDivisionLeague: otherDivisionLeague,
-      currentDivisionTier: 1,
+      otherDivisionLeagues: otherDivisionLeagues,
+      currentDivisionTier: userStartTier,
       clubHistory: [clubName],
     );
     final rival = cpuTeams[rng.nextInt(cpuTeams.length)];
@@ -450,7 +501,7 @@ class GameState extends ChangeNotifier {
     }
     _save = restored;
     _reseedPlayerIdCounter(restored);
-    _backfillOtherDivisionLeagueIfNeeded();
+    _migrateDivisionPyramidIfNeeded();
     transferMarket = TransferMarket.generate();
     _refreshScoutCandidates();
     notifyListeners();
@@ -1725,13 +1776,13 @@ class GameState extends ChangeNotifier {
   /// 監督としての世間の評価(0-100)。
   int get managerReputation => _save?.managerReputation ?? 50;
 
-  /// ユーザークラブが現在所属するディビジョン(1部/2部)。
+  /// ユーザークラブが現在所属するディビジョン(1が最上位、[totalDivisionTiers]が最下位)。
   int get currentDivisionTier => _save?.currentDivisionTier ?? 1;
 
-  /// 画面表示用のリーグ名(2部所属時は「〇〇リーグ2部」)。
-  String get leagueDisplayName => currentDivisionTier == 2
-      ? '${_save!.leagueName}2部'
-      : _save?.leagueName ?? 'リーグ';
+  /// 画面表示用のリーグ名(2部以下所属時は「〇〇リーグ2部」のように部を付記する)。
+  String get leagueDisplayName => currentDivisionTier == 1
+      ? _save?.leagueName ?? 'リーグ'
+      : '${_save!.leagueName}$currentDivisionTier部';
 
   /// 保存されているリーグ名から国風テーマを逆引きする(テーマ自体は
   /// SaveGameに保持していないため、開幕時に確定した表示名から復元する)。
@@ -1849,8 +1900,8 @@ class GameState extends ChangeNotifier {
     var factor =
         (0.7 + _save!.confidence / 250 + (teamCount - rank) / teamCount * 0.3)
             .clamp(0.6, 1.4);
-    // 2部リーグは1部より観客動員が少ない。
-    if (_save!.currentDivisionTier == 2) factor *= 0.7;
+    // 下位ディビジョンほど観客動員が少ない(ティアごとに段階的に低下する)。
+    factor *= pow(0.8, _save!.currentDivisionTier - 1).toDouble();
     factor *= _save!.ticketPricing.attendanceMultiplier;
     return factor.clamp(0.0, 1.0);
   }
@@ -2204,10 +2255,11 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // もう一方のディビジョン(2部相当)も同じ節番号の試合を裏で消化しておく。
-    // こうすることで昇格・降格に意味のある順位表を常時閲覧できるようにする。
-    final otherLeague = _save!.otherDivisionLeague;
-    if (otherLeague != null) {
+    // ユーザーが所属していない他の全ディビジョンも同じ節番号の試合を裏で
+    // 消化しておく。こうすることで昇格・降格に意味のある順位表を常時
+    // 閲覧できるようにする。
+    for (final otherLeague in _save!.otherDivisionLeagues) {
+      if (otherLeague == null) continue;
       for (final f in otherLeague.fixturesForMatchday(md)) {
         if (f.result != null) continue;
         final home = _findTeam(otherLeague.teams, f.homeTeamId);
@@ -2625,7 +2677,7 @@ class GameState extends ChangeNotifier {
   Future<MatchResult?> playSuperCup() async {
     if (_save == null || _save!.pendingSuperCup == null) return null;
     final match = _save!.pendingSuperCup!;
-    final teams = [..._save!.league.teams, ..._save!.secondDivisionTeams];
+    final teams = _save!.allTeams;
     final home = teams.firstWhere((t) => t.id == match.homeTeamId);
     final away = teams.firstWhere((t) => t.id == match.awayTeamId);
     final result = MatchEngine.simulate(
@@ -2695,7 +2747,7 @@ class GameState extends ChangeNotifier {
     final playedOrder = standings
         .map((r) => league.teams.firstWhere((t) => t.id == r.teamId))
         .toList();
-    final wasTier1 = _save!.currentDivisionTier == 1;
+    final playedTier = _save!.currentDivisionTier;
 
     // シーズン開始時点の総合力からの成長を選手ごとに算出し、シーズン終了時に
     // 一覧表示できるようにする。
@@ -2723,8 +2775,9 @@ class GameState extends ChangeNotifier {
     _save!.careerLosses += userRow.lost;
     _save!.careerSeasons += 1;
     if (finalRank == 1) {
-      final divisionLabel =
-          wasTier1 ? _save!.leagueName : '${_save!.leagueName}(2部)';
+      final divisionLabel = playedTier == 1
+          ? _save!.leagueName
+          : '${_save!.leagueName}($playedTier部)';
       _save!.trophyHistory.add('シーズン${league.season}: $divisionLabel 優勝');
     }
 
@@ -2735,10 +2788,10 @@ class GameState extends ChangeNotifier {
       lastSeasonManagerAwardWon = true;
     }
 
-    // 2部リーグは1部より観客動員・賞金が少ない。
+    // 下位ディビジョンほど観客動員・賞金が少ない(ティアごとに段階的に低下する)。
     var prizeMoney = BoardEngine.seasonPrizeMoney(
         finalRank: finalRank, teamCount: league.teams.length);
-    if (!wasTier1) prizeMoney = (prizeMoney * 0.5).round();
+    prizeMoney = (prizeMoney * pow(0.6, playedTier - 1)).round();
     _save!.budget += prizeMoney;
     final confidenceDelta = BoardEngine.confidenceDeltaForSeasonEnd(
       finalRank: finalRank,
@@ -2746,7 +2799,7 @@ class GameState extends ChangeNotifier {
     );
     _save!.confidence = (_save!.confidence + confidenceDelta).clamp(0, 100);
 
-    for (final t in [...league.teams, ..._save!.secondDivisionTeams]) {
+    for (final t in _save!.allTeams) {
       for (final p in t.players) {
         p.age += 1;
       }
@@ -2773,7 +2826,7 @@ class GameState extends ChangeNotifier {
       _save!.managerReputation = (_save!.managerReputation - 5).clamp(0, 100);
     }
     // 評価が高く好成績を残すと、他クラブから監督就任オファーが届くことがある(1部のみ)。
-    if (wasTier1 &&
+    if (playedTier == 1 &&
         _save!.pendingJobOfferTeamId == null &&
         _save!.managerReputation >= 55 &&
         finalRank <= (league.teams.length / 2).ceil()) {
@@ -2788,56 +2841,110 @@ class GameState extends ChangeNotifier {
       }
     }
 
-    // 昇格・降格を解決する。裏のディビジョンは節ごとに並行して消化してきた
-    // ため、その最終順位順をそのまま使う(改めてシミュレートし直さない)。
-    final otherLeague = _save!.otherDivisionLeague;
-    final otherDivisionPlayedOrder = otherLeague?.sortedStandings
-        .map((r) => otherLeague.teams.firstWhere((t) => t.id == r.teamId))
-        .toList();
-    final promotion = wasTier1
-        ? PromotionEngine.resolve(
-            tier1Teams: league.teams,
-            tier2Teams: _save!.secondDivisionTeams,
-            tier1PlayedOrder: playedOrder,
-            tier2PlayedOrder: otherDivisionPlayedOrder,
-          )
-        : PromotionEngine.resolve(
-            tier1Teams: _save!.secondDivisionTeams,
-            tier2Teams: league.teams,
-            tier1PlayedOrder: otherDivisionPlayedOrder,
-            tier2PlayedOrder: playedOrder,
-          );
-    final userNowInTier1 =
-        promotion.tier1.any((t) => t.id == _save!.userTeamId);
-    final newActiveTeams = userNowInTier1 ? promotion.tier1 : promotion.tier2;
-    final newBackgroundTeams =
-        userNowInTier1 ? promotion.tier2 : promotion.tier1;
-    final newTier = userNowInTier1 ? 1 : 2;
-    final userInPromotionPlayoff = promotion.promotionPlayoff.any(
+    // 昇格・降格を解決する。ユーザーの現在ティア以外は節ごとに並行して
+    // 消化してきたため、その最終順位順をそのまま使う(改めてシミュレート
+    // し直さない)。各境界(1部/2部、2部/3部、…)は隣接ティアの実際の最終
+    // 順位のみを根拠に独立して解決する。前の境界の解決結果を次の境界に
+    // 連鎖させると、降格してきたばかりのチームがその配列内の並び順の都合で
+    // さらに1段降格してしまう(1シーズンで複数ティア移動する)バグになるため、
+    // 各ティアの「移動元(outgoing)」「移動先(incoming)」だけを集計し、
+    // 最後にまとめて新編成を組み立てる。
+    List<Team> orderedTeamsForTier(int tier) {
+      if (tier == playedTier) return playedOrder;
+      final other = _save!.otherDivisionLeagues[tier - 1]!;
+      final otherStandings = other.sortedStandings;
+      return otherStandings
+          .map((r) => other.teams.firstWhere((t) => t.id == r.teamId))
+          .toList();
+    }
+
+    final tierOrder = <int, List<Team>>{
+      for (int tier = 1; tier <= totalDivisionTiers; tier++)
+        tier: orderedTeamsForTier(tier),
+    };
+    final outgoingIds = <int, Set<String>>{
+      for (int tier = 1; tier <= totalDivisionTiers; tier++) tier: <String>{},
+    };
+    final incomingTeams = <int, List<Team>>{
+      for (int tier = 1; tier <= totalDivisionTiers; tier++) tier: <Team>[],
+    };
+    var relevantPlayoffMatches = const <PromotionPlayoffMatch>[];
+    for (int upperTier = 1; upperTier < totalDivisionTiers; upperTier++) {
+      final lowerTier = upperTier + 1;
+      final upperOrder = tierOrder[upperTier]!;
+      final lowerOrder = tierOrder[lowerTier]!;
+      final result = PromotionEngine.resolve(
+        tier1Teams: upperOrder,
+        tier2Teams: lowerOrder,
+        tier1PlayedOrder: upperOrder,
+        tier2PlayedOrder: lowerOrder,
+      );
+      final upperIds = upperOrder.map((t) => t.id).toSet();
+      final lowerIds = lowerOrder.map((t) => t.id).toSet();
+      final promoted =
+          result.tier1.where((t) => !upperIds.contains(t.id)).toList();
+      final relegated =
+          result.tier2.where((t) => !lowerIds.contains(t.id)).toList();
+
+      outgoingIds[upperTier]!.addAll(relegated.map((t) => t.id));
+      outgoingIds[lowerTier]!.addAll(promoted.map((t) => t.id));
+      incomingTeams[upperTier]!.addAll(promoted);
+      incomingTeams[lowerTier]!.addAll(relegated);
+
+      if (lowerTier == playedTier) {
+        relevantPlayoffMatches = result.promotionPlayoff;
+      }
+    }
+
+    final newTeamsByTier = <int, List<Team>>{
+      for (int tier = 1; tier <= totalDivisionTiers; tier++)
+        tier: [
+          ...tierOrder[tier]!.where((t) => !outgoingIds[tier]!.contains(t.id)),
+          ...incomingTeams[tier]!,
+        ],
+    };
+
+    var newTier = playedTier;
+    for (final entry in newTeamsByTier.entries) {
+      if (entry.value.any((t) => t.id == _save!.userTeamId)) {
+        newTier = entry.key;
+        break;
+      }
+    }
+    final newActiveTeams = newTeamsByTier[newTier]!;
+
+    final userInPromotionPlayoff = relevantPlayoffMatches.any(
         (m) => m.homeId == _save!.userTeamId || m.awayId == _save!.userTeamId);
-    lastPromotionPlayoffResults = promotion.promotionPlayoff
+    lastPromotionPlayoffResults = relevantPlayoffMatches
         .map((m) => '${m.roundLabel}: ${m.homeName} ${m.homeGoals}-'
             '${m.awayGoals} ${m.awayName}'
             '${m.decidedByPenalties ? '(PK: ${m.winnerName}が勝利)' : ''}')
         .toList();
     userInvolvedInLastPromotionPlayoff = userInPromotionPlayoff;
-    if (wasTier1 && newTier == 2) {
-      lastDivisionChangeMessage = '降格が決まりました。来シーズンは2部リーグでの再出発です。';
-    } else if (!wasTier1 && newTier == 1) {
+    if (newTier > playedTier) {
+      lastDivisionChangeMessage = '降格が決まりました。来シーズンは$newTier部リーグでの再出発です。';
+    } else if (newTier < playedTier) {
       lastDivisionChangeMessage = userInPromotionPlayoff
-          ? '昇格プレーオフを勝ち抜き、来シーズンは1部リーグに戻ります！'
-          : '昇格達成！来シーズンは1部リーグに戻ります。';
+          ? '昇格プレーオフを勝ち抜き、来シーズンは$newTier部リーグに昇格します！'
+          : '昇格達成！来シーズンは$newTier部リーグに昇格します。';
     } else if (userInPromotionPlayoff) {
-      lastDivisionChangeMessage = '昇格プレーオフで敗れ、来シーズンも2部リーグで戦います。';
+      lastDivisionChangeMessage = '昇格プレーオフで敗れ、来シーズンも$playedTier部リーグで戦います。';
     } else {
       lastDivisionChangeMessage = null;
     }
     _save!.currentDivisionTier = newTier;
-    _save!.secondDivisionTeams = newBackgroundTeams;
-    _save!.otherDivisionLeague = League(
-        teams: newBackgroundTeams,
-        fixtures: FixtureGenerator.generateDoubleRoundRobin(newBackgroundTeams),
-        season: league.season + 1);
+    for (int tier = 1; tier <= totalDivisionTiers; tier++) {
+      if (tier == newTier) {
+        _save!.otherDivisionLeagues[tier - 1] = null;
+        continue;
+      }
+      final tierTeams = newTeamsByTier[tier]!;
+      _save!.otherDivisionLeagues[tier - 1] = League(
+        teams: tierTeams,
+        fixtures: FixtureGenerator.generateDoubleRoundRobin(tierTeams),
+        season: league.season + 1,
+      );
+    }
 
     final newFixtures =
         FixtureGenerator.generateDoubleRoundRobin(newActiveTeams);
@@ -2908,7 +3015,7 @@ class GameState extends ChangeNotifier {
       season: league.season,
       clubName: _save!.clubName,
       leagueName: _save!.leagueName,
-      divisionTier: wasTier1 ? 1 : 2,
+      divisionTier: playedTier,
       finalRank: finalRank,
       teamCount: league.teams.length,
       played: userRow.played,
@@ -2918,8 +3025,8 @@ class GameState extends ChangeNotifier {
       goalsFor: userRow.goalsFor,
       goalsAgainst: userRow.goalsAgainst,
       wonLeague: finalRank == 1,
-      promoted: !wasTier1 && newTier == 1,
-      relegated: wasTier1 && newTier == 2,
+      promoted: newTier < playedTier,
+      relegated: newTier > playedTier,
       cupsWon: cupsWonThisSeason,
     ));
     _evaluateAchievements(season: league.season);
@@ -2940,7 +3047,7 @@ class GameState extends ChangeNotifier {
         leagueChampionId: standings.first.teamId,
         domesticCup: previousDomesticCup,
       );
-      final teamsThisSeason = [...newActiveTeams, ...newBackgroundTeams];
+      final teamsThisSeason = newTeamsByTier.values.expand((t) => t).toList();
       Team? findTeam(String id) {
         for (final t in teamsThisSeason) {
           if (t.id == id) return t;
@@ -2981,7 +3088,7 @@ class GameState extends ChangeNotifier {
         teamIds: newActiveTeams.map((t) => t.id).toList(),
       ),
     ];
-    if (wasTier1 && finalRank <= 2) {
+    if (playedTier == 1 && finalRank <= 2) {
       final continentalTeams = _generateContinentalTeams();
       _save!.continentalTeams = continentalTeams;
       _save!.continentalCup = ContinentalCupEngine.create(

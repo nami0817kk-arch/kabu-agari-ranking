@@ -100,16 +100,15 @@ class SaveGame {
   /// 回答待ちの記者会見の質問。ない場合はnull。
   PressQuestion? pendingPressConference;
 
-  /// 現在ユーザーが所属していない方のディビジョンのチーム一覧。
-  List<Team> secondDivisionTeams;
+  /// ユーザーの現在の所属ディビジョン以外の各ディビジョンのリーグ。添字0が1部、
+  /// 添字[totalDivisionTiers]-1が最下位ティア。ユーザーの現在の所属ティアに
+  /// 対応する添字は使用しない(null)。ユーザーの節送りに合わせて同じ節番号の
+  /// 試合を裏で消化しておくことで、昇格・降格に意味のある他ディビジョンの
+  /// 順位表を常時閲覧できるようにする。シーズン終了時はこの順位確定順を
+  /// 昇格・降格の判定にそのまま使う。
+  List<League?> otherDivisionLeagues;
 
-  /// [secondDivisionTeams]の今シーズンの日程・結果・順位表。ユーザーの節送りに
-  /// 合わせて同じ節番号の試合を裏で消化しておくことで、昇格・降格に意味のある
-  /// 「もう一方のディビジョン」の順位表を常時閲覧できるようにする。シーズン
-  /// 終了時はこの順位確定順を昇格・降格の判定にそのまま使う。
-  League? otherDivisionLeague;
-
-  /// ユーザークラブが現在所属するディビジョン(1部/2部)。
+  /// ユーザークラブが現在所属するディビジョン(1が最上位、[totalDivisionTiers]が最下位)。
   int currentDivisionTier;
 
   /// 監督としての通算成績。
@@ -199,8 +198,7 @@ class SaveGame {
     this.rivalTeamId,
     this.rivalTeamName,
     this.pendingPressConference,
-    List<Team>? secondDivisionTeams,
-    this.otherDivisionLeague,
+    List<League?>? otherDivisionLeagues,
     this.currentDivisionTier = 1,
     this.careerWins = 0,
     this.careerDraws = 0,
@@ -242,7 +240,17 @@ class SaveGame {
         bankLoans = bankLoans ?? [],
         fixedDeposits = fixedDeposits ?? [],
         seasonAwards = seasonAwards ?? [],
-        secondDivisionTeams = secondDivisionTeams ?? [];
+        otherDivisionLeagues = otherDivisionLeagues ??
+            List<League?>.filled(totalDivisionTiers, null);
+
+  /// 全ディビジョンの全チーム(現在の所属ディビジョンも含む)。ID再採番や
+  /// スーパーカップの対戦相手検索など、所属ティアを問わず全チームが必要な
+  /// 場面で使う。
+  List<Team> get allTeams => [
+        ...league.teams,
+        for (final l in otherDivisionLeagues)
+          if (l != null) ...l.teams,
+      ];
 
   Map<String, dynamic> toJson() => {
         'clubName': clubName,
@@ -277,9 +285,8 @@ class SaveGame {
         'rivalTeamId': rivalTeamId,
         'rivalTeamName': rivalTeamName,
         'pendingPressConference': pendingPressConference?.toJson(),
-        'secondDivisionTeams':
-            secondDivisionTeams.map((t) => t.toJson()).toList(),
-        'otherDivisionLeague': otherDivisionLeague?.toJson(),
+        'otherDivisionLeagues':
+            otherDivisionLeagues.map((l) => l?.toJson()).toList(),
         'currentDivisionTier': currentDivisionTier,
         'careerWins': careerWins,
         'careerDraws': careerDraws,
@@ -378,14 +385,13 @@ class SaveGame {
             ? null
             : PressQuestion.fromJson(
                 json['pendingPressConference'] as Map<String, dynamic>),
-        secondDivisionTeams: (json['secondDivisionTeams'] as List?)
-                ?.map((e) => Team.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-        otherDivisionLeague: json['otherDivisionLeague'] == null
-            ? null
-            : League.fromJson(
-                json['otherDivisionLeague'] as Map<String, dynamic>),
+        otherDivisionLeagues: json['otherDivisionLeagues'] != null
+            ? (json['otherDivisionLeagues'] as List)
+                .map((e) => e == null
+                    ? null
+                    : League.fromJson(e as Map<String, dynamic>))
+                .toList()
+            : _legacyOtherDivisionLeagues(json),
         currentDivisionTier: json['currentDivisionTier'] as int? ?? 1,
         careerWins: json['careerWins'] as int? ?? 0,
         careerDraws: json['careerDraws'] as int? ?? 0,
@@ -439,4 +445,28 @@ class SaveGame {
                     ?.map((k, v) => MapEntry(k as String, v as int)) ??
                 {},
       );
+
+  /// 5部制ピラミッド導入前の旧セーブデータ(`otherDivisionLeagues`キーが
+  /// 存在しない)を読み込む際、旧来の単一`otherDivisionLeague`
+  /// (`secondDivisionTeams`しかない、さらに古い世代のデータの場合はチーム
+  /// 一覧のみ)を、現在のティア以外の添字がnullな[totalDivisionTiers]要素の
+  /// リストへ変換する。新たに追加された下位ティア(3部以下)は、この時点では
+  /// 生成できないためnullのままにし、GameState起動時のマイグレーションで
+  /// 補充する。
+  static List<League?> _legacyOtherDivisionLeagues(Map<String, dynamic> json) {
+    final tier = json['currentDivisionTier'] as int? ?? 1;
+    final result = List<League?>.filled(totalDivisionTiers, null);
+    final otherTier = tier == 1 ? 2 : 1;
+    if (otherTier < 1 || otherTier > totalDivisionTiers) return result;
+    if (json['otherDivisionLeague'] != null) {
+      result[otherTier - 1] =
+          League.fromJson(json['otherDivisionLeague'] as Map<String, dynamic>);
+    } else if (json['secondDivisionTeams'] != null) {
+      final teams = (json['secondDivisionTeams'] as List)
+          .map((e) => Team.fromJson(e as Map<String, dynamic>))
+          .toList();
+      result[otherTier - 1] = League(teams: teams, fixtures: const []);
+    }
+    return result;
+  }
 }

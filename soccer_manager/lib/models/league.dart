@@ -3,6 +3,9 @@ import 'enum_json.dart';
 import 'match_result.dart';
 import 'weather.dart';
 
+/// 昇格ピラミッド全体のディビジョン数(1部が最上位、5部が最下位)。
+const int totalDivisionTiers = 5;
+
 class Fixture {
   final int matchday;
   final String homeTeamId;

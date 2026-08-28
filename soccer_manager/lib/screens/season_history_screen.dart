@@ -87,7 +87,7 @@ class _SeasonRecordCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${record.leagueName}${record.divisionTier == 2 ? '(2部)' : ''} '
+              '${record.leagueName}${record.divisionTier != 1 ? '(${record.divisionTier}部)' : ''} '
               '${record.finalRank}位 / ${record.teamCount}クラブ中',
               style: Theme.of(context).textTheme.bodyMedium,
             ),

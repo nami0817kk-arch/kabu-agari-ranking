@@ -1088,10 +1088,7 @@ class _SuperCupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final match = gameState.pendingSuperCup!;
-    final teams = [
-      ...gameState.save!.league.teams,
-      ...gameState.save!.secondDivisionTeams,
-    ];
+    final teams = gameState.save!.allTeams;
     final userId = gameState.userTeam.id;
     final opponentId =
         match.homeTeamId == userId ? match.awayTeamId : match.homeTeamId;
@@ -1122,10 +1119,7 @@ class _SuperCupCard extends StatelessWidget {
 
   Future<void> _play(BuildContext context) async {
     FeedbackService.tap();
-    final teams = [
-      ...gameState.save!.league.teams,
-      ...gameState.save!.secondDivisionTeams,
-    ];
+    final teams = gameState.save!.allTeams;
     final result = await gameState.playSuperCup();
     if (!context.mounted || result == null) return;
     await Navigator.of(context).push(

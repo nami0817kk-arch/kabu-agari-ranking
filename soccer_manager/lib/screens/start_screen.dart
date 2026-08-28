@@ -173,7 +173,7 @@ class _SlotCard extends StatelessWidget {
                             style: Theme.of(context).textTheme.titleMedium),
                         Text(
                           '第${slot.season ?? 1}シーズン'
-                          '${slot.divisionTier == 2 ? ' ・ 2部' : ''}',
+                          '${slot.divisionTier != null && slot.divisionTier != 1 ? ' ・ ${slot.divisionTier}部' : ''}',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
