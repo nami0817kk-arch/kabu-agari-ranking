@@ -125,8 +125,11 @@ def _fetch_name(code: str) -> str:
         h1 = soup.find("h1")
         if h1:
             return h1.get_text(strip=True).split("(")[0].strip()
-    except Exception:
-        pass
+        print(f"  [WARN] {code}: 個別ページに銘柄名が見つかりませんでした")
+    except Exception as e:
+        # 名前が引けなくてもランキング自体は出せるのでコードで代替する。
+        # ただし黙って通すと、名前がコードのまま並んでいる原因が追えなくなる。
+        print(f"  [WARN] {code}: 銘柄名の取得に失敗しました: {e}")
     return code
 
 
