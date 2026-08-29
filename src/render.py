@@ -10,7 +10,43 @@ _TEMPLATES_DIR = _ROOT / "templates"
 _DATA_DIR = _ROOT / "data"
 _OUTPUT_DIR = _ROOT / "output"
 
+SITE_URL = "https://kabu-agari-ranking.pages.dev"
+
 _env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)))
+
+
+_ROBOTS_TXT = f"""User-agent: *
+Allow: /
+
+Sitemap: {SITE_URL}/sitemap.xml
+"""
+
+_ADS_TXT = """# Google AdSense 審査通過後、下記のコメントを解除し pub-ID を実際の値に置き換える
+# google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0
+"""
+
+
+def _write_sitemap(days: list[dict]) -> None:
+    urls = [
+        (f"{SITE_URL}/index.html", days[0]["rec_date"]),
+        (f"{SITE_URL}/about.html", days[0]["rec_date"]),
+        (f"{SITE_URL}/privacy.html", days[0]["rec_date"]),
+        (f"{SITE_URL}/archive/index.html", days[0]["rec_date"]),
+    ]
+    for day in days:
+        urls.append((f"{SITE_URL}/archive/{day['rec_date']}.html", day["rec_date"]))
+
+    entries = "\n".join(
+        f"  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>"
+        for loc, lastmod in urls
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{entries}\n"
+        "</urlset>\n"
+    )
+    (_OUTPUT_DIR / "sitemap.xml").write_text(xml, encoding="utf-8")
 
 
 def _load_all_days() -> list[dict]:
@@ -60,5 +96,10 @@ def build_all() -> None:
     for name in ("about.html", "privacy.html"):
         tmpl = _env.get_template(name)
         (_OUTPUT_DIR / name).write_text(tmpl.render(base_url=""), encoding="utf-8")
+
+    # SEO/広告関連の静的ファイル
+    (_OUTPUT_DIR / "robots.txt").write_text(_ROBOTS_TXT, encoding="utf-8")
+    (_OUTPUT_DIR / "ads.txt").write_text(_ADS_TXT, encoding="utf-8")
+    _write_sitemap(days)
 
     print(f"  output/ を生成しました（{len(days)}日分）")

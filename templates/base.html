@@ -63,8 +63,13 @@
     font-size: 0.75rem;
     border: 1px dashed var(--border);
   }
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   table.ranking {
     width: 100%;
+    min-width: 560px;
     border-collapse: collapse;
     background: var(--card-bg);
     font-size: 0.9rem;
@@ -104,6 +109,9 @@
     text-align: center;
   }
   footer a { color: var(--muted); margin: 0 0.5rem; }
+  dl { margin: 0 0 1rem; }
+  dt { margin-top: 0.75rem; }
+  dd { margin: 0.25rem 0 0; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -121,12 +129,9 @@
 <!-- TODO: AdSense publisher ID を取得後、下記コメントアウトを外して設置する
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
 -->
-<div class="ad-slot">
-  <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" data-ad-slot="0000000000" data-ad-format="auto"></ins>
-  <!-- 広告枠（AdSense審査通過後に有効化） -->
-</div>
 
 <main>
+{% include "_ad_slot.html" %}
 {% block content %}{% endblock %}
 
 <div class="disclaimer">

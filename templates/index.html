@@ -3,7 +3,12 @@
 {% block description %}{{ rec_date }}時点の日本株・値上がり率ランキング TOP{{ rows|length }}を掲載。{% endblock %}
 {% block content %}
 <h1>本日の値上がり株ランキング</h1>
-<p>更新日: {{ rec_date }}（東証プライム・スタンダード・グロース全市場対象）</p>
+<p>
+  更新日: {{ rec_date }}（東証プライム・スタンダード・グロース全市場対象）。
+  前営業日終値からの値上がり率が高い順に上位{{ rows|length }}銘柄を掲載しています。
+  各項目の意味は<a href="{{ base_url }}about.html">このサイトについて</a>の用語解説をご覧ください。
+</p>
 {% include "_ranking_table.html" %}
+{% include "_ad_slot.html" %}
 <p><a href="{{ base_url }}archive/index.html">過去のランキングを見る →</a></p>
 {% endblock %}
