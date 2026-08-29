@@ -1,9 +1,10 @@
 """
 サイト全体のビルドエントリポイント。
 
-1. 当日の値上がりランキングを取得
+1. 当日の値上がり/値下がり/活況ランキングを取得
 2. data/YYYY-MM-DD.json ＋ data/latest.json に保存
-3. output/ に静的HTMLを生成
+3. 値上がり上位銘柄の「その後の値動き」追跡データを更新
+4. output/ に静的HTMLを生成
 
 市場休場日等でランキングが0件の場合は、既存データを壊さないよう
 何もせずに正常終了する（呼び出し元のCIはこの場合コミット・デプロイをスキップする）。
@@ -14,20 +15,27 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from fetcher import fetch_gainers
+from fetcher import fetch_gainers, fetch_losers, fetch_active
+import tracking
 import render
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
+_ROW_COLS = ["rank", "code", "name", "close", "change_pct", "metric_value"]
 
-def _save_today(df) -> str | None:
-    if df.empty:
-        print("  本日分のランキングを取得できませんでした（休場日、または取得失敗）。スキップします。")
+
+def _save_today(gainers, losers, active) -> str | None:
+    if gainers.empty:
+        print("  本日分のランキングを取得できませんでした(休場日、または取得失敗)。スキップします。")
         return None
 
-    rec_date = df["rec_date"].iloc[0]
-    rows = df[["rank", "code", "name", "close", "gain_pct", "volume"]].to_dict(orient="records")
-    payload = {"rec_date": rec_date, "rows": rows}
+    rec_date = gainers["rec_date"].iloc[0]
+    payload = {
+        "rec_date": rec_date,
+        "gainers": gainers[_ROW_COLS].to_dict(orient="records"),
+        "losers": losers[_ROW_COLS].to_dict(orient="records") if not losers.empty else [],
+        "active": active[_ROW_COLS].to_dict(orient="records") if not active.empty else [],
+    }
 
     _DATA_DIR.mkdir(parents=True, exist_ok=True)
     day_path = _DATA_DIR / f"{rec_date}.json"
@@ -35,18 +43,27 @@ def _save_today(df) -> str | None:
     (_DATA_DIR / "latest.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"  {day_path} に保存しました（{len(rows)}件）")
+    print(
+        f"  {day_path} に保存しました"
+        f"(値上がり{len(payload['gainers'])}/値下がり{len(payload['losers'])}/活況{len(payload['active'])}件)"
+    )
     return rec_date
 
 
 def main() -> None:
-    df = fetch_gainers(top_n=30)
-    rec_date = _save_today(df)
+    gainers = fetch_gainers(top_n=30)
+    losers = fetch_losers(top_n=30)
+    active = fetch_active(top_n=30)
+
+    rec_date = _save_today(gainers, losers, active)
 
     if rec_date is None and not any(_DATA_DIR.glob("????-??-??.json")):
-        # 初回実行で1件もデータが無ければビルドしようがない
         print("  data/ に既存データも無いため、サイトのビルドを中止します。")
         return
+
+    if rec_date is not None:
+        tracking.add_new_picks(gainers)
+    tracking.update_prices()
 
     render.build_all()
 

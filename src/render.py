@@ -1,9 +1,12 @@
 """data/*.json を読み込み、Jinja2 テンプレートから output/ に静的HTMLを生成する。"""
 import json
 import shutil
+import statistics
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
+
+import tracking
 
 _ROOT = Path(__file__).resolve().parent.parent
 _TEMPLATES_DIR = _ROOT / "templates"
@@ -13,6 +16,142 @@ _OUTPUT_DIR = _ROOT / "output"
 SITE_URL = "https://kabu-agari-ranking.pages.dev"
 
 _env = Environment(loader=FileSystemLoader(str(_TEMPLATES_DIR)))
+
+# (json_key, dirname, heading, metric_label, output_filename, intro)
+_RANKING_TYPES = [
+    (
+        "gainers", "gainers", "値上がりランキング", "出来高", "index.html",
+        "前営業日終値からの値上がり率が高い順に上位{n}銘柄を掲載しています。"
+        "東証プライム・スタンダード・グロース全市場が対象です。",
+    ),
+    (
+        "losers", "losers", "値下がりランキング", "出来高", "losers.html",
+        "前営業日終値からの値下がり率が大きい順に上位{n}銘柄を掲載しています。"
+        "東証プライム・スタンダード・グロース全市場が対象です。",
+    ),
+    (
+        "active", "active", "活況銘柄ランキング（取引回数）", "約定回数", "active.html",
+        "本日の約定回数（取引が成立した回数）が多い順に上位{n}銘柄を掲載しています。"
+        "出来高そのものではなく、取引の活発さを示す指標です。",
+    ),
+]
+
+
+def _normalize_day(raw: dict) -> dict:
+    """旧形式（値上がりランキングのみ・rows/gain_pct/volumeキー）を新形式に変換する。"""
+    if "gainers" in raw:
+        return raw
+    legacy_rows = [
+        {
+            "rank": r["rank"],
+            "code": r["code"],
+            "name": r["name"],
+            "close": r["close"],
+            "change_pct": r["gain_pct"],
+            "metric_value": r["volume"],
+        }
+        for r in raw.get("rows", [])
+    ]
+    return {"rec_date": raw["rec_date"], "gainers": legacy_rows, "losers": [], "active": []}
+
+
+def _load_all_days() -> list[dict]:
+    """data/YYYY-MM-DD.json を全て読み込み、rec_date 降順（新しい順）で返す。"""
+    days = []
+    for path in _DATA_DIR.glob("????-??-??.json"):
+        with open(path, encoding="utf-8") as f:
+            days.append(_normalize_day(json.load(f)))
+    days.sort(key=lambda d: d["rec_date"], reverse=True)
+    return days
+
+
+def _write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def _build_ranking_pages(days: list[dict]) -> None:
+    latest = days[0]
+    today_tmpl = _env.get_template("ranking_today.html")
+    day_tmpl = _env.get_template("ranking_day.html")
+    archive_index_tmpl = _env.get_template("ranking_archive_index.html")
+
+    for json_key, dirname, heading, metric_label, out_name, intro_fmt in _RANKING_TYPES:
+        rows = latest.get(json_key, [])
+        _write(
+            _OUTPUT_DIR / out_name,
+            today_tmpl.render(
+                base_url="",
+                rec_date=latest["rec_date"],
+                rows=rows,
+                heading=heading,
+                metric_label=metric_label,
+                intro=intro_fmt.format(n=len(rows)),
+                archive_href=f"archive/{dirname}/index.html",
+            ),
+        )
+
+        dates_with_data = []
+        for day in days:
+            day_rows = day.get(json_key, [])
+            if not day_rows:
+                continue
+            dates_with_data.append(day["rec_date"])
+            _write(
+                _OUTPUT_DIR / "archive" / dirname / f"{day['rec_date']}.html",
+                day_tmpl.render(
+                    base_url="../../",
+                    rec_date=day["rec_date"],
+                    rows=day_rows,
+                    heading=heading,
+                    metric_label=metric_label,
+                ),
+            )
+
+        _write(
+            _OUTPUT_DIR / "archive" / dirname / "index.html",
+            archive_index_tmpl.render(base_url="../../", heading=heading, dates=dates_with_data),
+        )
+
+
+def _compute_tracking_stats(entries: list[dict]) -> dict:
+    completed = []
+    for e in entries:
+        d14 = e["prices"].get("d14")
+        if d14 is None or e["rec_close"] is None:
+            continue
+        ret_2w = (d14 - e["rec_close"]) / e["rec_close"] * 100
+        d05 = e["prices"].get("d05")
+        ret_1w = (d05 - e["rec_close"]) / e["rec_close"] * 100 if d05 is not None else None
+        completed.append({**e, "ret_1w": ret_1w, "ret_2w": ret_2w})
+
+    partial_count = len(entries) - len(completed)
+
+    stats = {
+        "total": len(entries),
+        "completed_count": len(completed),
+        "partial_count": partial_count,
+        "win_rate": None,
+        "avg_1w": None,
+        "avg_2w": None,
+        "top5": [],
+    }
+    if completed:
+        wins = sum(1 for c in completed if c["ret_2w"] > 0)
+        stats["win_rate"] = wins / len(completed) * 100
+        stats["avg_2w"] = statistics.mean(c["ret_2w"] for c in completed)
+        one_week_vals = [c["ret_1w"] for c in completed if c["ret_1w"] is not None]
+        if one_week_vals:
+            stats["avg_1w"] = statistics.mean(one_week_vals)
+        stats["top5"] = sorted(completed, key=lambda c: c["ret_2w"], reverse=True)[:5]
+    return stats
+
+
+def _build_tracking_page() -> None:
+    entries = tracking.load_report_data()
+    stats = _compute_tracking_stats(entries)
+    tmpl = _env.get_template("tracking.html")
+    _write(_OUTPUT_DIR / "tracking.html", tmpl.render(base_url="", entries=entries, stats=stats))
 
 
 _ROBOTS_TXT = f"""User-agent: *
@@ -27,18 +166,23 @@ _ADS_TXT = """# Google AdSense 審査通過後、下記のコメントを解除�
 
 
 def _write_sitemap(days: list[dict]) -> None:
+    latest_date = days[0]["rec_date"]
     urls = [
-        (f"{SITE_URL}/index.html", days[0]["rec_date"]),
-        (f"{SITE_URL}/about.html", days[0]["rec_date"]),
-        (f"{SITE_URL}/privacy.html", days[0]["rec_date"]),
-        (f"{SITE_URL}/archive/index.html", days[0]["rec_date"]),
+        (f"{SITE_URL}/index.html", latest_date),
+        (f"{SITE_URL}/losers.html", latest_date),
+        (f"{SITE_URL}/active.html", latest_date),
+        (f"{SITE_URL}/tracking.html", latest_date),
+        (f"{SITE_URL}/about.html", latest_date),
+        (f"{SITE_URL}/privacy.html", latest_date),
     ]
-    for day in days:
-        urls.append((f"{SITE_URL}/archive/{day['rec_date']}.html", day["rec_date"]))
+    for json_key, dirname, *_rest in _RANKING_TYPES:
+        urls.append((f"{SITE_URL}/archive/{dirname}/index.html", latest_date))
+        for day in days:
+            if day.get(json_key):
+                urls.append((f"{SITE_URL}/archive/{dirname}/{day['rec_date']}.html", day["rec_date"]))
 
     entries = "\n".join(
-        f"  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>"
-        for loc, lastmod in urls
+        f"  <url><loc>{loc}</loc><lastmod>{lastmod}</lastmod></url>" for loc, lastmod in urls
     )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -49,57 +193,31 @@ def _write_sitemap(days: list[dict]) -> None:
     (_OUTPUT_DIR / "sitemap.xml").write_text(xml, encoding="utf-8")
 
 
-def _load_all_days() -> list[dict]:
-    """data/YYYY-MM-DD.json を全て読み込み、rec_date 降順（新しい順）で返す。"""
-    days = []
-    for path in _DATA_DIR.glob("????-??-??.json"):
-        with open(path, encoding="utf-8") as f:
-            days.append(json.load(f))
-    days.sort(key=lambda d: d["rec_date"], reverse=True)
-    return days
-
-
 def build_all() -> None:
-    """output/ を作り直し、当日ページ・アーカイブ・固定ページを全て生成する。"""
+    """output/ を作り直し、各種ランキングページ・実績ページ・固定ページを全て生成する。"""
     if _OUTPUT_DIR.exists():
         shutil.rmtree(_OUTPUT_DIR)
     _OUTPUT_DIR.mkdir(parents=True)
-    (_OUTPUT_DIR / "archive").mkdir()
 
     days = _load_all_days()
     if not days:
         raise RuntimeError("data/ にランキングJSONが1件もありません。先に build_site.py でデータを取得してください。")
 
-    latest = days[0]
+    _build_ranking_pages(days)
+    _build_tracking_page()
 
-    # 本日（最新日）のトップページ
-    tmpl = _env.get_template("index.html")
-    (_OUTPUT_DIR / "index.html").write_text(
-        tmpl.render(base_url="", rec_date=latest["rec_date"], rows=latest["rows"]),
-        encoding="utf-8",
-    )
-
-    # 過去日ページ（archive/YYYY-MM-DD.html）
-    day_tmpl = _env.get_template("day.html")
-    for day in days:
-        html = day_tmpl.render(base_url="../", rec_date=day["rec_date"], rows=day["rows"])
-        (_OUTPUT_DIR / "archive" / f"{day['rec_date']}.html").write_text(html, encoding="utf-8")
-
-    # アーカイブ一覧（archive/index.html）
-    archive_tmpl = _env.get_template("archive.html")
-    (_OUTPUT_DIR / "archive" / "index.html").write_text(
-        archive_tmpl.render(base_url="../", dates=[d["rec_date"] for d in days]),
-        encoding="utf-8",
-    )
-
-    # 固定ページ
     for name in ("about.html", "privacy.html"):
         tmpl = _env.get_template(name)
-        (_OUTPUT_DIR / name).write_text(tmpl.render(base_url=""), encoding="utf-8")
+        _write(_OUTPUT_DIR / name, tmpl.render(base_url=""))
 
-    # SEO/広告関連の静的ファイル
     (_OUTPUT_DIR / "robots.txt").write_text(_ROBOTS_TXT, encoding="utf-8")
     (_OUTPUT_DIR / "ads.txt").write_text(_ADS_TXT, encoding="utf-8")
     _write_sitemap(days)
+
+    static_dir = _ROOT / "static"
+    if static_dir.exists():
+        for f in static_dir.iterdir():
+            if f.is_file():
+                shutil.copy(f, _OUTPUT_DIR / f.name)
 
     print(f"  output/ を生成しました（{len(days)}日分）")

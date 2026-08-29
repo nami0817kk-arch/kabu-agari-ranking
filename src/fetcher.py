@@ -1,9 +1,14 @@
 """
-当日の値上がり率ランキングを kabutan.jp から取得する。
+当日の株価ランキングを kabutan.jp から取得する。
 
 PJT003-quality-gainer-tracker の src/data/ranking_fetcher.py の
 _fetch_kabutan() 系ロジックを、当日取得のみに絞って移植したもの。
 kabudragon（過去日backfill用）は v1 では不要なため含めない。
+
+kabutan.jp/warning/ の一覧から確認した各ランキングのmode:
+  2_1: 今日の上昇率（値上がり率ランキング）
+  2_2: 今日の下落率（値下がり率ランキング）
+  2_9: 本日の活況銘柄（約定回数ランキング。出来高そのものではない点に注意）
 """
 import re
 import time
@@ -22,12 +27,16 @@ _HEADERS = {
     "Accept-Language": "ja,en;q=0.9",
 }
 
-_KABUTAN_URL = "https://kabutan.jp/warning/?mode=2_1&market={market}"
+_KABUTAN_URL = "https://kabutan.jp/warning/?mode={mode}&market={market}"
 _KABUTAN_MARKETS = [1, 2, 3]  # プライム, スタンダード, グロース
 
+_MODE_GAINERS = "2_1"
+_MODE_LOSERS = "2_2"
+_MODE_ACTIVE = "2_9"
 
-def _fetch_market_html(market: int, retries: int = 3) -> str | None:
-    url = _KABUTAN_URL.format(market=market)
+
+def _fetch_market_html(mode: str, market: int, retries: int = 3) -> str | None:
+    url = _KABUTAN_URL.format(mode=mode, market=market)
     for attempt in range(retries):
         try:
             resp = requests.get(url, headers=_HEADERS, timeout=30)
@@ -37,16 +46,17 @@ def _fetch_market_html(market: int, retries: int = 3) -> str | None:
             if attempt < retries - 1:
                 time.sleep(3 * (attempt + 1))
             else:
-                print(f"  [WARN] kabutan market={market} 取得失敗: {e}")
+                print(f"  [WARN] kabutan mode={mode} market={market} 取得失敗: {e}")
     return None
 
 
 def _parse_market_html(html: str) -> pd.DataFrame:
     """
-    kabutan の stock_table を解析する。
-    市場により列数が異なる:
-      13列 (プライム): code[0] name[1] market[2] _ _ close[5] _ 前日比[7] gain%[8] vol[9]
-      12列 (スタンダード/グロース): code[0] market[1] _ _ close[4] _ 前日比[6] gain%[7] vol[8]
+    kabutan の stock_table を解析する。列の意味はランキング種別で共通:
+      13列 (プライム): code[0] name[1] market[2] _ _ close[5] _ 前日比[7] change%[8] metric[9]
+      12列 (スタンダード/グロース): code[0] market[1] _ _ close[4] _ 前日比[6] change%[7] metric[8]
+
+    metric 列は値上がり/値下がりランキングでは出来高、活況ランキングでは約定回数。
     """
     soup = BeautifulSoup(html, "lxml")
     tbl = soup.find("table", class_="stock_table")
@@ -69,25 +79,23 @@ def _parse_market_html(html: str) -> pd.DataFrame:
             if n >= 13:
                 name = texts[1]
                 close = texts[5].replace(",", "")
-                gain_s = texts[8]
-                vol_s = texts[9].replace(",", "")
+                change_s = texts[8]
+                metric_s = texts[9].replace(",", "")
             else:
                 name = code
                 close = texts[4].replace(",", "")
-                gain_s = texts[7]
-                vol_s = texts[8].replace(",", "")
+                change_s = texts[7]
+                metric_s = texts[8].replace(",", "")
 
-            gain = float(re.sub(r"[^0-9.\-]", "", gain_s))
-            if gain <= 0:
-                continue
+            change_pct = float(re.sub(r"[^0-9.\-]", "", change_s))
 
             rows.append({
                 "ticker": code + ".T",
                 "code": code,
                 "name": name,
                 "close": float(close) if close.replace(".", "").isdigit() else None,
-                "gain_pct": gain,
-                "volume": int(vol_s) if vol_s.isdigit() else None,
+                "change_pct": change_pct,
+                "metric_value": int(metric_s) if metric_s.isdigit() else None,
             })
         except (IndexError, ValueError):
             continue
@@ -118,18 +126,12 @@ def _fill_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def fetch_gainers(top_n: int = 30) -> pd.DataFrame:
-    """
-    kabutan.jp の3市場（プライム/スタンダード/グロース）を集約し、
-    値上がり率上位 top_n 件を返す。
-
-    Returns:
-        DataFrame: ticker, code, name, close, gain_pct, volume, rec_date
-    """
-    print("  値上がりランキング取得中（kabutan.jp）...")
+def _fetch_ranking(mode: str, label: str, top_n: int) -> pd.DataFrame:
+    """3市場を集約した生データ（フィルタ・ソート前）を返す。"""
+    print(f"  {label}取得中（kabutan.jp）...")
     all_rows = []
     for market in _KABUTAN_MARKETS:
-        html = _fetch_market_html(market)
+        html = _fetch_market_html(mode, market)
         if html:
             df_m = _parse_market_html(html)
             if not df_m.empty:
@@ -139,15 +141,42 @@ def fetch_gainers(top_n: int = 30) -> pd.DataFrame:
     if not all_rows:
         return pd.DataFrame()
 
-    df = (
+    return (
         pd.concat(all_rows, ignore_index=True)
         .drop_duplicates("ticker")
-        .sort_values("gain_pct", ascending=False)
-        .head(top_n)
         .reset_index(drop=True)
     )
 
-    df = _fill_names(df)
+
+def _finalize(df: pd.DataFrame, top_n: int) -> pd.DataFrame:
+    df = _fill_names(df.head(top_n).reset_index(drop=True))
     df["rec_date"] = str(date.today())
     df.insert(0, "rank", range(1, len(df) + 1))
     return df
+
+
+def fetch_gainers(top_n: int = 30) -> pd.DataFrame:
+    """値上がり率上位 top_n 件。columns: rank,ticker,code,name,close,change_pct,metric_value(出来高),rec_date"""
+    df = _fetch_ranking(_MODE_GAINERS, "値上がりランキング", top_n)
+    if df.empty:
+        return df
+    df = df[df["change_pct"] > 0].sort_values("change_pct", ascending=False)
+    return _finalize(df, top_n)
+
+
+def fetch_losers(top_n: int = 30) -> pd.DataFrame:
+    """値下がり率上位 top_n 件（下落率が大きい順）。columns同上（change_pctは負値）。"""
+    df = _fetch_ranking(_MODE_LOSERS, "値下がりランキング", top_n)
+    if df.empty:
+        return df
+    df = df[df["change_pct"] < 0].sort_values("change_pct", ascending=True)
+    return _finalize(df, top_n)
+
+
+def fetch_active(top_n: int = 30) -> pd.DataFrame:
+    """約定回数（取引の活発さ）上位 top_n 件。metric_valueは約定回数。"""
+    df = _fetch_ranking(_MODE_ACTIVE, "活況銘柄ランキング", top_n)
+    if df.empty:
+        return df
+    df = df.sort_values("metric_value", ascending=False)
+    return _finalize(df, top_n)

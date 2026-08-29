@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}実績：値上がり銘柄のその後｜値上がり株ランキング{% endblock %}
+{% block description %}値上がりランキング上位銘柄が、その後14営業日でどう値動きしたかの追跡実績。{% endblock %}
+{% block content %}
+<h1>実績：値上がり銘柄のその後</h1>
+<p>
+  値上がりランキング上位銘柄を毎日記録し、その後14営業日（約3週間）の値動きを追跡しています。
+  「急騰した株はその後どうなるのか」の参考データです。
+</p>
+
+{% if stats.completed_count > 0 %}
+<h2>追跡サマリー</h2>
+<p>
+  追跡完了: {{ stats.completed_count }}件／追跡中: {{ stats.partial_count }}件<br>
+  2週間後プラス比率: {{ "%.0f"|format(stats.win_rate) }}%<br>
+  平均リターン: 1週間後 {{ "%+.1f"|format(stats.avg_1w) if stats.avg_1w is not none else "-" }}%
+  ／2週間後 {{ "%+.1f"|format(stats.avg_2w) }}%
+</p>
+
+{% if stats.top5 %}
+<h2>2週間後リターン上位5件</h2>
+<div class="table-wrap">
+<table class="ranking">
+  <thead><tr><th>記録日</th><th>銘柄名</th><th>記録時終値</th><th>2週間後</th><th>騰落率</th></tr></thead>
+  <tbody>
+    {% for e in stats.top5 %}
+    <tr>
+      <td>{{ e.rec_date }}</td>
+      <td>{{ e.name }}</td>
+      <td>{{ "{:,.0f}".format(e.rec_close) }}</td>
+      <td>{{ "{:,.0f}".format(e.prices.d14) }}</td>
+      <td class="{{ 'gain' if e.ret_2w >= 0 else 'loss' }}">{{ "%+.1f"|format(e.ret_2w) }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% else %}
+<p>まだ追跡完了したデータがありません。記録から14営業日経過すると結果が確定します。</p>
+{% endif %}
+
+{% include "_ad_slot.html" %}
+
+<h2>追跡中・完了済み一覧（新しい順・最大100件）</h2>
+<div class="table-wrap">
+<table class="ranking">
+  <thead><tr><th>記録日</th><th>銘柄名</th><th>記録時終値</th><th>1週間後</th><th>2週間後</th><th>状態</th></tr></thead>
+  <tbody>
+    {% for e in entries[:100] %}
+    <tr>
+      <td>{{ e.rec_date }}</td>
+      <td>{{ e.name }}</td>
+      <td>{{ "{:,.0f}".format(e.rec_close) if e.rec_close is not none else "-" }}</td>
+      <td>{{ "{:,.0f}".format(e.prices.d05) if e.prices.d05 is not none else "-" }}</td>
+      <td>{{ "{:,.0f}".format(e.prices.d14) if e.prices.d14 is not none else "-" }}</td>
+      <td>{{ "追跡完了" if e.prices.d14 is not none else "追跡中" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
