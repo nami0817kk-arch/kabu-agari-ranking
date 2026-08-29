@@ -29,6 +29,7 @@ _HEADERS = {
 
 _KABUTAN_URL = "https://kabutan.jp/warning/?mode={mode}&market={market}"
 _KABUTAN_MARKETS = [1, 2, 3]  # プライム, スタンダード, グロース
+_ASOF_DATE_RE = re.compile(r'<time datetime="(\d{4}-\d{2}-\d{2})">終値</time>')
 
 _MODE_GAINERS = "2_1"
 _MODE_LOSERS = "2_2"
@@ -103,6 +104,18 @@ def _parse_market_html(html: str) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
+def _extract_asof_date(html: str) -> str | None:
+    """
+    ページ内の「終値」日付表示（<time datetime="YYYY-MM-DD">終値</time>）から
+    このランキングが実際にどの営業日の終値に基づくかを取得する。
+
+    kabutan.jpは休場日にアクセスしても直近営業日のデータをそのまま表示するため、
+    取得日（date.today()）をそのままラベルにすると休日実行時に日付がずれる。
+    """
+    m = _ASOF_DATE_RE.search(html)
+    return m.group(1) if m else None
+
+
 def _fetch_name(code: str) -> str:
     """kabutan の個別ページから日本語銘柄名を取得する。"""
     try:
@@ -126,57 +139,61 @@ def _fill_names(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def _fetch_ranking(mode: str, label: str, top_n: int) -> pd.DataFrame:
-    """3市場を集約した生データ（フィルタ・ソート前）を返す。"""
+def _fetch_ranking(mode: str, label: str, top_n: int) -> tuple[pd.DataFrame, str | None]:
+    """3市場を集約した生データ（フィルタ・ソート前）と、実際の終値基準日を返す。"""
     print(f"  {label}取得中（kabutan.jp）...")
     all_rows = []
+    asof_date = None
     for market in _KABUTAN_MARKETS:
         html = _fetch_market_html(mode, market)
         if html:
+            if asof_date is None:
+                asof_date = _extract_asof_date(html)
             df_m = _parse_market_html(html)
             if not df_m.empty:
                 all_rows.append(df_m)
         time.sleep(1)
 
     if not all_rows:
-        return pd.DataFrame()
+        return pd.DataFrame(), asof_date
 
-    return (
+    df = (
         pd.concat(all_rows, ignore_index=True)
         .drop_duplicates("ticker")
         .reset_index(drop=True)
     )
+    return df, asof_date
 
 
-def _finalize(df: pd.DataFrame, top_n: int) -> pd.DataFrame:
-    df = _fill_names(df.head(top_n).reset_index(drop=True))
-    df["rec_date"] = str(date.today())
+def _finalize(df: pd.DataFrame, rec_date: str | None) -> pd.DataFrame:
+    df = _fill_names(df.reset_index(drop=True))
+    df["rec_date"] = rec_date or str(date.today())
     df.insert(0, "rank", range(1, len(df) + 1))
     return df
 
 
 def fetch_gainers(top_n: int = 30) -> pd.DataFrame:
     """値上がり率上位 top_n 件。columns: rank,ticker,code,name,close,change_pct,metric_value(出来高),rec_date"""
-    df = _fetch_ranking(_MODE_GAINERS, "値上がりランキング", top_n)
+    df, asof_date = _fetch_ranking(_MODE_GAINERS, "値上がりランキング", top_n)
     if df.empty:
         return df
-    df = df[df["change_pct"] > 0].sort_values("change_pct", ascending=False)
-    return _finalize(df, top_n)
+    df = df[df["change_pct"] > 0].sort_values("change_pct", ascending=False).head(top_n)
+    return _finalize(df, asof_date)
 
 
 def fetch_losers(top_n: int = 30) -> pd.DataFrame:
     """値下がり率上位 top_n 件（下落率が大きい順）。columns同上（change_pctは負値）。"""
-    df = _fetch_ranking(_MODE_LOSERS, "値下がりランキング", top_n)
+    df, asof_date = _fetch_ranking(_MODE_LOSERS, "値下がりランキング", top_n)
     if df.empty:
         return df
-    df = df[df["change_pct"] < 0].sort_values("change_pct", ascending=True)
-    return _finalize(df, top_n)
+    df = df[df["change_pct"] < 0].sort_values("change_pct", ascending=True).head(top_n)
+    return _finalize(df, asof_date)
 
 
 def fetch_active(top_n: int = 30) -> pd.DataFrame:
     """約定回数（取引の活発さ）上位 top_n 件。metric_valueは約定回数。"""
-    df = _fetch_ranking(_MODE_ACTIVE, "活況銘柄ランキング", top_n)
+    df, asof_date = _fetch_ranking(_MODE_ACTIVE, "活況銘柄ランキング", top_n)
     if df.empty:
         return df
-    df = df.sort_values("metric_value", ascending=False)
-    return _finalize(df, top_n)
+    df = df.sort_values("metric_value", ascending=False).head(top_n)
+    return _finalize(df, asof_date)

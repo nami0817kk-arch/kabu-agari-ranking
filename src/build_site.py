@@ -3,8 +3,7 @@
 
 1. 当日の値上がり/値下がり/活況ランキングを取得
 2. data/YYYY-MM-DD.json ＋ data/latest.json に保存
-3. 値上がり上位銘柄の「その後の値動き」追跡データを更新
-4. output/ に静的HTMLを生成
+3. output/ に静的HTMLを生成
 
 市場休場日等でランキングが0件の場合は、既存データを壊さないよう
 何もせずに正常終了する（呼び出し元のCIはこの場合コミット・デプロイをスキップする）。
@@ -16,7 +15,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from fetcher import fetch_gainers, fetch_losers, fetch_active
-import tracking
 import render
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -60,10 +58,6 @@ def main() -> None:
     if rec_date is None and not any(_DATA_DIR.glob("????-??-??.json")):
         print("  data/ に既存データも無いため、サイトのビルドを中止します。")
         return
-
-    if rec_date is not None:
-        tracking.add_new_picks(gainers)
-    tracking.update_prices()
 
     render.build_all()
 

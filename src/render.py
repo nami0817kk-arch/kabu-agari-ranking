@@ -1,12 +1,9 @@
 """data/*.json を読み込み、Jinja2 テンプレートから output/ に静的HTMLを生成する。"""
 import json
 import shutil
-import statistics
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
-
-import tracking
 
 _ROOT = Path(__file__).resolve().parent.parent
 _TEMPLATES_DIR = _ROOT / "templates"
@@ -114,46 +111,6 @@ def _build_ranking_pages(days: list[dict]) -> None:
         )
 
 
-def _compute_tracking_stats(entries: list[dict]) -> dict:
-    completed = []
-    for e in entries:
-        d14 = e["prices"].get("d14")
-        if d14 is None or e["rec_close"] is None:
-            continue
-        ret_2w = (d14 - e["rec_close"]) / e["rec_close"] * 100
-        d05 = e["prices"].get("d05")
-        ret_1w = (d05 - e["rec_close"]) / e["rec_close"] * 100 if d05 is not None else None
-        completed.append({**e, "ret_1w": ret_1w, "ret_2w": ret_2w})
-
-    partial_count = len(entries) - len(completed)
-
-    stats = {
-        "total": len(entries),
-        "completed_count": len(completed),
-        "partial_count": partial_count,
-        "win_rate": None,
-        "avg_1w": None,
-        "avg_2w": None,
-        "top5": [],
-    }
-    if completed:
-        wins = sum(1 for c in completed if c["ret_2w"] > 0)
-        stats["win_rate"] = wins / len(completed) * 100
-        stats["avg_2w"] = statistics.mean(c["ret_2w"] for c in completed)
-        one_week_vals = [c["ret_1w"] for c in completed if c["ret_1w"] is not None]
-        if one_week_vals:
-            stats["avg_1w"] = statistics.mean(one_week_vals)
-        stats["top5"] = sorted(completed, key=lambda c: c["ret_2w"], reverse=True)[:5]
-    return stats
-
-
-def _build_tracking_page() -> None:
-    entries = tracking.load_report_data()
-    stats = _compute_tracking_stats(entries)
-    tmpl = _env.get_template("tracking.html")
-    _write(_OUTPUT_DIR / "tracking.html", tmpl.render(base_url="", entries=entries, stats=stats))
-
-
 _ROBOTS_TXT = f"""User-agent: *
 Allow: /
 
@@ -171,7 +128,6 @@ def _write_sitemap(days: list[dict]) -> None:
         (f"{SITE_URL}/index.html", latest_date),
         (f"{SITE_URL}/losers.html", latest_date),
         (f"{SITE_URL}/active.html", latest_date),
-        (f"{SITE_URL}/tracking.html", latest_date),
         (f"{SITE_URL}/about.html", latest_date),
         (f"{SITE_URL}/privacy.html", latest_date),
     ]
@@ -194,7 +150,7 @@ def _write_sitemap(days: list[dict]) -> None:
 
 
 def build_all() -> None:
-    """output/ を作り直し、各種ランキングページ・実績ページ・固定ページを全て生成する。"""
+    """output/ を作り直し、各種ランキングページ・固定ページを全て生成する。"""
     if _OUTPUT_DIR.exists():
         shutil.rmtree(_OUTPUT_DIR)
     _OUTPUT_DIR.mkdir(parents=True)
@@ -204,7 +160,6 @@ def build_all() -> None:
         raise RuntimeError("data/ にランキングJSONが1件もありません。先に build_site.py でデータを取得してください。")
 
     _build_ranking_pages(days)
-    _build_tracking_page()
 
     for name in ("about.html", "privacy.html"):
         tmpl = _env.get_template(name)
