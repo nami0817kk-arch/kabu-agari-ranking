@@ -39,6 +39,14 @@ jobs:
             git push
           fi
 
+      - name: Ensure Cloudflare Pages project exists
+        run: |
+          curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${{ secrets.CLOUDFLARE_ACCOUNT_ID }}/pages/projects" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"name":"kabu-agari-ranking","production_branch":"master"}'
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
         with:
