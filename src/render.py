@@ -159,6 +159,11 @@ def build_all() -> None:
     if not days:
         raise RuntimeError("data/ にランキングJSONが1件もありません。先に build_site.py でデータを取得してください。")
 
+    gainers_dates = [d["rec_date"] for d in days if d.get("gainers")]
+    _env.globals["GAINERS_DATES_JSON"] = json.dumps(gainers_dates)
+    _env.globals["GAINERS_DATES_MIN"] = gainers_dates[-1] if gainers_dates else ""
+    _env.globals["GAINERS_DATES_MAX"] = gainers_dates[0] if gainers_dates else ""
+
     _build_ranking_pages(days)
 
     for name in ("about.html", "privacy.html"):

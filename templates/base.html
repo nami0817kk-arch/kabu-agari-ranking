@@ -116,6 +116,21 @@
     text-align: center;
   }
   footer a { color: var(--muted); margin: 0 0.5rem; }
+  .date-jump {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .date-jump input[type="date"] {
+    font-size: 0.85rem;
+    padding: 0.15rem 0.3rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--card-bg);
+    color: var(--text);
+  }
   dl { margin: 0 0 1rem; }
   dt { margin-top: 0.75rem; }
   dd { margin: 0.25rem 0 0; color: var(--muted); }
@@ -132,6 +147,10 @@
       <a href="{{ base_url }}active.html">活況</a>
       <a href="{{ base_url }}about.html">このサイトについて</a>
     </nav>
+    <div class="date-jump">
+      <label for="dateJump">📅 日付から探す</label>
+      <input type="date" id="dateJump" min="{{ GAINERS_DATES_MIN }}" max="{{ GAINERS_DATES_MAX }}">
+    </div>
   </div>
 </header>
 
@@ -155,5 +174,25 @@
   <a href="{{ base_url }}about.html">このサイトについて</a>
   <a href="{{ base_url }}privacy.html">プライバシーポリシー</a>
 </footer>
+<script>
+(function () {
+  var dates = {{ GAINERS_DATES_JSON|safe }};
+  var input = document.getElementById('dateJump');
+  if (!input || !dates.length) return;
+  input.addEventListener('change', function () {
+    var picked = input.value;
+    if (!picked) return;
+    var target = null;
+    for (var i = 0; i < dates.length; i++) {
+      if (dates[i] <= picked) { target = dates[i]; break; }
+    }
+    if (!target) target = dates[dates.length - 1];
+    var base = "{{ base_url }}";
+    window.location.href = (target === dates[0])
+      ? base + "index.html"
+      : base + "archive/gainers/" + target + ".html";
+  });
+})();
+</script>
 </body>
 </html>
