@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  # 失敗を Issue で知らせるために必要
+  issues: write
 
 jobs:
   build:
@@ -22,7 +24,12 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pytest
+
+      # 壊れたパーサのまま取得・デプロイまで進むと、空のランキングで
+      # サイトを上書きしてしまう。その前に落とす。
+      - name: Run tests
+        run: pytest
 
       - name: Build site
         run: python src/build_site.py
@@ -62,3 +69,18 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: kabu-agari-ranking
           directory: output
+
+      # スケジュール実行は、失敗しても手元で気づく機会がない。
+      # 取得が止まっていることに何日も後で気づく、という壊れ方を防ぐため、
+      # 落ちたら必ず Issue を立てる。
+      - name: Report failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -sS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/issues" \
+            -d "$(printf '{"title":"[daily] ランキングの自動更新が失敗しました (%s)","body":"平日毎日の取得・デプロイジョブが失敗しました。サイトの内容が更新されていない可能性があります。\\n\\n実行ログ: %s"}' "${{ github.run_id }}" "$RUN_URL")"
