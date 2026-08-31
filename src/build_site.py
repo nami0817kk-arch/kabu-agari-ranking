@@ -14,6 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import fetcher
 from fetcher import fetch_gainers, fetch_losers, fetch_active
 import render
 
@@ -54,6 +55,12 @@ def main() -> None:
     active = fetch_active(top_n=30)
 
     rec_date = _save_today(gainers, losers, active)
+
+    # 0件の理由が「休場日」ではなく「取得先との通信失敗」なら、正常終了させない。
+    # ここを黙って通すと、CIは緑のままサイトの更新だけが止まる。
+    if rec_date is None and fetcher.fetch_errors:
+        print(f"  [ERROR] 取得失敗が {len(fetcher.fetch_errors)} 件あり、当日データを保存できませんでした。")
+        sys.exit(1)
 
     if rec_date is None and not any(_DATA_DIR.glob("????-??-??.json")):
         print("  data/ に既存データも無いため、サイトのビルドを中止します。")

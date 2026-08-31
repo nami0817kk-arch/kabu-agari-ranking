@@ -35,6 +35,11 @@ _MODE_GAINERS = "2_1"
 _MODE_LOSERS = "2_2"
 _MODE_ACTIVE = "2_9"
 
+# 取得時に発生した通信エラーの記録。
+# 「休場日で0件」と「取得先に拒否されて0件」を呼び出し元が区別するために使う。
+# 後者を休場日扱いで握りつぶすと、CIが緑のままサイトの更新が止まる。
+fetch_errors: list[str] = []
+
 
 def _fetch_market_html(mode: str, market: int, retries: int = 3) -> str | None:
     url = _KABUTAN_URL.format(mode=mode, market=market)
@@ -48,6 +53,7 @@ def _fetch_market_html(mode: str, market: int, retries: int = 3) -> str | None:
                 time.sleep(3 * (attempt + 1))
             else:
                 print(f"  [WARN] kabutan mode={mode} market={market} 取得失敗: {e}")
+                fetch_errors.append(f"mode={mode} market={market}: {e}")
     return None
 
 
