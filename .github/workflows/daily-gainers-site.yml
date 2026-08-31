@@ -8,11 +8,15 @@ on:
 
 permissions:
   contents: write
+  # 失敗を Issue で知らせるために必要
   issues: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 取得先が応答しないまま既定の6時間走り続けるのを防ぐ。
+    # 通常は数分で終わる。超えたら失敗として通知が飛ぶ。
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +27,12 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pytest
+
+      # 壊れたパーサのまま取得・デプロイまで進むと、空のランキングで
+      # サイトを上書きしてしまう。その前に落とす。
+      - name: Run tests
+        run: pytest
 
       - name: Build site
         run: python src/build_site.py

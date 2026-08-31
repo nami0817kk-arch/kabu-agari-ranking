@@ -34,9 +34,25 @@ output/          ビルド成果物（gitignore対象、CI実行のたびに再�
 ```powershell
 python -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-python src/build_site.py
+pip install -r requirements.txt pytest
+pytest                      # テスト（ネットワーク不要）
+python src/build_site.py    # 取得 → data/ 保存 → output/ 生成
 ```
+
+## テスト
+
+`tests/` に、ネットワークに出ずに動くテストを置いている。
+
+- `test_fetcher.py` kabutan の HTML 解析と、ランキングの絞り込み・並び替え
+- `test_render.py` 過去データの読み込み（旧形式の変換を含む）とページ生成
+
+取得先の HTML 構造が変わると、例外ではなく「空のランキング」という形で壊れる。
+そこを検知するためのものなので、`src/fetcher.py` を触ったらテストも合わせて更新する。
+
+## 秘密情報
+
+X API と Cloudflare の認証情報は `.env`（gitignore 済み）か GitHub Secrets に置く。
+必要なキー名は `.env.example` を参照。
 
 `output/index.html` をブラウザで開いて確認する。
 

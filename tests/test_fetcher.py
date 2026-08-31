@@ -1,87 +1,142 @@
-"""
-_parse_market_html のテスト。
+"""kabutan の HTML 解析まわりのテスト。
 
-kabutan.jp の HTML 構造が変わると、例外を投げずに「0件」や
-「間違った列を読んだ値」を静かに返すのがこの関数の壊れ方なので、
-列の並びを固定しておく。ネットワークには出ない。
+ここが壊れると、サイトは「エラーも出さずにランキングが空になる」という
+一番気づきにくい壊れ方をする。取得先の HTML 構造は先方の都合で変わるので、
+想定している形を固定しておく。
 """
-import sys
-from pathlib import Path
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from fetcher import _parse_market_html  # noqa: E402
-
-
-def _table(rows_html: str) -> str:
-    return f'<table class="stock_table"><tbody>{rows_html}</tbody></table>'
+from fetcher import (
+    _extract_asof_date,
+    _parse_market_html,
+    fetch_active,
+    fetch_gainers,
+    fetch_losers,
+)
 
 
 def _row(cells: list[str]) -> str:
     return "<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>"
 
 
-# プライム: 13列 code[0] name[1] market[2] _ _ close[5] _ 前日比[7] change%[8] metric[9]
-PRIME_ROW = [
-    "7203", "トヨタ自動車", "東P", "15:30", "2,700",
-    "2,850", "+150", "+150", "+5.56%", "1,234,500", "-", "-", "-",
-]
-
-# スタンダード/グロース: 12列 code[0] market[1] _ _ close[4] _ 前日比[6] change%[7] metric[8]
-STANDARD_ROW = [
-    "3969", "東S", "15:30", "1,000",
-    "1,100", "+100", "+100", "+10.00%", "45,600", "-", "-", "-",
-]
+# プライム市場: 13列。code[0] name[1] market[2] _ _ close[5] _ 前日比[7] change%[8] metric[9]
+def _prime_row(code, name, close, change, metric):
+    return _row([code, name, "プライム", "-", "-", close, "-", "+10", change, metric, "-", "-", "-"])
 
 
-def test_プライムの行を列の意味どおりに読む():
-    df = _parse_market_html(_table(_row(PRIME_ROW)))
-
-    assert len(df) == 1
-    got = df.iloc[0]
-    assert got["ticker"] == "7203.T"
-    assert got["code"] == "7203"
-    assert got["name"] == "トヨタ自動車"
-    assert got["close"] == 2850.0
-    assert got["change_pct"] == pytest.approx(5.56)
-    assert got["metric_value"] == 1234500
+# スタンダード/グロース: 12列。code[0] market[1] _ _ close[4] _ 前日比[6] change%[7] metric[8]
+def _standard_row(code, close, change, metric):
+    return _row([code, "スタンダード", "-", "-", close, "-", "+5", change, metric, "-", "-", "-"])
 
 
-def test_12列の市場では銘柄名がコードのままになる():
-    # 名前の列が無いので、_fill_names が後から個別ページで埋める前提。
-    df = _parse_market_html(_table(_row(STANDARD_ROW)))
+def _table(rows: list[str], asof: str | None = "2026-08-28") -> str:
+    time_tag = f'<time datetime="{asof}">終値</time>' if asof else ""
+    return f'<html>{time_tag}<table class="stock_table">{"".join(rows)}</table></html>'
+
+
+def test_parses_prime_market_rows():
+    df = _parse_market_html(_table([_prime_row("7203", "トヨタ自動車", "2,500", "+12.5%", "1,234,000")]))
 
     assert len(df) == 1
-    got = df.iloc[0]
-    assert got["code"] == "3969"
-    assert got["name"] == "3969"
-    assert got["close"] == 1100.0
-    assert got["change_pct"] == pytest.approx(10.0)
+    row = df.iloc[0]
+    assert row["code"] == "7203"
+    assert row["ticker"] == "7203.T"
+    assert row["name"] == "トヨタ自動車"
+    assert row["close"] == 2500.0
+    assert row["change_pct"] == 12.5
+    assert row["metric_value"] == 1234000
 
 
-def test_値下がり行の変化率は負値になる():
-    row = list(PRIME_ROW)
-    row[8] = "-4.20%"
-    df = _parse_market_html(_table(_row(row)))
+def test_parses_standard_market_rows_without_a_name_column():
+    df = _parse_market_html(_table([_standard_row("3990", "1,200", "+8.0%", "45,000")]))
 
-    assert df.iloc[0]["change_pct"] == pytest.approx(-4.20)
-
-
-def test_stock_tableが無ければ空のDataFrameを返す():
-    # kabutan 側の改修・メンテ画面・エラーページで起きうる。例外にはしない。
-    df = _parse_market_html("<html><body><p>ただいまメンテナンス中です</p></body></html>")
-
-    assert isinstance(df, pd.DataFrame)
-    assert df.empty
+    row = df.iloc[0]
+    # 12列版には銘柄名が無いので、いったんコードで埋めて後段で補完する
+    assert row["name"] == "3990"
+    assert row["change_pct"] == 8.0
+    assert row["metric_value"] == 45000
 
 
-def test_銘柄コードでない行は読み飛ばす():
-    # ヘッダ行や広告行が混ざっても、正しい行だけ残る。
-    header = _row(["コード", "銘柄名", "市場", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"])
-    df = _parse_market_html(_table(header + _row(PRIME_ROW)))
+def test_parses_negative_change_percentages():
+    df = _parse_market_html(_table([_prime_row("9984", "ソフトバンクG", "8,000", "-15.3%", "900,000")]))
+    assert df.iloc[0]["change_pct"] == -15.3
 
-    assert len(df) == 1
-    assert df.iloc[0]["code"] == "7203"
+
+def test_skips_header_and_malformed_rows():
+    rows = [
+        _row(["コード", "銘柄名"]),                       # 列数が足りないヘッダ
+        _row(["ABCD", "変な行", "-", "-", "-", "1", "-", "-", "+1%", "1", "-", "-", "-"]),  # コードが4桁数字でない
+        _prime_row("7203", "トヨタ自動車", "2,500", "+12.5%", "1,000"),
+    ]
+    df = _parse_market_html(_table(rows))
+    assert list(df["code"]) == ["7203"]
+
+
+def test_missing_table_returns_empty_frame_instead_of_raising():
+    df = _parse_market_html("<html><body>メンテナンス中</body></html>")
+    assert isinstance(df, pd.DataFrame) and df.empty
+
+
+def test_extracts_the_closing_date_from_the_page():
+    """休場日に実行しても、取得日ではなく終値の営業日をラベルにする。"""
+    assert _extract_asof_date(_table([], asof="2026-08-28")) == "2026-08-28"
+    assert _extract_asof_date(_table([], asof=None)) is None
+
+
+# --- ランキングの絞り込み・並び替え --------------------------------------
+
+@pytest.fixture
+def offline(monkeypatch):
+    """ネットワークに出ずに fetch_* を動かせるようにする。"""
+    import fetcher
+
+    monkeypatch.setattr(fetcher.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(fetcher, "_fetch_name", lambda code: f"銘柄{code}")
+
+    def _serve(html: str):
+        # 3市場ぶん呼ばれるが、重複は ticker で落ちるので同じ HTML を返してよい
+        monkeypatch.setattr(fetcher, "_fetch_market_html", lambda mode, market, retries=3: html)
+
+    return _serve
+
+
+def test_gainers_keep_only_rises_sorted_high_to_low(offline):
+    offline(_table([
+        _prime_row("1111", "A", "100", "+3.0%", "10"),
+        _prime_row("2222", "B", "100", "+9.0%", "10"),
+        _prime_row("3333", "C", "100", "-4.0%", "10"),
+    ]))
+    df = fetch_gainers(top_n=10)
+
+    assert list(df["code"]) == ["2222", "1111"]      # 下落銘柄は除外される
+    assert list(df["rank"]) == [1, 2]
+    assert df["rec_date"].iloc[0] == "2026-08-28"    # 終値日付が使われる
+
+
+def test_gainers_respect_top_n(offline):
+    offline(_table([_prime_row(f"{1000+i}", f"A{i}", "100", f"+{i}.0%", "10") for i in range(1, 6)]))
+    assert len(fetch_gainers(top_n=2)) == 2
+
+
+def test_losers_keep_only_falls_sorted_by_severity(offline):
+    offline(_table([
+        _prime_row("1111", "A", "100", "-3.0%", "10"),
+        _prime_row("2222", "B", "100", "-9.0%", "10"),
+        _prime_row("3333", "C", "100", "+4.0%", "10"),
+    ]))
+    assert list(fetch_losers(top_n=10)["code"]) == ["2222", "1111"]
+
+
+def test_active_ranks_by_trade_count_not_by_change(offline):
+    offline(_table([
+        _prime_row("1111", "A", "100", "+30.0%", "10"),
+        _prime_row("2222", "B", "100", "+1.0%", "9,999"),
+    ]))
+    assert list(fetch_active(top_n=10)["code"]) == ["2222", "1111"]
+
+
+def test_empty_source_yields_an_empty_frame_not_an_exception(offline):
+    offline(_table([]))
+    assert fetch_gainers(top_n=10).empty
