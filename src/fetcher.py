@@ -1,142 +1,35 @@
 """
 当日の株価ランキングを kabutan.jp から取得する。
 
-PJT003-quality-gainer-tracker の src/data/ranking_fetcher.py の
-_fetch_kabutan() 系ロジックを、当日取得のみに絞って移植したもの。
-kabudragon（過去日backfill用）は v1 では不要なため含めない。
+HTML の取得・解析は ai-lab の共有パッケージ `kabutan` に一本化してある
+（quality-gainer-tracker と共通）。kabutan.jp の構造が変わったときに
+直すのは ai-lab 側で、このファイルはランキングの組み立てだけを持つ。
 
-kabutan.jp/warning/ の一覧から確認した各ランキングのmode:
+kabutan.jp/warning/ の各ランキングの mode:
   2_1: 今日の上昇率（値上がり率ランキング）
   2_2: 今日の下落率（値下がり率ランキング）
   2_9: 本日の活況銘柄（約定回数ランキング。出来高そのものではない点に注意）
 """
-import re
 import time
 from datetime import date
 
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
-
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "ja,en;q=0.9",
-}
-
-_KABUTAN_URL = "https://kabutan.jp/warning/?mode={mode}&market={market}"
-_KABUTAN_MARKETS = [1, 2, 3]  # プライム, スタンダード, グロース
-_ASOF_DATE_RE = re.compile(r'<time datetime="(\d{4}-\d{2}-\d{2})">終値</time>')
-
-_MODE_GAINERS = "2_1"
-_MODE_LOSERS = "2_2"
-_MODE_ACTIVE = "2_9"
-
-# 取得時に発生した通信エラーの記録。
-# 「休場日で0件」と「取得先に拒否されて0件」を呼び出し元が区別するために使う。
-# 後者を休場日扱いで握りつぶすと、CIが緑のままサイトの更新が止まる。
-fetch_errors: list[str] = []
+from kabutan import (
+    MARKETS as _KABUTAN_MARKETS,
+    MODE_ACTIVE as _MODE_ACTIVE,
+    MODE_GAINERS as _MODE_GAINERS,
+    MODE_LOSERS as _MODE_LOSERS,
+    fetch_errors,
+)
+from kabutan import extract_asof_date as _extract_asof_date
+from kabutan import fetch_ranking_html as _lib_fetch_ranking_html
+from kabutan import fetch_stock_name as _fetch_name
+from kabutan import parse_ranking_table as _parse_market_html
 
 
 def _fetch_market_html(mode: str, market: int, retries: int = 3) -> str | None:
-    url = _KABUTAN_URL.format(mode=mode, market=market)
-    for attempt in range(retries):
-        try:
-            resp = requests.get(url, headers=_HEADERS, timeout=30)
-            resp.raise_for_status()
-            return resp.text
-        except Exception as e:
-            if attempt < retries - 1:
-                time.sleep(3 * (attempt + 1))
-            else:
-                print(f"  [WARN] kabutan mode={mode} market={market} 取得失敗: {e}")
-                fetch_errors.append(f"mode={mode} market={market}: {e}")
-    return None
-
-
-def _parse_market_html(html: str) -> pd.DataFrame:
-    """
-    kabutan の stock_table を解析する。列の意味はランキング種別で共通:
-      13列 (プライム): code[0] name[1] market[2] _ _ close[5] _ 前日比[7] change%[8] metric[9]
-      12列 (スタンダード/グロース): code[0] market[1] _ _ close[4] _ 前日比[6] change%[7] metric[8]
-
-    metric 列は値上がり/値下がりランキングでは出来高、活況ランキングでは約定回数。
-    """
-    soup = BeautifulSoup(html, "lxml")
-    tbl = soup.find("table", class_="stock_table")
-    if tbl is None:
-        return pd.DataFrame()
-
-    rows = []
-    for tr in tbl.find_all("tr"):
-        tds = tr.find_all("td")
-        n = len(tds)
-        if n < 9:
-            continue
-        texts = [td.get_text(strip=True) for td in tds]
-
-        try:
-            code = texts[0]
-            if not re.match(r"^\d{4}$", code):
-                continue
-
-            if n >= 13:
-                name = texts[1]
-                close = texts[5].replace(",", "")
-                change_s = texts[8]
-                metric_s = texts[9].replace(",", "")
-            else:
-                name = code
-                close = texts[4].replace(",", "")
-                change_s = texts[7]
-                metric_s = texts[8].replace(",", "")
-
-            change_pct = float(re.sub(r"[^0-9.\-]", "", change_s))
-
-            rows.append({
-                "ticker": code + ".T",
-                "code": code,
-                "name": name,
-                "close": float(close) if close.replace(".", "").isdigit() else None,
-                "change_pct": change_pct,
-                "metric_value": int(metric_s) if metric_s.isdigit() else None,
-            })
-        except (IndexError, ValueError):
-            continue
-
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
-
-
-def _extract_asof_date(html: str) -> str | None:
-    """
-    ページ内の「終値」日付表示（<time datetime="YYYY-MM-DD">終値</time>）から
-    このランキングが実際にどの営業日の終値に基づくかを取得する。
-
-    kabutan.jpは休場日にアクセスしても直近営業日のデータをそのまま表示するため、
-    取得日（date.today()）をそのままラベルにすると休日実行時に日付がずれる。
-    """
-    m = _ASOF_DATE_RE.search(html)
-    return m.group(1) if m else None
-
-
-def _fetch_name(code: str) -> str:
-    """kabutan の個別ページから日本語銘柄名を取得する。"""
-    try:
-        url = f"https://kabutan.jp/stock/?code={code}"
-        resp = requests.get(url, headers=_HEADERS, timeout=10)
-        soup = BeautifulSoup(resp.text, "lxml")
-        h1 = soup.find("h1")
-        if h1:
-            return h1.get_text(strip=True).split("(")[0].strip()
-        print(f"  [WARN] {code}: 個別ページに銘柄名が見つかりませんでした")
-    except Exception as e:
-        # 名前が引けなくてもランキング自体は出せるのでコードで代替する。
-        # ただし黙って通すと、名前がコードのまま並んでいる原因が追えなくなる。
-        print(f"  [WARN] {code}: 銘柄名の取得に失敗しました: {e}")
-    return code
+    # テストが monkeypatch で差し替えるため、モジュール内の関数として残している
+    return _lib_fetch_ranking_html(mode, market, retries=retries)
 
 
 def _fill_names(df: pd.DataFrame) -> pd.DataFrame:

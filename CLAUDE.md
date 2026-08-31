@@ -25,10 +25,10 @@ python src/build_site.py    # 取得 → data/ 保存 → output/ 生成
 
 ## 手を入れるときに気をつけること
 
-- `fetcher._parse_market_html` は kabutan の列位置に依存している。
-  プライムは13列、スタンダード/グロースは12列で**列の意味がずれる**。
-  ここが壊れると例外ではなく「空のランキング」になり、気づきにくい。
-  変更したら `tests/test_fetcher.py` の固定HTMLも合わせて更新する。
+- kabutan の HTML 取得・解析は **ai-lab の共有パッケージ `kabutan`** にある
+  （quality-gainer-tracker と共通）。列位置の依存・解析の修正は ai-lab 側で行い、
+  こちらは requirements.txt のコミット固定を進めて取り込む。
+  `src/fetcher.py` に残っているのはランキングの組み立て（絞り込み・順位付け）だけ。
 - `_extract_asof_date` は休場日対策。取得日ではなくページ上の終値日付を使う。
   ここを `date.today()` に戻すと、休日実行で日付がずれる。
 - `render._normalize_day` は旧形式（`rows`/`gain_pct`/`volume`）の変換。
