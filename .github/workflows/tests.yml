@@ -1,5 +1,3 @@
-# 実体は ai-lab の共通ワークフロー（python-tests.yml）。
-# actions の更新や手順の変更は ai-lab 側1箇所で済む。
 name: tests
 
 on:
@@ -8,11 +6,24 @@ on:
   pull_request:
   workflow_dispatch: {}
 
+# 読むだけのジョブなので、トークンの権限は最小にする。
 permissions:
   contents: read
 
 jobs:
   pytest:
-    uses: nami0817kk-arch/ai-lab/.github/workflows/python-tests.yml@master
-    with:
-      install: "pip install -r requirements.txt pytest"
+    runs-on: ubuntu-latest
+    # ハングしたジョブが既定の6時間走り続けるのを防ぐ
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        run: pytest
