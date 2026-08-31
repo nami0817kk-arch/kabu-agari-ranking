@@ -1,9 +1,9 @@
 """
 当日の株価ランキングを kabutan.jp から取得する。
 
-HTML の取得・解析は ai-lab の共有パッケージ `kabutan` に一本化してある
+HTML の取得・解析は 共有パッケージ kabutan-client に一本化してある
 （quality-gainer-tracker と共通）。kabutan.jp の構造が変わったときに
-直すのは ai-lab 側で、このファイルはランキングの組み立てだけを持つ。
+直すのは kabutan-client 側で、このファイルはランキングの組み立てだけを持つ。
 
 kabutan.jp/warning/ の各ランキングの mode:
   2_1: 今日の上昇率（値上がり率ランキング）
