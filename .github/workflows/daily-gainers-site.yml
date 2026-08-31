@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -62,3 +63,20 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: kabu-agari-ranking
           directory: output
+
+      # GitHub は定期ジョブの失敗を通知しないので、Issue を立てて明示的に鳴らす。
+      # 既に開いている失敗 Issue があれば、増やさずコメントを足す。
+      - name: Notify on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh label create ci-failure --color B60205 --description "定期実行の失敗" --force || true
+          body="$(date -u '+%Y-%m-%d %H:%M UTC') の実行が失敗しました。 ログ: ${RUN_URL}"
+          existing=$(gh issue list --label ci-failure --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "日次ランキングの取得・公開が失敗しています" --label ci-failure --body "$body"
+          fi
