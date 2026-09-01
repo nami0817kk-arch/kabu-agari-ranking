@@ -18,3 +18,5 @@ Thumbs.db
 # 環境変数（APIキーなど）
 .env
 .pytest_cache/
+commit-msg.tmp
+run-daily.log
