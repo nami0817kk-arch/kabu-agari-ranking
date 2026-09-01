@@ -37,5 +37,8 @@ python src/build_site.py    # 取得 → data/ 保存 → output/ 生成
 - `output/` は毎回作り直すビルド成果物（gitignore 済み）。
 - 秘密情報は `.env`（gitignore 済み）か GitHub Secrets へ。
   必要なキーは `.env.example` にある。
+- **取得は手元PCのタスクスケジューラ**（run-daily.ps1、毎平日16:10）が行い、data/ を push する。
+  kabutan は GitHub Actions の IP を 405 でブロックするため、CI から取得する形に戻さない。
+  CI は push された data/ からのビルド・X投稿・公開と、17:00 JST の鮮度監視を担当する。
 - 定期実行のワークフローには失敗時に Issue を立てるステップがある。
   ジョブを触るときはこれを消さない。**黙って止まるのが最悪の壊れ方**。

@@ -50,6 +50,17 @@ def _save_today(gainers, losers, active) -> str | None:
 
 
 def main() -> None:
+    # --no-fetch: 取得せず data/ の既存データから output/ を作るだけ。
+    # kabutan が GitHub Actions の IP をブロックしているため、取得は手元の PC
+    # （タスクスケジューラ）が行い、CI はこのモードでビルド・公開だけを担当する。
+    if "--no-fetch" in sys.argv:
+        print("  --no-fetch: 取得をスキップし、既存データからビルドします。")
+        if not any(_DATA_DIR.glob("????-??-??.json")):
+            print("  [ERROR] data/ にデータがありません。")
+            sys.exit(1)
+        render.build_all()
+        return
+
     gainers = fetch_gainers(top_n=30)
     losers = fetch_losers(top_n=30)
     active = fetch_active(top_n=30)

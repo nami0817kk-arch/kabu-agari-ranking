@@ -1,9 +1,18 @@
 name: Daily Gainers Site
 
+# 運用: 取得は手元PC（run-daily.ps1、毎平日16:10）が行い data/ を push する。
+# kabutan が GitHub Actions の IP を 405 でブロックしているため、CI からは取得しない。
+# この CI は push された data/ からのビルド・X投稿・公開と、鮮度の監視だけを行う。
 on:
+  push:
+    branches: [master]
+    paths:
+      - "data/**"
+      - "src/**"
+      - ".github/workflows/daily-gainers-site.yml"
   schedule:
-    # 16:00 JST（東証大引け15:30後）= 07:00 UTC、平日のみ
-    - cron: "0 7 * * 1-5"
+    # 17:00 JST = 08:00 UTC、平日のみ。手元PCの取得が止まっていないかの監視役。
+    - cron: "0 8 * * 1-5"
   workflow_dispatch: {}
 
 permissions:
@@ -34,28 +43,33 @@ jobs:
       - name: Run tests
         run: pytest
 
-      - name: Build site
-        run: python src/build_site.py
+      - name: Build site (data/ から。取得はしない)
+        run: python src/build_site.py --no-fetch
+
+      # 手元PCの取得タスクが止まっていないかの監視。
+      # 最新データが4日より古ければ失敗し、下の Issue 通知が鳴る。
+      - name: Check data freshness
+        run: |
+          python - <<'PY'
+          import json, sys
+          from datetime import date, datetime
+          d = json.load(open("data/latest.json", encoding="utf-8"))
+          rec = datetime.strptime(d["rec_date"], "%Y-%m-%d").date()
+          age = (date.today() - rec).days
+          print(f"latest rec_date={rec} ({age}日前)")
+          if age > 4:
+              print("::error::ランキングデータが4日以上更新されていません。手元PCの取得タスク(run-daily.ps1)を確認してください。")
+              sys.exit(1)
+          PY
 
       - name: Post to X
+        if: github.event_name == 'push'
         env:
           X_API_KEY: ${{ secrets.X_API_KEY }}
           X_API_SECRET: ${{ secrets.X_API_SECRET }}
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
         run: python src/post_to_x.py
-
-      - name: Commit ranking data if changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data
-          if git diff --cached --quiet; then
-            echo "No new ranking data to commit."
-          else
-            git commit -m "chore: 値上がりランキングデータを更新"
-            git push
-          fi
 
       - name: Ensure Cloudflare Pages project exists
         run: |
